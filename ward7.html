@@ -1248,6 +1248,36 @@ function hasLOS(g, x0, z0, x1, z1){
   return true;
 }
 
+// 立っている人の目線を遮る什器の高さ。
+// 机 0.80 / ベッド 0.81 / ドラム缶 1.05 は越しに見えるのが自然なので通し、
+// ロッカー 2.05 だけを遮蔽物として扱う。
+var SIGHT_H = 1.5;
+
+// 什器による遮蔽（線分と円の最近接距離）。
+// hasLOS は壁しか見ないので、背の高い什器はここで別に判定する。
+function propBlocksSight(x0, z0, x1, z1){
+  var props = world.props;
+  if(!props || !props.length) return false;
+  var dx = x1-x0, dz = z1-z0;
+  var len2 = dx*dx + dz*dz;
+  if(len2 < 1e-6) return false;
+  for(var i=0;i<props.length;i++){
+    var op = props[i];
+    if(!(op.h > SIGHT_H)) continue;
+    var t = ((op.x-x0)*dx + (op.z-z0)*dz) / len2;
+    if(t < 0) t = 0; else if(t > 1) t = 1;
+    var cx = x0 + dx*t - op.x, cz = z0 + dz*t - op.z;
+    if(cx*cx + cz*cz < op.r*op.r) return true;
+  }
+  return false;
+}
+
+// 「見えるか」の判定。壁と背の高い什器の両方を見る。
+// 音の減衰や聴覚距離には使わない（ロッカーは壁ではないので音は回り込む）
+function hasSight(g, x0, z0, x1, z1){
+  return hasLOS(g, x0, z0, x1, z1) && !propBlocksSight(x0, z0, x1, z1);
+}
+
 /* =========================================================================
    5. 設定・状態
    ========================================================================= */
@@ -2106,7 +2136,7 @@ function buildWorld(){
     lgrp.position.set(sw2.x + spot.dir[0]*(CELL/2 - 0.36), 0, sw2.z + spot.dir[1]*(CELL/2 - 0.36));
     lgrp.rotation.y = Math.atan2(-spot.dir[0], -spot.dir[1]);
     world.group.add(lgrp);
-    world.props.push({ x:lgrp.position.x, z:lgrp.position.z, r:0.50 });
+    world.props.push({ x:lgrp.position.x, z:lgrp.position.z, r:0.50, h:2.05 });  // ロッカーは視線を遮る
     world.hides.push({
       type:'locker', group:lgrp,
       x:lgrp.position.x, z:lgrp.position.z,          // 中に入ったときの視点
@@ -2137,7 +2167,7 @@ function buildWorld(){
     var bedRot = (rnd() < 0.5) ? 0 : Math.PI/2;
     bgrp.rotation.y = bedRot;
     world.group.add(bgrp);
-    world.props.push({ x:bw.x, z:bw.z, r:0.62 });
+    world.props.push({ x:bw.x, z:bw.z, r:0.62, h:0.81 });
     // 出るときは枕元ではなく脇に立たせる（什器に埋まらないように）
     var sideX = bw.x + (bedRot === 0 ? 1.15 : 0);
     var sideZ = bw.z + (bedRot === 0 ? 0 : 1.15);
@@ -2176,7 +2206,7 @@ function buildWorld(){
     dgrp.position.set(dw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dw.z + dspot.dir[1]*(CELL/2 - 0.5));
     dgrp.rotation.y = Math.atan2(-dspot.dir[0], -dspot.dir[1]);
     world.group.add(dgrp);
-    world.props.push({ x:dgrp.position.x, z:dgrp.position.z, r:0.62 });
+    world.props.push({ x:dgrp.position.x, z:dgrp.position.z, r:0.62, h:0.80 });
     world.hides.push({
       type:'desk', group:dgrp,
       x:dgrp.position.x, z:dgrp.position.z,
@@ -2307,7 +2337,7 @@ function buildWorld(){
     dummy.scale.set(1,1,1);
     dummy.updateMatrix();
     propMesh.setMatrixAt(pi++, dummy.matrix);
-    world.props.push({ x:wp.x+ox, z:wp.z+oz, r:0.55 });
+    world.props.push({ x:wp.x+ox, z:wp.z+oz, r:0.55, h:1.05 });
   }
   propMesh.count = pi;
   propMesh.instanceMatrix.needsUpdate = true;
@@ -3552,7 +3582,10 @@ function updatePlayer(dt){
   var dxh = hunter.x - player.x, dzh = hunter.z - player.z;
   var hd = Math.sqrt(dxh*dxh + dzh*dzh);
   var losRaw = hasLOS(world.grid, player.x, player.z, hunter.x, hunter.z);
-  var visible = hd < 22 && losRaw;      // 正気度・演出用（距離で頭打ちにする）
+  // 壁が抜けていても、間にロッカーが立っていれば姿は見えない。
+  // 音は別（ロッカーは壁ではない）なので、壁だけの losRaw も残して使い分ける
+  var sightRaw = losRaw && !propBlocksSight(player.x, player.z, hunter.x, hunter.z);
+  var visible = hd < 22 && sightRaw;    // 正気度・演出用（距離で頭打ちにする）
   var drainS = 0;
   if(visible && hd < 16) drainS += (16-hd)*0.9;
   if(!player.lamp) drainS += 2.4;
@@ -3661,7 +3694,7 @@ function updatePlayer(dt){
           var hdx = hunter.x - player.x, hdz = hunter.z - player.z;
           var hdd = Math.sqrt(hdx*hdx + hdz*hdz);
           if(hdd < DIFF[settings.diff].sight &&
-             hasLOS(world.grid, player.x, player.z, hunter.x, hunter.z)){
+             hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
             player.hideSeen = true;
             hunter.lastSeen = { x:near.obj.x, z:near.obj.z };
             if(hunter.mode !== 'chase') hunter.mode = 'hunt';
@@ -3743,7 +3776,7 @@ function updatePlayer(dt){
   playerLight.intensity = player.lamp ? 0.9*flickAmt : 0.14;
   ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1);
 
-  return { hd:hd, visible:visible, los:losRaw, vmag:vmag };
+  return { hd:hd, visible:visible, los:losRaw, sight:sightRaw, vmag:vmag };
 }
 
 function updateHunter(dt, info){
@@ -3754,7 +3787,8 @@ function updateHunter(dt, info){
 
   // 知覚
   var toX = player.x - hunter.x, toZ = player.z - hunter.z;
-  var los = info.los;                   // 距離で頭打ちにしない、純粋な視線判定
+  var los = info.los;                   // 壁だけの視線。聴覚の減衰に使う
+  var canSee = info.sight;              // 壁＋背の高い什器。目視判定に使う
   var d = DIFF[settings.diff];
   var noise = player.running ? 1.6 : (info.vmag > 0.4 ? 1.0 : 0.45);
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
@@ -3763,14 +3797,14 @@ function updateHunter(dt, info){
   var heard = false;                    // 物音だけ＝音のした場所へ向かう
   if(hunter.spawnGrace <= 0){
     var nl = Math.max(0.0001, Math.sqrt(toX*toX + toZ*toZ));
-    if(los && hd < d.sight){
+    if(canSee && hd < d.sight){
       var fw = Math.sin(hunter.yaw), fz = Math.cos(hunter.yaw);
       var dot = (toX/nl)*fw + (toZ/nl)*fz;
       if(dot > 0.05 || hd < 6) seen = true;
     }
     // ランプで照らすと視野の外からでも見つかる。
     // ここは sight の距離ゲートの外に出す（内側だと sight+6 が効かない）
-    if(los && player.lamp && hd < d.sight + 6){
+    if(canSee && player.lamp && hd < d.sight + 6){
       var pfx = -Math.sin(player.viewYaw), pfz = -Math.cos(player.viewYaw);
       // toX,toZ は「追跡者→プレイヤー」なので、符号を反転して
       // 「プレイヤーが追跡者の方を向いているか」を見る（従来は逆だった）
@@ -3783,6 +3817,9 @@ function updateHunter(dt, info){
   // 隠れている間：明かりが漏れれば見つかる。息を止めていれば気配を消せる
   if(player.hiding && !player.hideSeen){
     seen = false; heard = false;
+    // ここは canSee ではなく los のまま。隠れているプレイヤーの座標は
+    // ロッカー自身の位置なので、canSee だと自分が入った箱に遮られて
+    // 「明かりが漏れて見つかる」が永久に成立しなくなる
     if(player.lamp && los && hd < d.sight) seen = true;
     else if((!player.holdBreath || player.breathBroken > 0) && hd < 3.2) heard = true;
     if((!player.holdBreath || player.breathBroken > 0) && hd < 1.5) seen = true;
@@ -4672,6 +4709,27 @@ function runSelfTest(){
   var pc = worldToCell(player.x, player.z);
   t('追跡者からプレイヤーへ経路がある', bfsField(g, pc.x, pc.y)[idx(hc.x,hc.y)] >= 0);
 
+  // --- 什器による視線遮蔽 ---
+  t('什器に高さが設定されている',
+    world.props.every(function(op){ return typeof op.h === 'number' && op.h > 0; }));
+  // 遮るのはロッカーだけ。隠れ場所のロッカー数と一致するはず
+  var tall = world.props.filter(function(op){ return op.h > SIGHT_H; });
+  var lockers = world.hides.filter(function(hd){ return hd.type === 'locker'; });
+  t('視線を遮る什器はロッカーのみ', tall.length === lockers.length);
+  // 壁を挟まない純粋な幾何として、什器の真上を通る線分で確かめる
+  var tallBlocks = true, lowPasses = true;
+  world.props.forEach(function(op){
+    var blocked = propBlocksSight(op.x - 1.2, op.z, op.x + 1.2, op.z);
+    if(op.h > SIGHT_H){ if(!blocked) tallBlocks = false; return; }
+    // 低い什器でも、真横に高い什器があれば当然遮られる。その組は判定から外す
+    var near = tall.some(function(tp){
+      return Math.abs(tp.z - op.z) < tp.r && Math.abs(tp.x - op.x) < 1.2 + tp.r;
+    });
+    if(!near && blocked) lowPasses = false;
+  });
+  t('高い什器は視線を遮る', tallBlocks);
+  t('低い什器は視線を通す', lowPasses);
+
   t('座標が数値', isFinite(player.x) && isFinite(player.z) && isFinite(hunter.x) && isFinite(hunter.z));
   t('worldToCell の往復', (function(){
       var w = cellToWorld(5,7), c = worldToCell(w.x, w.z);
@@ -4718,6 +4776,9 @@ try{
     lensMat: function(){ return viewParts.lens; },
     eyeLight: function(){ return hunterEyeLight; }, flashTarget: function(){ return flashTarget; },
     losTest: function(ax,az,bx,bz){ return hasLOS(world.grid, ax, az, bx, bz); },
+    sightTest: function(ax,az,bx,bz){ return hasSight(world.grid, ax, az, bx, bz); },
+    propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
+    sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
