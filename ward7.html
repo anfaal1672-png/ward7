@@ -1570,6 +1570,51 @@ function setupLights(){
   }
 }
 
+/* ---- 光源のカリング ----
+   three.js のシェーダは、シーンにある「見えている」ライトの数だけ
+   ピクセルごとのループを回す。強度 0 のライトも、届かない位置のライトも、
+   visible が true である限り全画素ぶんの計算を食う。
+
+   減衰距離 d を持つポイントライトは、自分から d より遠い点には数学的に
+   一切寄与しない。つまり「中心=ライト位置・半径=d の球」が視錐台に
+   掛からなければ、消しても絵は 1 ピクセルも変わらない。これを毎フレーム
+   判定して visible を落とす。非常灯 4 灯と追跡者の目は普段ほぼ画面外なので、
+   実効ポイントライト数は 6 から 2〜3 に落ちる。
+
+   ライト数が変わるとシェーダのバリアントが切り替わるため、初回だけ
+   コンパイル待ちが入る。それは prewarmLights() で読み込み中に済ませる。 */
+var _lightFrustum = new THREE.Frustum(), _lightM4 = new THREE.Matrix4(), _lightSphere = new THREE.Sphere();
+function cullLights(){
+  camera.updateMatrixWorld();
+  _lightM4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  _lightFrustum.setFromProjectionMatrix(_lightM4);
+  for(var i=0;i<lightPool.length;i++) applyLightCull(lightPool[i]);
+  if(hunterEyeLight) applyLightCull(hunterEyeLight);
+  if(world.exitLight) applyLightCull(world.exitLight);
+}
+function applyLightCull(L){
+  if(L.intensity <= 0.001){ L.visible = false; return; }
+  _lightSphere.center.copy(L.position);
+  _lightSphere.radius = L.distance > 0 ? L.distance : 1e6;   // 減衰なしなら常に効く
+  L.visible = _lightFrustum.intersectsSphere(_lightSphere);
+}
+
+// ライト数のバリアントを読み込み中に焼いておく。
+// 走っている最中に初めて出る組み合わせがあると、そこで一瞬止まる
+function prewarmLights(){
+  if(!renderer.compile) return;
+  var pool = [];
+  for(var i=0;i<lightPool.length;i++) pool.push(lightPool[i]);
+  if(hunterEyeLight) pool.push(hunterEyeLight);
+  if(world.exitLight) pool.push(world.exitLight);
+  var saved = pool.map(function(L){ return L.visible; });
+  for(var n=0; n<=pool.length; n++){
+    for(var k=0;k<pool.length;k++) pool[k].visible = (k < n);
+    try{ renderer.compile(scene, camera); }catch(e){ break; }
+  }
+  for(var r=0;r<pool.length;r++) pool[r].visible = saved[r];
+}
+
 /* ---- ポストプロセス（色収差・ノイズ・走査線・歪み） ----
    EffectComposer は three r128 の配布ファイルに含まれないため、
    レンダーターゲット＋フルスクリーンシェーダで同等の処理を自前で行う */
@@ -2135,6 +2180,7 @@ function buildWorld(){
     }
     lgrp.position.set(sw2.x + spot.dir[0]*(CELL/2 - 0.36), 0, sw2.z + spot.dir[1]*(CELL/2 - 0.36));
     lgrp.rotation.y = Math.atan2(-spot.dir[0], -spot.dir[1]);
+    lgrp.userData.bake = true;      // 置いたら動かない
     world.group.add(lgrp);
     world.props.push({ x:lgrp.position.x, z:lgrp.position.z, r:0.50, h:2.05 });  // ロッカーは視線を遮る
     world.hides.push({
@@ -2166,6 +2212,7 @@ function buildWorld(){
     bgrp.position.set(bw.x, 0, bw.z);
     var bedRot = (rnd() < 0.5) ? 0 : Math.PI/2;
     bgrp.rotation.y = bedRot;
+    bgrp.userData.bake = true;
     world.group.add(bgrp);
     world.props.push({ x:bw.x, z:bw.z, r:0.62, h:0.81 });
     // 出るときは枕元ではなく脇に立たせる（什器に埋まらないように）
@@ -2205,6 +2252,7 @@ function buildWorld(){
     }
     dgrp.position.set(dw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dw.z + dspot.dir[1]*(CELL/2 - 0.5));
     dgrp.rotation.y = Math.atan2(-dspot.dir[0], -dspot.dir[1]);
+    dgrp.userData.bake = true;
     world.group.add(dgrp);
     world.props.push({ x:dgrp.position.x, z:dgrp.position.z, r:0.62, h:0.80 });
     world.hides.push({
@@ -2241,6 +2289,7 @@ function buildWorld(){
   world.exitField = bfsField(g, far.x, far.y);
   var signGeo  = new THREE.PlaneGeometry(1.05, 0.52);
   var arrowGeo = new THREE.PlaneGeometry(0.40, 0.40);
+  var zoneMats = [];
   var zoneBuckets = [];
   for(var zb=0; zb<9; zb++) zoneBuckets.push([]);
   for(var zr=0; zr<reach.length; zr++){
@@ -2275,7 +2324,10 @@ function buildWorld(){
 
       var zw = cellToWorld(sp2.cell.x, sp2.cell.y);
       var zgrp = new THREE.Group();
-      var plate = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map:TEX.zone[zn] }));
+      // 板のマテリアルは区画ごとに1つ使い回す。板は明滅も色替えもしないので
+      // 共有して構わず、同じマテリアルになることでバッチ結合の対象にもなる
+      if(!zoneMats[zn]) zoneMats[zn] = new THREE.MeshBasicMaterial({ map:TEX.zone[zn] });
+      var plate = new THREE.Mesh(signGeo, zoneMats[zn]);
       plate.position.y = 2.28;
       zgrp.add(plate);
 
@@ -2316,6 +2368,8 @@ function buildWorld(){
         zw.z + sp2.dir[1]*(CELL/2 - 0.06)
       );
       zgrp.rotation.y = faceYaw;
+      zgrp.userData.bake = true;
+      arrow.userData.noBake = true;   // 明滅・向き替えするので焼かない
       world.group.add(zgrp);
       world.zones.push({ group:zgrp, arrow:arrow, mat:arrowMat, x:zgrp.position.x, z:zgrp.position.z, lit:0 });
     }
@@ -2349,7 +2403,115 @@ function buildWorld(){
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
 
+  bakeStaticFurniture();
+
   return { start:startC, field:field, reach:reach };
+}
+
+/* ---- 静的什器のバッチ結合 ----
+   ロッカー・ベッド・机・区画表示板は置いたあと一切動かない。個別メッシュのまま
+   だと 180 個ぶんのドローコールになり、什器の多い部屋でフレームが跳ねる。
+   同じマテリアルのジオメトリを1つに焼き固めてドローコールを畳む。
+
+   全部を1メッシュにまとめないのは、そうすると視錐台カリングが効かなくなり、
+   壁の裏の什器まで毎フレーム描くことになるため。区画表示板と同じ 3x3 の
+   区画で割り、区画ごとに固めることで、カリングの効きを保ったまま数を減らす。 */
+function mergeMeshes(list, parentInv){
+  // 使っているのは Box / Plane / Cylinder だけで、いずれも
+  // position・normal・uv の3属性を持つ。連結もこの3つに絞る
+  var vtot = 0, itot = 0, i, gs;
+  for(i=0;i<list.length;i++){
+    gs = list[i].geometry;
+    vtot += gs.attributes.position.count;
+    itot += gs.index ? gs.index.count : gs.attributes.position.count;
+  }
+  var pos = new Float32Array(vtot*3), nrm = new Float32Array(vtot*3), uvs = new Float32Array(vtot*2);
+  var ind = (vtot > 65535) ? new Uint32Array(itot) : new Uint16Array(itot);
+  var m4 = new THREE.Matrix4(), m3 = new THREE.Matrix3(), v = new THREE.Vector3();
+  var vo = 0, io = 0;
+  for(i=0;i<list.length;i++){
+    var msh = list[i];
+    gs = msh.geometry;
+    m4.multiplyMatrices(parentInv, msh.matrixWorld);   // 親の変換を打ち消して world.group ローカルへ
+    m3.getNormalMatrix(m4);
+    var pa = gs.attributes.position, na = gs.attributes.normal, ua = gs.attributes.uv;
+    var cnt = pa.count, k;
+    for(k=0;k<cnt;k++){
+      v.set(pa.getX(k), pa.getY(k), pa.getZ(k)).applyMatrix4(m4);
+      pos[(vo+k)*3] = v.x; pos[(vo+k)*3+1] = v.y; pos[(vo+k)*3+2] = v.z;
+      if(na){
+        v.set(na.getX(k), na.getY(k), na.getZ(k)).applyMatrix3(m3).normalize();
+        nrm[(vo+k)*3] = v.x; nrm[(vo+k)*3+1] = v.y; nrm[(vo+k)*3+2] = v.z;
+      }
+      if(ua){ uvs[(vo+k)*2] = ua.getX(k); uvs[(vo+k)*2+1] = ua.getY(k); }
+    }
+    if(gs.index){
+      var ia = gs.index;
+      for(k=0;k<ia.count;k++) ind[io+k] = vo + ia.getX(k);
+      io += ia.count;
+    }else{
+      for(k=0;k<cnt;k++) ind[io+k] = vo + k;
+      io += cnt;
+    }
+    vo += cnt;
+  }
+  var out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal',   new THREE.BufferAttribute(nrm, 3));
+  out.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
+  out.setIndex(new THREE.BufferAttribute(ind, 1));
+  out.computeBoundingSphere();
+  return out;
+}
+
+function bakeStaticFurniture(){
+  world.group.updateMatrixWorld(true);
+  var parentInv = new THREE.Matrix4().copy(world.group.matrixWorld).invert();
+  var buckets = {}, order = [];
+  var targets = [];
+
+  // 印はグループ側に付ける。動くもの（誘導矢印など）だけ noBake で除外する
+  world.group.traverse(function(o){
+    if(!o.isMesh || o.isInstancedMesh) return;
+    if(o.userData && o.userData.noBake) return;
+    var bakeable = false;
+    for(var p=o; p; p=p.parent){
+      if(p.userData && p.userData.bake){ bakeable = true; break; }
+      if(p === world.group) break;
+    }
+    if(bakeable) targets.push(o);
+  });
+
+  for(var i=0;i<targets.length;i++){
+    var o = targets[i];
+    var e = o.matrixWorld.elements;
+    var c = worldToCell(e[12], e[14]);
+    var key = zoneOf(clamp(c.x,0,GW-1), clamp(c.y,0,GH-1)) + '|' + o.material.uuid;
+    if(!buckets[key]){ buckets[key] = { mat:o.material, list:[] }; order.push(key); }
+    buckets[key].list.push(o);
+  }
+
+  var baked = 0;
+  for(var b=0;b<order.length;b++){
+    var bk = buckets[order[b]];
+    if(bk.list.length < 2) continue;            // 1個だけなら畳む意味がない
+    var geo = mergeMeshes(bk.list, parentInv);
+    var mesh = new THREE.Mesh(geo, bk.mat);
+    mesh.castShadow = bk.list[0].castShadow;
+    mesh.receiveShadow = bk.list[0].receiveShadow;
+    world.group.add(mesh);
+    for(var r=0;r<bk.list.length;r++){
+      var src = bk.list[r];
+      if(src.parent) src.parent.remove(src);
+      src.geometry.dispose();
+    }
+    baked += bk.list.length;
+  }
+
+  // 中身が空になったグループは残しても走査コストになるだけなので外す。
+  // ただし当たり判定やインタラクトが参照しているグループもあるので、
+  // 位置情報だけの空グループとして残す（remove すると座標が失われる）
+  world.bakeInfo = { meshesBefore:targets.length, batches:order.length, baked:baked };
 }
 
 // 追跡者は world.grid だけを見て経路を引いていたため、
@@ -3357,6 +3519,9 @@ function startGame(){
   camera.position.set(player.x, player.y, player.z);
   camera.rotation.set(0,0,0);
   resize();
+  // 暗転が明ける前に、ライト数のバリアントをまとめてコンパイルしておく
+  prewarmLights();
+  cullLights();      // 1フレーム目から効かせる（初回だけ 6 灯で描かないように）
 
   Audio2.startAmbient();
   state = STATE.PLAY;
@@ -4327,6 +4492,7 @@ function updateEnv(dt, info){
       lightPool[i].intensity = 0;
     }
   }
+  cullLights();
 
   // 誘導灯：非常口が開いてから、近いものだけがじわりと点く。
   // 遠くまで一斉に光ると迷路の形が読めてしまうので、可視距離で絞る。
@@ -4729,6 +4895,36 @@ function runSelfTest(){
   });
   t('高い什器は視線を遮る', tallBlocks);
   t('低い什器は視線を通す', lowPasses);
+
+  // --- 描画のバッチ結合と光源カリング ---
+  t('静的什器を焼き固めている', !!world.bakeInfo && world.bakeInfo.baked > 0);
+  // 変換行列を間違えると什器が別の場所へ飛ぶ。空になったグループの座標に
+  // 焼いたジオメトリの頂点があるかを、いくつか抜き取って確かめる
+  var bakedPts = [];
+  world.group.children.forEach(function(o){
+    if(!o.isMesh || o.isInstancedMesh || o.geometry.parameters) return;
+    var pa = o.geometry.attributes.position;
+    for(var vi=0; vi<pa.count; vi+=3) bakedPts.push(pa.getX(vi), pa.getZ(vi));
+  });
+  var placeOK = true, sampled = 0;
+  world.group.children.forEach(function(o){
+    if(sampled >= 4 || !o.isGroup || !o.userData.bake) return;
+    sampled++;
+    var near = 1e9;
+    for(var q=0; q<bakedPts.length; q+=2){
+      var dxp = bakedPts[q]-o.position.x, dzp = bakedPts[q+1]-o.position.z;
+      var dq = dxp*dxp + dzp*dzp;
+      if(dq < near) near = dq;
+    }
+    if(near > 1.6*1.6) placeOK = false;
+  });
+  t('焼き固めた什器が元の位置にある', sampled === 0 || placeOK);
+  // 消えているライトを visible のままにするとシェーダの負荷だけが残る
+  var lightsOK = true;
+  scene.traverse(function(o){
+    if(o.isPointLight && o.intensity <= 0.001 && o.visible) lightsOK = false;
+  });
+  t('消灯中のポイントライトを無効化している', lightsOK);
 
   t('座標が数値', isFinite(player.x) && isFinite(player.z) && isFinite(hunter.x) && isFinite(hunter.z));
   t('worldToCell の往復', (function(){
