@@ -4665,7 +4665,12 @@ function runSelfTest(){
 
   var hc = worldToCell(hunter.x, hunter.z);
   t('追跡者が通路上にいる', g[idx(hc.x,hc.y)] === 0);
-  t('追跡者からプレイヤーへ経路がある', bfsNextStep(g, hc.x, hc.y, 1, 1) !== null);
+  // 開始地点をランダム化した以上、目標を (1,1) 決め打ちにはできない。
+  // さらに bfsNextStep は「同じマスにいる」と null を返すので、
+  // 追跡者がたまたま目標マスに湧いた回で到達不能と誤判定していた。
+  // 到達可能性そのものが見たいのだから BFS 距離で直接判定する。
+  var pc = worldToCell(player.x, player.z);
+  t('追跡者からプレイヤーへ経路がある', bfsField(g, pc.x, pc.y)[idx(hc.x,hc.y)] >= 0);
 
   t('座標が数値', isFinite(player.x) && isFinite(player.z) && isFinite(hunter.x) && isFinite(hunter.z));
   t('worldToCell の往復', (function(){
