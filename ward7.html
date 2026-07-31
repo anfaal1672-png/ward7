@@ -1885,7 +1885,7 @@ function buildViewModel(){
     return geo;
   }
 
-  var skinParts = [], bandParts = [], nailParts = [], digitLens = [];
+  var skinParts = [], bandParts = [], nailParts = [], digitLens = [], digitSt = [];
   function addSkin(geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
   function addBand(geo){ bandParts.push(new THREE.Mesh(geo, band)); }
 
@@ -1894,29 +1894,45 @@ function buildViewModel(){
      節の中ほどはやや細くする。ランプの胴を握るため、節ごとに進行方向を
      回して巻き付ける（MCP 50°・PIP 80°・DIP 45°、合計でほぼ半周）。 */
   function digit(o){
-    var st = [], ang = o.a0, x = o.x0, y = o.y0, z = o.z0;
+    /* 指は自由な円弧では曲げない。曲げ角を積むだけだと、できあがる円弧の
+       中心が胴の軸とずれ、指が宙に浮いて「握っている」ように見えない
+       （実際そうなっていた。接触は一点だけで、指の中央は胴から 2〜3cm 離れていた）。
+
+       握りは「胴の周りに巻き付く」動作なので、位置そのものを
+       軸まわりの角度と軸からの距離で作る。基節のあいだに胴の表面まで
+       降り、以降は接触半径（胴の半径＋指の半径）をなぞる。
+       こうすると構造として必ず胴に触れる。 */
+    var st = [];
+    var ang = o.a0, rad = o.r0, z = o.z0;
     var segs = [
-      { len:o.len*0.45, bend:o.bend[0], n:4 },
-      { len:o.len*0.30, bend:o.bend[1], n:3 },
-      { len:o.len*0.25, bend:o.bend[2], n:3 }
+      { len:o.len*0.45, n:4, reach:1 },     // 基節：ここで胴へ降りる
+      { len:o.len*0.30, n:3, reach:0 },     // 中節：表面をなぞる
+      { len:o.len*0.25, n:3, reach:0 }      // 末節：先端はわずかに巻き込む
     ];
     var done = 0, totalLen = o.len;
-    st.push({ p:[x,y,z], rx:o.r*1.10, ry:o.r*1.14, up:[0,0,1] });  // 付け根＝中手骨頭の膨らみ
-    for(var s=0;s<segs.length;s++){
-      var sg = segs[s];
+    st.push({ p:[Math.cos(ang)*rad, Math.sin(ang)*rad, z],
+              rx:o.r*1.10, ry:o.r*1.14, up:[0,0,1] });   // 付け根＝中手骨頭の膨らみ
+    for(var sgi=0; sgi<segs.length; sgi++){
+      var sg = segs[sgi];
       for(var i=1;i<=sg.n;i++){
         var step = sg.len/sg.n;
-        ang += (sg.bend/sg.n) * DEG;
-        x += Math.cos(ang)*step;
-        y += Math.sin(ang)*step;
-        z += o.splay*step;
         done += step;
         var u = done/totalLen;
-        // 節の中ほどはくびれ、関節で張る
         var joint01 = (i === sg.n) ? 1 : 0;
         var taper = 1 - u*0.30;                       // 先へ行くほど細い
         var swell = joint01 ? 1.13 : (i === 1 ? 1.02 : 0.96);
-        st.push({ p:[x,y,z], rx:o.r*taper*swell, ry:o.r*taper*swell*1.06, up:[0,0,1] });
+        var rr = o.r*taper*swell;
+        // 接触半径：胴の表面に指の腹が乗る位置
+        var contact = barrelRadiusAt(z) + rr + 0.0006;
+        if(sg.reach){
+          rad += (contact - rad) * (i/sg.n) * o.press;  // 基節で寄せる
+        }else{
+          rad = contact - o.dig*rr;                    // 以降は沿わせる（少し食い込ませて密着させる）
+        }
+        ang += (step/Math.max(rad, 0.005)) * o.wrap;
+        z += o.splay*step;
+        st.push({ p:[Math.cos(ang)*rad, Math.sin(ang)*rad, z],
+                  rx:rr, ry:rr*1.06, up:[0,0,1] });
       }
     }
     // 指先は丸める
@@ -1926,14 +1942,21 @@ function buildViewModel(){
     return st;
   }
 
-  // 爪：末節の背側に薄く貼る。曲面の板を掃引で作る
+  /* 爪：末節の背側（＝胴の軸から見て外向き）に薄く貼る。
+     掃引の断面は up=[0,0,1] のとき rx が半径方向＝厚み、ry が指の幅方向になる。
+     ここを取り違えると、爪が指から半径方向へ飛び出した板になって
+     指先に白い塊が乗っているように見える（実際そうなっていた）。 */
   function nail(st, r){
-    var i0 = st.length-3, ns = [];
-    for(var i=0;i<3;i++){
-      var a = st[i0+i];
-      ns.push({ p:[a.p[0], a.p[1], a.p[2]], rx:r*(0.92-i*0.16), ry:r*0.30, up:[0,0,1] });
+    var i0 = st.length-4, ns = [];
+    for(var i=0;i<4;i++){
+      var a = st[Math.min(st.length-1, i0+i)];
+      var rr = Math.sqrt(a.p[0]*a.p[0] + a.p[1]*a.p[1]) || 1;
+      var ox = a.p[0]/rr, oy = a.p[1]/rr;          // 背側＝軸から外向き
+      var lift = a.rx*0.60;
+      ns.push({ p:[a.p[0]+ox*lift, a.p[1]+oy*lift, a.p[2]],
+                rx:r*0.13, ry:r*(0.70 - i*0.11), up:[0,0,1] });
     }
-    nailParts.push(new THREE.Mesh(hugBarrel(sweepGeo(ns, 9, 1, 2), 0.0016), nailMat));
+    nailParts.push(new THREE.Mesh(sweepGeo(ns, 8, 1, 2), nailMat));
   }
 
   var nailMat = new THREE.MeshStandardMaterial({
@@ -1952,7 +1975,7 @@ function buildViewModel(){
       var rad = 0.0335 + Math.sin(u*Math.PI)*0.0035;
       var zc  = -0.030 - u*0.008;                // 指側へわずかに寄る
       // 幅（Z方向）は手首で狭く、中手骨頭の並びで最大
-      var half = 0.020 + u*0.019;
+      var half = 0.021 + u*0.021;         // 中手骨頭の並び幅に合わせる
       var thick = 0.0125 + Math.sin(u*Math.PI)*0.0045;
       palmSt.push({
         p:[Math.cos(ang)*rad, Math.sin(ang)*rad, zc],
@@ -1969,38 +1992,42 @@ function buildViewModel(){
   skinParts.push(thenar);
   // 小指球：反対側の膨らみ。母指球より控えめ
   var hypo = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 8), skin);
-  hypo.position.set(0.031, 0.004, -0.070);
+  hypo.position.set(0.031, 0.004, -0.076);
   hypo.scale.set(0.66, 1.10, 0.95);
   skinParts.push(hypo);
 
   /* 4本の指。長さは中指を最長に、示指・環指・小指の順で短くなる。
      付け根の並び（中手骨頭）は直線ではなく弧を描き、小指側ほど手前に退がる。 */
+  /* 指の間隔は指の太さより広く取る。詰めると隣どうしの面がくっついて
+     一本の輪に見え、指の本数が分からなくなる（実際そう見えていた）。
+     中手骨頭の並びは実測でおよそ 75mm 幅なので、22〜23mm 間隔が実寸でもある。 */
   var FING = [
     // len   r      z       付け根の弧による前後差   広がり
-    { len:0.075, r:0.0098, z:-0.014, back:0.0035, splay:-0.030 },  // 示指
+    { len:0.075, r:0.0098, z:-0.012, back:0.0035, splay:-0.030 },  // 示指
     { len:0.082, r:0.0100, z:-0.035, back:0.0000, splay:-0.008 },  // 中指
-    { len:0.077, r:0.0094, z:-0.055, back:0.0030, splay: 0.012 },  // 環指
-    { len:0.062, r:0.0082, z:-0.073, back:0.0105, splay: 0.030 }   // 小指
+    { len:0.077, r:0.0094, z:-0.058, back:0.0030, splay: 0.012 },  // 環指
+    { len:0.062, r:0.0082, z:-0.080, back:0.0105, splay: 0.030 }   // 小指
   ];
   for(var fi=0; fi<4; fi++){
     var F = FING[fi];
-    var kang = (30 - F.back*260) * DEG;          // 弧のぶん付け根の角度をずらす
-    var krad = 0.0345;
+    var kang = (26 - F.back*260) * DEG;          // 弧のぶん付け根の角度をずらす
     var stF = digit({
-      x0: Math.cos(kang)*krad, y0: Math.sin(kang)*krad, z0: F.z,
-      a0: kang + 8*DEG, len: F.len, r: F.r,
-      bend: [50, 80, 45], splay: F.splay
+      a0: kang, r0: 0.0355, z0: F.z,
+      len: F.len, r: F.r, splay: F.splay,
+      press: 1.0, dig: 0.10, wrap: 1.0
     });
     nail(stF, F.r);
     digitLens.push(F.len);
+    digitSt.push(stF);
   }
 
   /* 親指：他の4指と違って中手骨から動き、2節しかない。
      手のひら側から胴の下へ回り込ませる（対立位）。 */
+  // 親指は他の4指と逆回りに、胴の下から回り込ませる（対立位）
   var thumbSt = digit({
-    x0: 0.030, y0: -0.026, z0: 0.010,
-    a0: -104*DEG, len: 0.070, r: 0.0125,
-    bend: [34, 40, 26], splay: -0.34
+    a0: -46*DEG, r0: 0.0360, z0: 0.014,
+    len: 0.070, r: 0.0125, splay: -0.42,
+    press: 0.9, dig: 0.06, wrap: -1.0
   });
   nail(thumbSt, 0.0125);
 
@@ -2113,7 +2140,7 @@ function buildViewModel(){
   viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
                 base:{ x:0, y:0, z:0 },
-                skinGeo:skinGeo, digitLens:digitLens, barrelAt:barrelRadiusAt };
+                skinGeo:skinGeo, digitLens:digitLens, digitSt:digitSt, barrelAt:barrelRadiusAt };
 }
 
 function buildWorld(){
@@ -5183,6 +5210,18 @@ function runSelfTest(){
       vol2 += vx2.crossVectors(va2, vb2).dot(vc2)/6;
     }
     t('腕の面が外を向いている', vol2 > 0);
+    // 食い込みが 0 でも、離れて浮いていたら握りに見えない。
+    // 中節から先は胴に触れているはず（自由な円弧で曲げると必ずここが浮く）
+    var gripOK = true, gapMax = 0;
+    viewParts.digitSt.forEach(function(dst){
+      for(var si=4; si<dst.length-1; si++){
+        var pw = dst[si].p;
+        var gap = Math.sqrt(pw[0]*pw[0] + pw[1]*pw[1]) - viewParts.barrelAt(pw[2]) - dst[si].rx;
+        if(gap > gapMax) gapMax = gap;
+        if(gap > 0.0015) gripOK = false;
+      }
+    });
+    t('指が胴を握っている（浮いていない）', gripOK);
   }
 
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
@@ -5236,6 +5275,7 @@ try{
     viewArm: function(){ return viewArm; }, viewCam: function(){ return viewCam; },
     viewRigRef: function(){ return viewRig; },
     lensMat: function(){ return viewParts.lens; },
+    viewPartsRef: function(){ return viewParts; },
     eyeLight: function(){ return hunterEyeLight; }, flashTarget: function(){ return flashTarget; },
     losTest: function(ax,az,bx,bz){ return hasLOS(world.grid, ax, az, bx, bz); },
     sightTest: function(ax,az,bx,bz){ return hasSight(world.grid, ax, az, bx, bz); },
