@@ -470,6 +470,7 @@ if(typeof THREE === 'undefined'){
 var clamp = function(v,a,b){ return v<a?a:(v>b?b:v); };
 var lerp  = function(a,b,t){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
+var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
 
 function mulberry32(a){
   return function(){
@@ -1762,11 +1763,6 @@ function buildViewModel(){
     m.rotation.x = Math.PI/2;                 // 軸を Z 方向へ
     return m;
   }
-  function joint(r, mat){
-    // 関節の球はシルエットに直に出るので、分割を上げて角を消す
-    return new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), mat || skin);
-  }
-
   // ---- ランプ本体（軸 = ARM のローカル原点） ----
   var body = tube(0.020, 0.022, 0.170, metal, 16);
   body.position.set(0, 0, -0.060);
@@ -1784,98 +1780,340 @@ function buildViewModel(){
   lens.position.set(0, 0, -0.2035);
   ARM.add(lens);
 
-  // ---- 手：ランプを上から握り込む ----
-  var palm = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.036, 0.078), skin);
-  palm.position.set(0.030, -0.004, 0.012);
-  palm.rotation.set(0.04, 0, 0.10);
-  ARM.add(palm);
-  var knuckleRidge = joint(0.026);
-  knuckleRidge.position.set(0.030, 0.010, -0.016);
-  knuckleRidge.scale.set(0.85, 0.55, 1.5);
-  ARM.add(knuckleRidge);
+  /* ---- 手と前腕 ----
+     円柱と球を並べる作り方だと、関節ごとに面が途切れてソーセージを繋いだ
+     ように見える。人体は一続きの皮膚が骨と筋肉の起伏を包んだものなので、
+     断面（楕円）を少しずつ変えながら掃引して、一枚の面として張る。
 
-  // 4本の指が本体をまたぐ。付け根→中節→指先で少しずつ下へ回り込む
-  for(var fi=0; fi<4; fi++){
-    var fz = -0.012 - fi*0.026;
-    var knu = joint(0.0112);
-    knu.position.set(0.029, 0.019, fz);
-    ARM.add(knu);
-    var mid = tube(0.0100, 0.0108, 0.048, skin, 8);
-    mid.rotation.set(0, 0, Math.PI/2);
-    mid.rotation.y = 0.06;
-    mid.position.set(0.005, 0.0265, fz);
-    ARM.add(mid);
-    var midJ = joint(0.0098);
-    midJ.position.set(-0.019, 0.024, fz);
-    ARM.add(midJ);
-    var tipS = tube(0.0088, 0.0098, 0.030, skin, 8);
-    tipS.rotation.set(0, 0, Math.PI/2 - 0.72);
-    tipS.position.set(-0.030, 0.011, fz);
-    ARM.add(tipS);
-    var tipJ = joint(0.0088);
-    tipJ.position.set(-0.033, -0.002, fz);
-    ARM.add(tipJ);
+     寸法は成人男性の実測値に合わせてある（前腕長 26cm、手掌長 9.5cm、
+     中指 8.2cm など）。ランプの太さもそれに準じているので、握りの
+     見え方が破綻しない。 */
+
+  // 楕円断面の掃引。stations は ARM ローカル座標で直接指定する。
+  // up は断面の縦軸を決めるベクトル（進行方向と直交化して使う）
+  function sweepGeo(st, radial, capA, capB){
+    var n = st.length, R = radial;
+    var pos = [], uvs = [], ind = [];
+    var T = new THREE.Vector3(), U = new THREE.Vector3(), Rt = new THREE.Vector3();
+    var P = new THREE.Vector3(), tmp = new THREE.Vector3();
+    var run = [0], i, k;
+    for(i=1;i<n;i++){
+      run.push(run[i-1] + Math.sqrt(
+        Math.pow(st[i].p[0]-st[i-1].p[0],2) +
+        Math.pow(st[i].p[1]-st[i-1].p[1],2) +
+        Math.pow(st[i].p[2]-st[i-1].p[2],2)));
+    }
+    var total = run[n-1] || 1;
+    for(i=0;i<n;i++){
+      var a = st[Math.max(0,i-1)].p, b = st[Math.min(n-1,i+1)].p;
+      T.set(b[0]-a[0], b[1]-a[1], b[2]-a[2]);
+      if(T.lengthSq() < 1e-12) T.set(0,0,1);
+      T.normalize();
+      U.set(st[i].up[0], st[i].up[1], st[i].up[2]);
+      Rt.crossVectors(U, T);
+      if(Rt.lengthSq() < 1e-12) Rt.set(1,0,0);   // up と進行方向が平行になった保険
+      Rt.normalize();
+      U.crossVectors(T, Rt).normalize();
+      P.set(st[i].p[0], st[i].p[1], st[i].p[2]);
+      for(k=0;k<R;k++){
+        var th = k/R*TAU;
+        tmp.copy(P).addScaledVector(Rt, Math.cos(th)*st[i].rx)
+                   .addScaledVector(U,  Math.sin(th)*st[i].ry);
+        pos.push(tmp.x, tmp.y, tmp.z);
+        uvs.push(k/R, run[i]/total);
+      }
+    }
+    // 断面は (Rt, U, T) の右手系に沿って反時計回りに並ぶ。表を外へ向けるには
+    // 進行方向へ渡る辺を後ろに置く（逆にすると全面が裏返って消える）
+    for(i=0;i<n-1;i++) for(k=0;k<R;k++){
+      var k2 = (k+1)%R, r0 = i*R, r1 = (i+1)*R;
+      ind.push(r0+k, r0+k2, r1+k, r0+k2, r1+k2, r1+k);
+    }
+    // 端の蓋。指先は丸めたいので中心を少し先へ出す
+    function cap(si, dirSign, dome){
+      var c = pos.length/3;
+      var s0 = st[si];
+      var a2 = st[Math.max(0,si-1)].p, b2 = st[Math.min(n-1,si+1)].p;
+      T.set(b2[0]-a2[0], b2[1]-a2[1], b2[2]-a2[2]).normalize();
+      pos.push(s0.p[0] + T.x*dome*dirSign,
+               s0.p[1] + T.y*dome*dirSign,
+               s0.p[2] + T.z*dome*dirSign);
+      uvs.push(0.5, si===0 ? 0 : 1);
+      var base = si*R;
+      for(k=0;k<R;k++){
+        var k2b = (k+1)%R;
+        if(dirSign > 0) ind.push(base+k, base+k2b, c);
+        else            ind.push(base+k2b, base+k, c);
+      }
+    }
+    if(capA) cap(0, -1, capA === 2 ? st[0].ry*0.8 : 0);
+    if(capB) cap(n-1, 1, capB === 2 ? st[n-1].ry*0.9 : 0);
+
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(ind);
+    geo.computeVertexNormals();
+    return geo;
   }
-  // 親指は手前から本体に添える
-  var thumbA = tube(0.0125, 0.0135, 0.046, skin, 9);
-  thumbA.rotation.set(0.30, 0.60, 0);
-  thumbA.position.set(0.026, -0.014, 0.028);
-  ARM.add(thumbA);
-  var thumbB = tube(0.0110, 0.0122, 0.040, skin, 9);
-  thumbB.rotation.set(0.20, 1.05, 0);
-  thumbB.position.set(0.007, -0.020, -0.002);
-  ARM.add(thumbB);
-  var thumbTip = joint(0.0105);
-  thumbTip.position.set(-0.010, -0.022, -0.020);
-  ARM.add(thumbTip);
 
-  // ---- 前腕：手首から手前・右下へ伸びる ----
-  var FORE = new THREE.Group();
-  FORE.position.set(0.034, -0.008, 0.052);
-  FORE.rotation.set(0.06, 0.20, 0.09);
-  ARM.add(FORE);
+  /* 握った手がランプの胴に埋まると、指が金属に溶けたように見える。
+     手の頂点が胴の半径より内側へ入ったら、外へ押し出して表面に沿わせる。
+     実際に物を握った指の腹も接触面で平らに潰れるので、形としても正しい。
+     半径はランプ各部の実寸から引いている（胴 0.022 / 握り輪 0.0245 / 頭 0.021→0.033）。 */
+  function barrelRadiusAt(z){
+    var r = 0;
+    if(z > -0.145 && z < 0.026) r = 0.022;
+    if(z > -0.047 && z < 0.007) r = Math.max(r, 0.0245);
+    if(z > -0.202 && z <= -0.145) r = Math.max(r, 0.021 + ((-0.145 - z)/0.057)*0.012);
+    return r;
+  }
+  function hugBarrel(geo, clearance){
+    var pa = geo.attributes.position, changed = 0;
+    for(var i=0;i<pa.count;i++){
+      var x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
+      var need = barrelRadiusAt(z);
+      if(need <= 0) continue;
+      need += (clearance === undefined ? 0.0008 : clearance);
+      var rad = Math.sqrt(x*x + y*y);
+      if(rad >= need || rad < 1e-6) continue;
+      var k = need/rad;
+      pa.setXY(i, x*k, y*k);
+      changed++;
+    }
+    if(changed){ pa.needsUpdate = true; geo.computeVertexNormals(); }
+    return geo;
+  }
 
-  var wrist = joint(0.0225);
-  wrist.position.set(0, 0, 0.006);
-  FORE.add(wrist);
-  var forearm = tube(0.0350, 0.0230, 0.290, skin, 20);   // 肘側(+Z)が太い
-  forearm.position.set(0, -0.004, 0.150);
-  FORE.add(forearm);
+  var skinParts = [], bandParts = [], nailParts = [], digitLens = [];
+  function addSkin(geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
+  function addBand(geo){ bandParts.push(new THREE.Mesh(geo, band)); }
 
-  // 包帯：細いリングを少しずつ角度を変えて重ねる
+  /* 指：基節・中節・末節の3節。長さの比はおよそ 45% : 30% : 25% で、
+     これは実際の指骨の比率に近い。関節では骨頭が張り出すので径を膨らませ、
+     節の中ほどはやや細くする。ランプの胴を握るため、節ごとに進行方向を
+     回して巻き付ける（MCP 50°・PIP 80°・DIP 45°、合計でほぼ半周）。 */
+  function digit(o){
+    var st = [], ang = o.a0, x = o.x0, y = o.y0, z = o.z0;
+    var segs = [
+      { len:o.len*0.45, bend:o.bend[0], n:4 },
+      { len:o.len*0.30, bend:o.bend[1], n:3 },
+      { len:o.len*0.25, bend:o.bend[2], n:3 }
+    ];
+    var done = 0, totalLen = o.len;
+    st.push({ p:[x,y,z], rx:o.r*1.10, ry:o.r*1.14, up:[0,0,1] });  // 付け根＝中手骨頭の膨らみ
+    for(var s=0;s<segs.length;s++){
+      var sg = segs[s];
+      for(var i=1;i<=sg.n;i++){
+        var step = sg.len/sg.n;
+        ang += (sg.bend/sg.n) * DEG;
+        x += Math.cos(ang)*step;
+        y += Math.sin(ang)*step;
+        z += o.splay*step;
+        done += step;
+        var u = done/totalLen;
+        // 節の中ほどはくびれ、関節で張る
+        var joint01 = (i === sg.n) ? 1 : 0;
+        var taper = 1 - u*0.30;                       // 先へ行くほど細い
+        var swell = joint01 ? 1.13 : (i === 1 ? 1.02 : 0.96);
+        st.push({ p:[x,y,z], rx:o.r*taper*swell, ry:o.r*taper*swell*1.06, up:[0,0,1] });
+      }
+    }
+    // 指先は丸める
+    var last = st[st.length-1];
+    last.rx *= 0.82; last.ry *= 0.82;
+    addSkin(hugBarrel(sweepGeo(st, 9, 1, 2)));
+    return st;
+  }
+
+  // 爪：末節の背側に薄く貼る。曲面の板を掃引で作る
+  function nail(st, r){
+    var i0 = st.length-3, ns = [];
+    for(var i=0;i<3;i++){
+      var a = st[i0+i];
+      ns.push({ p:[a.p[0], a.p[1], a.p[2]], rx:r*(0.92-i*0.16), ry:r*0.30, up:[0,0,1] });
+    }
+    nailParts.push(new THREE.Mesh(hugBarrel(sweepGeo(ns, 9, 1, 2), 0.0016), nailMat));
+  }
+
+  var nailMat = new THREE.MeshStandardMaterial({
+    color:0xcfb2a4, roughness:0.35, metalness:0.0, toneMapped:false
+  });
+
+  /* 手掌：手根から中手骨頭の並びまで。板ではなく、胴を包む向きに湾曲した
+     塊として作る。母指球（親指の付け根の肉）と小指球で厚みが違うので、
+     断面の縦横を位置ごとに変える。 */
+  var palmSt = [];
+  (function(){
+    var steps = 7;
+    for(var i=0;i<=steps;i++){
+      var u = i/steps;
+      var ang = (-46 + u*80) * DEG;              // 手首側の下から、指の付け根の上まで回り込む
+      var rad = 0.0335 + Math.sin(u*Math.PI)*0.0035;
+      var zc  = -0.030 - u*0.008;                // 指側へわずかに寄る
+      // 幅（Z方向）は手首で狭く、中手骨頭の並びで最大
+      var half = 0.020 + u*0.019;
+      var thick = 0.0125 + Math.sin(u*Math.PI)*0.0045;
+      palmSt.push({
+        p:[Math.cos(ang)*rad, Math.sin(ang)*rad, zc],
+        rx:thick, ry:half, up:[0,0,1]
+      });
+    }
+  })();
+  addSkin(hugBarrel(sweepGeo(palmSt, 12, 2, 1)));
+
+  // 母指球：親指の付け根の肉。手のひらで一番厚い部分で、ここが無いと板に見える
+  var thenar = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 9), skin);
+  thenar.position.set(0.030, -0.019, -0.006);
+  thenar.scale.set(0.72, 0.95, 1.25);
+  skinParts.push(thenar);
+  // 小指球：反対側の膨らみ。母指球より控えめ
+  var hypo = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 8), skin);
+  hypo.position.set(0.031, 0.004, -0.070);
+  hypo.scale.set(0.66, 1.10, 0.95);
+  skinParts.push(hypo);
+
+  /* 4本の指。長さは中指を最長に、示指・環指・小指の順で短くなる。
+     付け根の並び（中手骨頭）は直線ではなく弧を描き、小指側ほど手前に退がる。 */
+  var FING = [
+    // len   r      z       付け根の弧による前後差   広がり
+    { len:0.075, r:0.0098, z:-0.014, back:0.0035, splay:-0.030 },  // 示指
+    { len:0.082, r:0.0100, z:-0.035, back:0.0000, splay:-0.008 },  // 中指
+    { len:0.077, r:0.0094, z:-0.055, back:0.0030, splay: 0.012 },  // 環指
+    { len:0.062, r:0.0082, z:-0.073, back:0.0105, splay: 0.030 }   // 小指
+  ];
+  for(var fi=0; fi<4; fi++){
+    var F = FING[fi];
+    var kang = (30 - F.back*260) * DEG;          // 弧のぶん付け根の角度をずらす
+    var krad = 0.0345;
+    var stF = digit({
+      x0: Math.cos(kang)*krad, y0: Math.sin(kang)*krad, z0: F.z,
+      a0: kang + 8*DEG, len: F.len, r: F.r,
+      bend: [50, 80, 45], splay: F.splay
+    });
+    nail(stF, F.r);
+    digitLens.push(F.len);
+  }
+
+  /* 親指：他の4指と違って中手骨から動き、2節しかない。
+     手のひら側から胴の下へ回り込ませる（対立位）。 */
+  var thumbSt = digit({
+    x0: 0.030, y0: -0.026, z0: 0.010,
+    a0: -104*DEG, len: 0.070, r: 0.0125,
+    bend: [34, 40, 26], splay: -0.34
+  });
+  nail(thumbSt, 0.0125);
+
+  /* ---- 手根と前腕 ----
+     前腕は単なる円錐ではない。肘寄り 1/4 に屈筋群の膨らみがあり、
+     手首へ向かって細くなりながら断面が扁平になる（手首は横に広く薄い）。
+     この扁平さが無いと丸太に見える。 */
+  var foreSt = [];
+  (function(){
+    // 手首 → 肘。わずかに弓なりにする
+    var A = [0.034, -0.010, 0.048], B = [0.096, -0.030, 0.336];
+    var prof = [
+      // t,    横半径, 縦半径
+      [0.00, 0.0270, 0.0188],   // 手根：横に広く薄い
+      [0.06, 0.0268, 0.0196],
+      [0.16, 0.0292, 0.0244],   // 腱が浮くあたり
+      [0.34, 0.0340, 0.0311],
+      [0.52, 0.0392, 0.0369],
+      [0.70, 0.0432, 0.0413],   // 屈筋群の最大部
+      [0.86, 0.0425, 0.0408],
+      [1.00, 0.0392, 0.0378]    // 肘側
+    ];
+    for(var i=0;i<prof.length;i++){
+      var t = prof[i][0];
+      var bow = Math.sin(t*Math.PI)*0.010;      // 尺側へ少したわませる
+      foreSt.push({
+        p:[A[0] + (B[0]-A[0])*t, A[1] + (B[1]-A[1])*t - bow, A[2] + (B[2]-A[2])*t],
+        rx:prof[i][1], ry:prof[i][2],
+        up:[0.18, 0.97, 0]                      // 扁平の向き＝掌背方向
+      });
+    }
+  })();
+  addSkin(sweepGeo(foreSt, 14, 1, 0));
+
+  // 手根と手掌のつなぎ目。ここを埋めないと手首が抜けて見える
+  var wristLink = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 9), skin);
+  wristLink.position.set(0.033, -0.012, 0.028);
+  wristLink.scale.set(0.92, 0.80, 1.05);
+  skinParts.push(wristLink);
+
+  /* ---- 包帯 ---- */
+  // 前腕に巻いた包帯。手首側から前腕半ばまで、少しずつ角度を変えて重ねる
   for(var wi=0; wi<7; wi++){
-    var t01 = wi / 6;
-    var zz = 0.028 + t01*0.170;               // 手首から前腕半ばまで巻き、肘側は素肌
-    // その位置の前腕半径 + 余裕。埋まらないように実寸から計算する
-    var wr = 0.0230 + ((zz - 0.005) / 0.290) * (0.0350 - 0.0230) + 0.0022;
-    var ring = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr + 0.0010, 0.021, 14), band);
-    ring.rotation.x = Math.PI/2;
-    ring.rotation.z = (wi % 2 ? 0.11 : -0.11);
-    ring.position.set(0, -0.004, zz);
-    FORE.add(ring);
+    var t01 = wi/6;
+    var tt = 0.02 + t01*0.42;                   // 前腕パラメータ上の位置
+    // その位置の実寸を掃引と同じ式から拾う（埋まり・浮きを防ぐ）
+    var ix = Math.min(foreSt.length-2, Math.floor(tt*(foreSt.length-1)));
+    var fr = (tt*(foreSt.length-1)) - ix;
+    var s0 = foreSt[ix], s1 = foreSt[ix+1];
+    var px = s0.p[0] + (s1.p[0]-s0.p[0])*fr;
+    var py = s0.p[1] + (s1.p[1]-s0.p[1])*fr;
+    var pz = s0.p[2] + (s1.p[2]-s0.p[2])*fr;
+    var rx = (s0.rx + (s1.rx-s0.rx)*fr) + 0.0022;
+    var ry = (s0.ry + (s1.ry-s0.ry)*fr) + 0.0022;
+    var dx = s1.p[0]-s0.p[0], dy = s1.p[1]-s0.p[1], dz = s1.p[2]-s0.p[2];
+    var dl = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
+    var w = 0.011;
+    var tilt = (wi % 2 ? 0.10 : -0.10);
+    addBand(sweepGeo([
+      { p:[px-dx/dl*w, py-dy/dl*w - tilt*0.004, pz-dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:[0.18,0.97,0] },
+      { p:[px, py, pz], rx:rx, ry:ry, up:[0.18+tilt,0.97,0] },
+      { p:[px+dx/dl*w, py+dy/dl*w + tilt*0.004, pz+dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:[0.18,0.97,0] }
+    ], 12, 0, 0));
   }
   // 巻き終わりのほつれ
   var loose = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.030, 0.016), band);
-  loose.position.set(0.024, -0.020, 0.062);
+  loose.position.set(0.052, -0.030, 0.108);
   loose.rotation.set(0.3, 0.2, 0.5);
-  FORE.add(loose);
-  // 手の甲にも一枚
-  var handWrap = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.018, 0.030), band);
-  handWrap.position.set(0.030, 0.014, 0.006);
-  handWrap.rotation.set(0.05, 0, 0.10);
-  ARM.add(handWrap);
+  bandParts.push(loose);
+  // 手の甲を横切る一枚
+  addBand(hugBarrel(sweepGeo([
+    { p:[0.030, 0.012, -0.020], rx:0.0135, ry:0.030, up:[0,0,1] },
+    { p:[0.036, 0.000, -0.020], rx:0.0140, ry:0.032, up:[0,0,1] },
+    { p:[0.032,-0.014, -0.020], rx:0.0130, ry:0.028, up:[0,0,1] }
+  ], 10, 0, 0), 0.0022));
+
   // 患者用リストバンド
   var idBandMat = new THREE.MeshStandardMaterial({
     color:0xd8d5c9, map:gauzeTex, roughness:0.75, toneMapped:false
   });
-  var wband = new THREE.Mesh(new THREE.CylinderGeometry(0.0255, 0.0255, 0.013, 14), idBandMat);
-  wband.rotation.x = Math.PI/2;
-  wband.position.set(0, -0.003, 0.020);
-  FORE.add(wband);
+  var wb0 = foreSt[0], wb1 = foreSt[1];
+  var wbG = sweepGeo([
+    { p:[wb0.p[0]+(wb1.p[0]-wb0.p[0])*0.28, wb0.p[1]+(wb1.p[1]-wb0.p[1])*0.28, wb0.p[2]+(wb1.p[2]-wb0.p[2])*0.28],
+      rx:wb0.rx+0.0016, ry:wb0.ry+0.0016, up:[0.18,0.97,0] },
+    { p:[wb0.p[0]+(wb1.p[0]-wb0.p[0])*0.60, wb0.p[1]+(wb1.p[1]-wb0.p[1])*0.60, wb0.p[2]+(wb1.p[2]-wb0.p[2])*0.60],
+      rx:wb0.rx+0.0018, ry:wb0.ry+0.0018, up:[0.18,0.97,0] }
+  ], 12, 0, 0);
+  var wband = new THREE.Mesh(wbG, idBandMat);
+  ARM.add(wband);
+
+  /* ---- 部品をマテリアルごとに1つへ焼き固める ----
+     腕は毎フレーム必ず画面にあり、部品のまま出すとドローコールを
+     40 以上使う。腕の中で相対運動する部品は無いので、まとめてよい。 */
+  var skinGeo = null;
+  (function(){
+    var groups = [ [skinParts, skin], [bandParts, band], [nailParts, nailMat] ];
+    var eye = new THREE.Matrix4();
+    for(var gi=0; gi<groups.length; gi++){
+      var list = groups[gi][0];
+      if(!list.length) continue;
+      for(var mi=0; mi<list.length; mi++) list[mi].updateMatrixWorld(true);
+      var merged = mergeMeshes(list, eye);
+      // 母指球などの塊は変換を持つので、結合後の座標で改めて胴に沿わせる
+      if(gi < 2) hugBarrel(merged);
+      ARM.add(new THREE.Mesh(merged, groups[gi][1]));
+      if(gi === 0) skinGeo = merged;
+    }
+  })();
 
   viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
-                base:{ x:0, y:0, z:0 } };
+                base:{ x:0, y:0, z:0 },
+                skinGeo:skinGeo, digitLens:digitLens, barrelAt:barrelRadiusAt };
 }
 
 function buildWorld(){
@@ -4919,6 +5157,34 @@ function runSelfTest(){
     if(near > 1.6*1.6) placeOK = false;
   });
   t('焼き固めた什器が元の位置にある', sampled === 0 || placeOK);
+  // --- 腕（ビューモデル） ---
+  if(viewParts && viewParts.skinGeo){
+    var dl = viewParts.digitLens;
+    // 指の長さは 中指 > 環指 > 示指 > 小指。人体の並びどおりか
+    t('指の長さの順序が人体どおり',
+      dl.length === 4 && dl[1] > dl[2] && dl[2] > dl[0] && dl[0] > dl[3]);
+    // 握った手が胴に埋まると、指が金属に溶けたように見える
+    var pa2 = viewParts.skinGeo.attributes.position, worstC = 9;
+    for(var vi2=0; vi2<pa2.count; vi2++){
+      var need2 = viewParts.barrelAt(pa2.getZ(vi2));
+      if(need2 <= 0) continue;
+      var cl2 = Math.sqrt(pa2.getX(vi2)*pa2.getX(vi2) + pa2.getY(vi2)*pa2.getY(vi2)) - need2;
+      if(cl2 < worstC) worstC = cl2;
+    }
+    t('手がランプの胴に食い込んでいない', worstC > -0.0005);
+    // 面が裏返ると背面カリングで腕ごと消える。符号付き体積で巻き方向を見る
+    var ip2 = viewParts.skinGeo.index, vol2 = 0;
+    var va2 = new THREE.Vector3(), vb2 = new THREE.Vector3(),
+        vc2 = new THREE.Vector3(), vx2 = new THREE.Vector3();
+    for(var ti2=0; ti2<ip2.count; ti2+=3){
+      va2.fromBufferAttribute(pa2, ip2.getX(ti2));
+      vb2.fromBufferAttribute(pa2, ip2.getX(ti2+1));
+      vc2.fromBufferAttribute(pa2, ip2.getX(ti2+2));
+      vol2 += vx2.crossVectors(va2, vb2).dot(vc2)/6;
+    }
+    t('腕の面が外を向いている', vol2 > 0);
+  }
+
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
   scene.traverse(function(o){
