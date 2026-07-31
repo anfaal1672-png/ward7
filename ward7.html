@@ -1755,7 +1755,9 @@ function buildViewModel(){
   var ARM = new THREE.Group();
   ARM.name = 'ARMROOT';
   ARM.position.set(0.031, -0.085, -0.345);
-  ARM.rotation.set(0.10, -0.14, 0.07);
+  // 光軸は視線とほぼ平行にする。以前は上へ 5.7 度・外へ 8 度も振っていて、
+  // 前ではなく斜め外を照らしているように見えた
+  ARM.rotation.set(0.055, -0.045, 0.07);
   viewRig.add(ARM);
 
   function tube(rTop, rBot, len, mat, seg){
@@ -2035,38 +2037,66 @@ function buildViewModel(){
      前腕は単なる円錐ではない。肘寄り 1/4 に屈筋群の膨らみがあり、
      手首へ向かって細くなりながら断面が扁平になる（手首は横に広く薄い）。
      この扁平さが無いと丸太に見える。 */
+  /* 前腕は手掌の付け根（手根隆起）からそのまま続く一本の面として作る。
+     以前は手掌と前腕を別々に置いて球で塞いでいたため、手首で径と向きが
+     不連続になり、付け根が別部品を差し込んだように見えていた。
+
+     向きも直す。sweepGeo は up がほぼ ry の向きになる（up⊥T のとき
+     U = T×(up×T) = up）。前腕を掌背方向に扁平にしたいので、up は
+     「手のひらの面に沿う向き」でなければならない。以前は一律 +Y に
+     していたので、手のひら（胴に巻き付いて傾いている）に対して扁平の
+     向きが 90度ねじれていた。手首側は手のひらに合わせ、肘側へ向かって
+     ゆるく回内していく形にする。
+
+     さらに、前腕が胴とほぼ平行だったのも無理があった。実際に前へ向けた
+     ライトを握ると、前腕は柄に対して 30〜45度の角度で入ってくる。 */
   var foreSt = [];
   (function(){
-    // 手首 → 肘。わずかに弓なりにする
-    var A = [0.034, -0.010, 0.048], B = [0.096, -0.030, 0.336];
+    var heel = palmSt[0].p;                     // 手掌の付け根＝ここから続ける
+    var A = [heel[0] + 0.004, heel[1] - 0.004, heel[2] + 0.012];
+    var B = [0.150, -0.108, 0.250];             // 肘。柄に対して約 32 度で入る
+    // 手首での掌背方向（＝胴の軸から手掌の付け根へ向かう向き）
+    var hr = Math.sqrt(heel[0]*heel[0] + heel[1]*heel[1]) || 1;
+    var dorsal = [heel[0]/hr, heel[1]/hr, 0];
+    var dir = [B[0]-A[0], B[1]-A[1], B[2]-A[2]];
+    var dl2 = Math.sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+    dir = [dir[0]/dl2, dir[1]/dl2, dir[2]/dl2];
+    // up = T × dorsal（＝掌背方向を rx に、幅を ry に割り当てる）
+    var upW = [
+      dir[1]*dorsal[2] - dir[2]*dorsal[1],
+      dir[2]*dorsal[0] - dir[0]*dorsal[2],
+      dir[0]*dorsal[1] - dir[1]*dorsal[0]
+    ];
+    var ul = Math.sqrt(upW[0]*upW[0] + upW[1]*upW[1] + upW[2]*upW[2]) || 1;
+    upW = [upW[0]/ul, upW[1]/ul, upW[2]/ul];
+    var upE = [0.18, 0.97, 0];                  // 肘側：回内して縦向きに戻る
+
     var prof = [
-      // t,    横半径, 縦半径
-      [0.00, 0.0270, 0.0188],   // 手根：横に広く薄い
-      [0.06, 0.0268, 0.0196],
-      [0.16, 0.0292, 0.0244],   // 腱が浮くあたり
-      [0.34, 0.0340, 0.0311],
-      [0.52, 0.0392, 0.0369],
-      [0.70, 0.0432, 0.0413],   // 屈筋群の最大部
-      [0.86, 0.0425, 0.0408],
-      [1.00, 0.0392, 0.0378]    // 肘側
+      // t,   掌背の厚み, 橈尺の幅
+      [0.00, 0.0135, 0.0225],   // 手根隆起：手掌の断面をそのまま受ける
+      [0.05, 0.0150, 0.0250],
+      [0.12, 0.0176, 0.0268],   // 手首：掌背に薄く、橈尺に広い
+      [0.22, 0.0221, 0.0292],   // 腱が浮くあたり
+      [0.38, 0.0292, 0.0334],
+      [0.55, 0.0355, 0.0384],
+      [0.72, 0.0402, 0.0424],   // 屈筋群の最大部
+      [0.87, 0.0404, 0.0416],
+      [1.00, 0.0378, 0.0390]    // 肘側はほぼ丸い
     ];
     for(var i=0;i<prof.length;i++){
       var t = prof[i][0];
-      var bow = Math.sin(t*Math.PI)*0.010;      // 尺側へ少したわませる
+      var bow = Math.sin(t*Math.PI)*0.008;      // 尺側へ少したわませる
+      var e = t*t*(3-2*t);                      // up の切り替わりはなめらかに
       foreSt.push({
         p:[A[0] + (B[0]-A[0])*t, A[1] + (B[1]-A[1])*t - bow, A[2] + (B[2]-A[2])*t],
         rx:prof[i][1], ry:prof[i][2],
-        up:[0.18, 0.97, 0]                      // 扁平の向き＝掌背方向
+        up:[upW[0] + (upE[0]-upW[0])*e,
+            upW[1] + (upE[1]-upW[1])*e,
+            upW[2] + (upE[2]-upW[2])*e]
       });
     }
   })();
   addSkin(sweepGeo(foreSt, 14, 1, 0));
-
-  // 手根と手掌のつなぎ目。ここを埋めないと手首が抜けて見える
-  var wristLink = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 9), skin);
-  wristLink.position.set(0.033, -0.012, 0.028);
-  wristLink.scale.set(0.92, 0.80, 1.05);
-  skinParts.push(wristLink);
 
   /* ---- 包帯 ---- */
   // 前腕に巻いた包帯。手首側から前腕半ばまで、少しずつ角度を変えて重ねる
@@ -2086,15 +2116,17 @@ function buildViewModel(){
     var dl = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
     var w = 0.011;
     var tilt = (wi % 2 ? 0.10 : -0.10);
+    var u0 = s0.up, u1 = s1.up;
+    var ub = [u0[0]+(u1[0]-u0[0])*fr, u0[1]+(u1[1]-u0[1])*fr, u0[2]+(u1[2]-u0[2])*fr];
     addBand(sweepGeo([
-      { p:[px-dx/dl*w, py-dy/dl*w - tilt*0.004, pz-dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:[0.18,0.97,0] },
-      { p:[px, py, pz], rx:rx, ry:ry, up:[0.18+tilt,0.97,0] },
-      { p:[px+dx/dl*w, py+dy/dl*w + tilt*0.004, pz+dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:[0.18,0.97,0] }
+      { p:[px-dx/dl*w, py-dy/dl*w - tilt*0.004, pz-dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:ub },
+      { p:[px, py, pz], rx:rx, ry:ry, up:[ub[0]+tilt, ub[1], ub[2]] },
+      { p:[px+dx/dl*w, py+dy/dl*w + tilt*0.004, pz+dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:ub }
     ], 12, 0, 0));
   }
   // 巻き終わりのほつれ
   var loose = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.030, 0.016), band);
-  loose.position.set(0.052, -0.030, 0.108);
+  loose.position.set(0.062, -0.052, 0.088);
   loose.rotation.set(0.3, 0.2, 0.5);
   bandParts.push(loose);
   // 手の甲を横切る一枚
@@ -2108,12 +2140,12 @@ function buildViewModel(){
   var idBandMat = new THREE.MeshStandardMaterial({
     color:0xd8d5c9, map:gauzeTex, roughness:0.75, toneMapped:false
   });
-  var wb0 = foreSt[0], wb1 = foreSt[1];
+  var wbA = foreSt[2], wbB = foreSt[3];        // 手首の少し肘寄りに巻く
   var wbG = sweepGeo([
-    { p:[wb0.p[0]+(wb1.p[0]-wb0.p[0])*0.28, wb0.p[1]+(wb1.p[1]-wb0.p[1])*0.28, wb0.p[2]+(wb1.p[2]-wb0.p[2])*0.28],
-      rx:wb0.rx+0.0016, ry:wb0.ry+0.0016, up:[0.18,0.97,0] },
-    { p:[wb0.p[0]+(wb1.p[0]-wb0.p[0])*0.60, wb0.p[1]+(wb1.p[1]-wb0.p[1])*0.60, wb0.p[2]+(wb1.p[2]-wb0.p[2])*0.60],
-      rx:wb0.rx+0.0018, ry:wb0.ry+0.0018, up:[0.18,0.97,0] }
+    { p:[wbA.p[0]+(wbB.p[0]-wbA.p[0])*0.10, wbA.p[1]+(wbB.p[1]-wbA.p[1])*0.10, wbA.p[2]+(wbB.p[2]-wbA.p[2])*0.10],
+      rx:wbA.rx+0.0016, ry:wbA.ry+0.0016, up:wbA.up },
+    { p:[wbA.p[0]+(wbB.p[0]-wbA.p[0])*0.42, wbA.p[1]+(wbB.p[1]-wbA.p[1])*0.42, wbA.p[2]+(wbB.p[2]-wbA.p[2])*0.42],
+      rx:wbA.rx+0.0018, ry:wbA.ry+0.0018, up:wbA.up }
   ], 12, 0, 0);
   var wband = new THREE.Mesh(wbG, idBandMat);
   ARM.add(wband);
