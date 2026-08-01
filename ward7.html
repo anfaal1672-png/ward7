@@ -5734,6 +5734,13 @@ function botChooseGoal(){
   var t;
   // 切れてからでは遅い。ランプが無いと追跡者より遅くなる
   if(player.battery < 85 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  /* 鍵は見つけ次第その場で取る。
+     以前は「全部集めて非常口が開いてから」しか鍵を目標にしていなかったので、
+     途中で見かけた鍵を素通りして、あとで取りに戻っていた。実測で 4枚目 258s /
+     鍵 354s / 死亡 380s と、戻っているあいだに死んでいる。しかも全部集めた後は
+     隠れても居場所を嗅ぎつけられる（endgame）ので、隠れが効かない時間帯に
+     いちばん遠出することになっていた。 */
+  if(!player.hasKey && (t = botNearest('鍵'))) return { kind:'鍵', x:t.x, z:t.z, obj:t.ref };
   if(!world.exit.open){
     if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
     return { kind:'探索', x:null, z:null };
