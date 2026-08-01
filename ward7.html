@@ -5386,7 +5386,7 @@ var BOT = {
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, hideWaitT:0, hideSkip:null, hideSkipT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
@@ -5409,7 +5409,7 @@ function botReset(){
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0;
+  BOT.aimVel = 0; BOT.ready = true; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.breathOn = false; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
@@ -5943,9 +5943,23 @@ function botUpdate(dt){
       if(BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; holdBtnDown = false; botSay('見つかった。出る'); }
       return;
     }
-    /* 息は止めっぱなしにする。「遠いときは吸って回復」を試したら 25%→6% まで
-       落ちた。閾値では 3.2m の可聴圏に入る前に止められない。 */
-    holdBtnDown = true;                      // 息を止める（ボタンを押しているのと同じ）
+    /* 息を止めるのは相手が近いときだけ。
+       隠れていて音で気づかれるのは 3.2m 以内（updateHunter の hiding 分岐）で、
+       そこを外れていれば吸っていても聞かれない。止めっぱなしだと 6.2/s で
+       16 秒ほどで尽き、breathLock が立って「息を吸う音」で自分から居場所を
+       教えることになる。いちばん危ないときに札を切れない状態で迎える。
+
+       距離と気配の対応を実測した（hunt 状態）:
+         3.2m → 0.355   6m → 0.092   9m → 0.072   18m → 0.025
+       閾値 0.10 はおよそ 6m 相当で、3.2m のほぼ倍の余裕がある。
+       いちど止めたら 0.07 を切るまで続ける（境界での往復を避ける）。
+
+       以前この案を 25%→6% の悪化として捨てたが、あの測定は隠れ場所の距離条件も
+       同時に変えていて原因を分離できていなかった。棄却の根拠が不正だった。 */
+    var thHide = botThreat();
+    if(thHide > 0.10) BOT.breathOn = true;
+    else if(thHide < 0.07) BOT.breathOn = false;
+    holdBtnDown = BOT.breathOn;
     if(player.lamp && BOT.lampCd <= 0){ toggleLamp(); BOT.lampCd = 2; }   // 明かりが漏れる
     BOT.lampCd -= dt;
     BOT.hideT += dt;
@@ -5983,6 +5997,7 @@ function botUpdate(dt){
     if(BOT.fleeT <= 0 && !sawHunter){ BOT.flip = true; BOT.flipStrike = 0; }
     BOT.fleeT = 3.0; BOT.unseenT = 0;
   } else BOT.unseenT += dt;
+  BOT.hideSkipT -= dt;
   BOT.fleeT -= dt;
   var fleeing = BOT.fleeT > 0;
   BOT.cautionT = (th > 0.16) ? 2.0 : Math.max(0, BOT.cautionT - dt);
@@ -6022,6 +6037,8 @@ function botUpdate(dt){
       for(var hi=0; hi<BOT.seen.length; hi++){
         var hs2 = BOT.seen[hi];
         if(hs2.kind !== '隠れ場所') continue;
+        // 直前に入れなかった箱は少しのあいだ候補から外す
+        if(BOT.hideSkipT > 0 && BOT.hideSkip === (hs2.ref || hs2)) continue;
         var hdp = Math.sqrt((hs2.x-player.x)*(hs2.x-player.x)+(hs2.z-player.z)*(hs2.z-player.z));
         if(hdp > 17) continue;
         // 相手を挟んだ向こう側の箱へ走るのは、相手に向かって走るのと同じ
@@ -6040,7 +6057,20 @@ function botUpdate(dt){
       BOT.useCd -= dt;
       // 入るところを見られたら意味がない。姿が切れている瞬間だけ入る
       var hreach = (hcut.ref && hcut.ref.reach) ? hcut.ref.reach - 0.15 : 1.85;
-      if(hcd < hreach && !sawHunter && BOT.ear.muffled && BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; }
+      if(hcd < hreach){
+        if(!sawHunter && BOT.ear.muffled && BOT.useCd <= 0){
+          input.use = true; BOT.useCd = 0.5; BOT.hideWaitT = 0;
+        }else{
+          /* 着いたのに入れない（見られている、または視線が通っている）。
+             そのまま留まると箱の周りを回り続ける。実機で指摘された挙動。
+             少しだけ粘って、駄目ならこの箱は諦めて逃走に戻る。 */
+          BOT.hideWaitT += dt;
+          if(BOT.hideWaitT > 1.0){
+            BOT.hideSkip = hcut.ref || hcut; BOT.hideSkipT = 7; BOT.hideWaitT = 0;
+            botSay('入れない。別を探す');
+          }
+        }
+      }else BOT.hideWaitT = 0;
     }else{
       /* 行き先は 3 秒保ち、そこへの経路だけ 0.4 秒ごとに引き直す。
          行き先まで変えると向きが揺れて失速する。 */
@@ -6281,10 +6311,24 @@ function botHUD(){
   var th = botThreat();
   // 目盛りは文字（▮▯）だと環境によって豆腐になるので、幅で描く
   var dir = BOT.ear.pan < -0.15 ? '右' : (BOT.ear.pan > 0.15 ? '左' : '前後どちらか');
-  var tail = th > 0.02 ? (dir + (BOT.ear.muffled ? '・壁越し' : '・直接')) : '何も聞こえない';
+  /* 足音は別系統（Audio2.hunterStep）で鳴っていて、この表示は唸り声
+     （setHunterVoice）しか見ていなかった。実機で足音が聞こえているのに
+     「何も聞こえない」と出るのはそのため。ボット自身は足音を使っている
+     （chaseHeard・振り返り）ので、表示だけが遅れていた。 */
+  var stepAge = player.time - BOT.ear.stepT;
+  var stepDir = BOT.ear.stepPan < -0.15 ? '右' : (BOT.ear.stepPan > 0.15 ? '左' : '前後どちらか');
+  var tail;
+  if(stepAge < 1.2){
+    tail = '足音 ' + stepDir + (BOT.ear.stepChase ? '・走ってくる' : '') +
+           (BOT.ear.stepHot ? '' : '・壁越し');
+  }else if(th > 0.02){
+    tail = dir + (BOT.ear.muffled ? '・壁越し' : '・直接');
+  }else tail = '何も聞こえない';
+  // 目盛りは声と足音の濃い方を出す
+  var thShow = Math.max(th, stepAge < 1.2 ? (BOT.ear.stepChase ? 0.5 : 0.3) : 0);
   el.innerHTML =
     '<b>AI</b> ' + (BOT.note || '…') +
-    '<br><span>耳</span><i class="mtr"><u style="width:' + Math.round(th*100) + '%"></u></i>' +
+    '<br><span>耳</span><i class="mtr"><u style="width:' + Math.round(thShow*100) + '%"></u></i>' +
     '<span>' + tail + '</span>' +
     '<br><span>見つけた ' + BOT.seen.length + ' 件 / 歩いた範囲 ' +
       Math.round(botMapped()/(GW*GH)*100) + '%</span>';
