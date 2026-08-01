@@ -5778,7 +5778,7 @@ function botChooseGoal(){
   var t;
   // 切れてからでは遅い。ランプが無いと追跡者より遅くなる
   /* 電池切れが被弾の 33% を占める。見つけたら満タンでない限り拾っておく */
-  if(player.battery < 96 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  if(player.battery < 99.5 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
   /* 鍵は見つけ次第その場で取る。
      以前は「全部集めて非常口が開いてから」しか鍵を目標にしていなかったので、
      途中で見かけた鍵を素通りして、あとで取りに戻っていた。実測で 4枚目 258s /
