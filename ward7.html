@@ -5347,7 +5347,7 @@ var BOT = {
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1, quietT:0,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
@@ -5358,7 +5358,7 @@ function botReset(){
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0;
+  BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0; BOT.quietT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
@@ -5761,7 +5761,7 @@ function botFleeStep(hpos){
      いる間は 2.7m→5.1m と離せていたのに、曲がった直後に一気に詰められていた。
      いま走っている向きを続けられる行き先を優遇して、なるべく曲がらない。 */
   var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
-  var best = null, bs = -1e9;
+  var best = null, bs = -1e9, bs2 = -1e9, cand = [];
   for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
     var k2 = idx(x,y);
     if(K[k2] === 2) continue;
@@ -5772,7 +5772,20 @@ function botFleeStep(hpos){
     var vl = Math.sqrt(vx*vx+vz*vz) || 1;
     var ahead = (vx/vl)*fx + (vz/vl)*fz;          // いまの向きとの一致（-1..1）
     var sc = dh*1.0 - dp*0.25 + ahead*7;
-    if(sc > bs){ bs = sc; best = {x:x, y:y}; }
+    cand.push({x:x, y:y, sc:sc, wx:w2.x, wz:w2.z});
+    if(sc > bs) bs = sc;
+  }
+  /* 追跡者の記憶は 1.8 秒しかない（DIFF.memory）。視線さえ切れば chase は
+     hunt に落ち、最後に見た場所へ向かうだけになる。距離を稼ぐより、
+     壁の陰に入る方が早く追跡が切れる。
+     視線判定は重いので、素点が上位の候補だけに掛ける。 */
+  cand.sort(function(a2,b2){ return b2.sc - a2.sc; });
+  var lim = Math.min(cand.length, 30);
+  for(var ci=0; ci<lim; ci++){
+    var c2 = cand[ci];
+    var hidden = !hasSight(world.grid, c2.wx, c2.wz, hpos.x, hpos.z);
+    var sc2 = c2.sc + (hidden ? 14 : 0);
+    if(sc2 > bs2){ bs2 = sc2; best = {x:c2.x, y:c2.y}; }
   }
   if(!best) return null;
   BOT.escGoal = best;
@@ -5946,6 +5959,11 @@ function botUpdate(dt){
                           : botNorm(BOT.escWorld - player.yaw);
       run = true;
     }
+    /* 走ると足音の可聴距離が 壁越し 8.8m まで伸びる（歩き 5.5m、静止 2.5m）。
+       視線を切っても走り続けるかぎり hunt で現在地を更新され続けるので、
+       追跡は永久に切れない。角を曲がってから少しだけ全力で、あとは歩く。 */
+    if(BOT.ear.muffled && !sawHunter) BOT.quietT += dt; else BOT.quietT = 0;
+    if(BOT.quietT > 1.2){ run = false; botSay('足音を殺す'); }
     BOT.repath = 0;
   }else{
     if(!BOT.goal || BOT.repath <= 0 || (BOT.goal.obj && BOT.goal.obj.taken)){
