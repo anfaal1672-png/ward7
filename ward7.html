@@ -5796,7 +5796,7 @@ function botChooseGoal(){
        行き先が分かっていて、かつ静かなときを選ぶ（実測 0.05 は約 15m 以遠）。 */
     var lastReady = botNearest('非常口') && player.hasKey && botThreat() < 0.05 &&
                     BOT.fleeT <= 0 && !player.hiding;
-    if(player.got === player.need - 1 && player.time < 600 &&
+    if(player.got === player.need - 1 && player.time < 700 &&
        !lastReady && (t = botNearest('カルテ'))){
       BOT.seekExit = true;
       return { kind:'探索', x:null, z:null };
