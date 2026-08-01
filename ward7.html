@@ -3134,11 +3134,13 @@ function placeHunter(reach, startC){
   hunter.attackCd = 0; hunter.bob = 0; hunter.patrolGoal = null; hunter.patrolT = 0;
   hunter.memT = 0; hunter.chaseT = 0; hunter.twitchT = 0; hunter.twitch = 0;
   hunter.stepAcc = 0; hunter.jawOpen = 0;
-  hunter.glitchT = 2 + Math.random()*3; hunter.glitch = 0; hunter.stunT = 0;
+  // 種を固定しても再現しなかった原因。ここが Math.random だと最初のグリッチが
+  // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
+  hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
   hunter.windT = 0; hunter.swingT = 0;
   hunter.stuckT = 0; hunter.slideDir = 0; hunter.noDirectT = 0; hunter.punchArm = 1;
   hunter.gazeT = 0; hunter.gazeY = 0; hunter.gazeTarget = 0;
-  hunter.eyeT = 2 + Math.random()*3; hunter.eyeOff = 0;
+  hunter.eyeT = 2 + rnd()*3; hunter.eyeOff = 0;
   hunter.spawnGrace = 3.0;
   hunter.group.visible = true; hunter.shadow.visible = true;
   hunter.group.position.set(hunter.x, 0, hunter.z);
@@ -3762,6 +3764,7 @@ window.addEventListener('blur', function(){ if(state === STATE.PLAY) doPause(); 
 var buildInfo = null;
 var startedAt = 0;
 
+var forcedSeed = null;
 function startGame(){
   if(CTX_LOST){ toast('描画の復帰を待っています', 2); return; }
   Audio2.init();
@@ -3769,7 +3772,11 @@ function startGame(){
   Audio2.resume();
 
   var d = DIFF[settings.diff];
-  rnd = mulberry32((Date.now() ^ (Math.random()*1e9)) & 0x7fffffff);
+  /* 検証で「同じ間取りを両方の版で走らせる」ために種を固定できるようにする。
+     間取りの当たり外れが変更の効果より大きく、毎回別の間取りだと n=16 では
+     被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
+  rnd = mulberry32((forcedSeed !== null ? forcedSeed
+                   : ((Date.now() ^ (Math.random()*1e9)))) & 0x7fffffff);
 
   QC = qualityCfg();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
@@ -6214,6 +6221,7 @@ try{
                      scan:+postMat.uniforms.uScan.value.toFixed(3),
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
     bot: BOT, botOn: function(v){ BOT.on = !!v; }, input: input,
+    seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
     cheats: cheats, settings: settings, act: doCheatAct,
     openCheats: openCheats, detectMode: detectMode
   };
