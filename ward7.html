@@ -3854,6 +3854,12 @@ function startGame(){
     if(state === STATE.PLAY) toast(IS_TOUCH ? '左で移動（大きく倒すと走る）' : 'WASD で移動 · Shift で走る', 3);
   }, 3400);
 
+  /* 環境音のタイマーは読み込み時に一度決まったきり持ち越されていた。
+     種を固定しても再現しなかった原因がこれで、最初のきしみが鳴る時刻が
+     プロセスごとに変わり、そこで rnd() の消費がひとつずれて以降が全部
+     食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
+  ambientCreakT = 6 + rnd()*8;
+
   if(BOT.on) botReset();
 
   if(DEBUG) runSelfTest();
@@ -5358,7 +5364,19 @@ var BOT = {
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
+/* ボットの乱数はゲーム側と分ける。
+   共有していたせいで、演出用の乱数消費がひとつずれるだけでボットの判断が
+   丸ごと変わり、同じ種・同じコードでも被弾ペースが 0.72 と 1.09 で
+   食い違って（+52%）、変更の良し悪しが測れなかった。 */
+var botRndState = 1;
+function botRnd(){
+  botRndState |= 0; botRndState = (botRndState + 0x6D2B79F5) | 0;
+  var t = Math.imul(botRndState ^ (botRndState >>> 15), 1 | botRndState);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
 function botReset(){
+  botRndState = (forcedSeed !== null ? forcedSeed : (Date.now() & 0x7fffffff)) | 0;
   BOT.known = new Int8Array(GW*GH);
   BOT.penalty = new Int16Array(GW*GH);
   BOT.danger = new Int16Array(GW*GH);
@@ -5858,7 +5876,7 @@ function botPickEscape(awayRel, hpos){
 // 視点。瞬間移動させず、加速と最高角速度と手ぶれを通す
 function botSteer(wantRel, dt, vmax){
   BOT.noiseT -= dt;
-  if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + rnd()*0.4; BOT.noise = (rnd()-0.5)*0.045; }
+  if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + botRnd()*0.4; BOT.noise = (botRnd()-0.5)*0.045; }
   var desired = clamp((wantRel + BOT.noise)*4.2, -vmax, vmax);
   BOT.aimVel += clamp(desired - BOT.aimVel, -15*dt, 15*dt);
   input.lookX -= BOT.aimVel*dt;             // player.yaw -= input.lookX
@@ -6061,9 +6079,9 @@ function botUpdate(dt){
       wantRel += BOT.glanceDir * 0.84;
       run = false;
     }else if(BOT.glanceT <= 0){
-      BOT.glanceT = 2.6 + rnd()*3.4;
-      BOT.glanceHold = 0.45 + rnd()*0.35;
-      BOT.glanceDir = (rnd()<0.5) ? -1 : 1;
+      BOT.glanceT = 2.6 + botRnd()*3.4;
+      BOT.glanceHold = 0.45 + botRnd()*0.35;
+      BOT.glanceDir = (botRnd()<0.5) ? -1 : 1;
     }
     // 背後で足音が鳴ったら振り返る
     if((player.time - BOT.ear.stepT) < 0.25 && BOT.ear.stepHot && th > 0.10 && BOT.lookBackT <= 0){
@@ -6081,7 +6099,7 @@ function botUpdate(dt){
   /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
      実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
   if(player.blockedT > 0.3 && BOT.unstickT <= 0){
-    BOT.unstickT = 0.7; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1;
+    BOT.unstickT = 0.7; BOT.unstickDir = (botRnd() < 0.5) ? -1 : 1;
   }
   if(BOT.unstickT > 0){
     BOT.unstickT -= dt;
