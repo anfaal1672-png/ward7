@@ -5407,6 +5407,17 @@ var BOT = {
    丸ごと変わり、同じ種・同じコードでも被弾ペースが 0.72 と 1.09 で
    食い違って（+52%）、変更の良し悪しが測れなかった。 */
 var botRndState = 1;
+/* 見た目だけの揺らぎ（視線の上下）は別の流れから引く。
+   同じ流れを使うと、演出を足しただけで以降の判断の乱数が全部ずれて、
+   同じ種でも別のボットになってしまう。実際それで 38/120 → 28/120 と
+   変わり、上下の効果を測れなくなった。 */
+var botLookState = 1;
+function botLookRnd(){
+  botLookState |= 0; botLookState = (botLookState + 0x9E3779B9) | 0;
+  var t = Math.imul(botLookState ^ (botLookState >>> 16), 0x21F0AAAD);
+  t = Math.imul(t ^ (t >>> 15), 0x735A2D97);
+  return ((t ^ (t >>> 15)) >>> 0) / 4294967296;
+}
 function botRnd(){
   botRndState |= 0; botRndState = (botRndState + 0x6D2B79F5) | 0;
   var t = Math.imul(botRndState ^ (botRndState >>> 15), 1 | botRndState);
@@ -5415,6 +5426,7 @@ function botRnd(){
 }
 function botReset(){
   botRndState = (forcedSeed !== null ? forcedSeed : (Date.now() & 0x7fffffff)) | 0;
+  botLookState = botRndState ^ 0x5bf03635;
   BOT.known = new Int8Array(GW*GH);
   BOT.penalty = new Int16Array(GW*GH);
   BOT.danger = new Int16Array(GW*GH);
@@ -5964,11 +5976,11 @@ function botSteer(wantRel, dt, vmax){
      一度くらい見る高さを変える）。首を振る速さは左右より遅くしてある。 */
   BOT.idleT -= dt;
   if(BOT.idleT <= 0){
-    BOT.idleT = 1.6 + botRnd()*3.0;
+    BOT.idleT = 1.6 + botLookRnd()*3.0;
     /* 暗い場所を歩くときは足元寄りを見がちで、たまに顔を上げて先を確かめる。
        9 割は −0.26〜+0.05（やや下向き）、1 割は顔を上げる。 */
-    BOT.idlePitch = (botRnd() < 0.1) ? (0.06 + botRnd()*0.16)
-                                     : (-0.26 + botRnd()*0.31);
+    BOT.idlePitch = (botLookRnd() < 0.1) ? (0.06 + botLookRnd()*0.16)
+                                         : (-0.26 + botLookRnd()*0.31);
   }
   // 段差のない揺れだと機械的に見えるので、ゆっくりした波を重ねる
   BOT.idlePitch2 = Math.sin(player.time*0.55) * 0.035 + Math.sin(player.time*0.23) * 0.025;
