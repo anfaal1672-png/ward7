@@ -5786,6 +5786,16 @@ function botChooseGoal(){
      いちばん遠出することになっていた。 */
   if(!player.hasKey && (t = botNearest('鍵'))) return { kind:'鍵', x:t.x, z:t.z, obj:t.ref };
   if(!world.exit.open){
+    /* 最後の 1 枚を取ると非常口が開くが、同時に居場所が漏れ続ける状態になり、
+       隠れが効かなくなる。実測ではその瞬間、非常口までの距離が中央値 87〜99m
+       あるのに場所を知っているのは 38% しかなく、負けの 59% がこの
+       「最後の移動」で起きていた。出口の在り処が分かるまで最後の 1 枚は残す。
+       ※これは「全部集めると追われ方が変わる」を知っている前提の動き。
+         見つからないまま時間を溶かさないよう締切を切る。 */
+    if(player.got === player.need - 1 && player.time < 480 &&
+       (!botNearest('非常口') || !player.hasKey) && (t = botNearest('カルテ'))){
+      return { kind:'探索', x:null, z:null };
+    }
     if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
     return { kind:'探索', x:null, z:null };
   }
