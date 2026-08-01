@@ -5398,7 +5398,7 @@ var BOT = {
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
@@ -5421,7 +5421,7 @@ function botReset(){
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
+  BOT.aimVel = 0; BOT.ready = true; BOT.idleT = 0; BOT.idlePitch = 0; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
@@ -5919,13 +5919,64 @@ function botPickEscape(awayRel, hpos){
 }
 
 // 視点。瞬間移動させず、加速と最高角速度と手ぶれを通す
+/* 視点の上下。人は拾うものを見下ろし、隠れるときは箱の中を見て、
+   歩いているあいだも視線が水平で固まったりはしない。
+   ゲーム側の判定（追跡者の視認・ランプの向き）は viewYaw しか見ていないので、
+   上下は見た目と気配の演出にだけ効く。 */
+function botLookHeight(kind){
+  if(kind === 'カルテ') return 0.90;
+  if(kind === '電池')   return 0.62;
+  if(kind === '鍵')     return 0.85;
+  if(kind === '施錠扉') return 1.30;
+  if(kind === '非常口') return 1.45;
+  if(kind === '隠れ場所') return 1.25;
+  return 1.55;
+}
+function botPitchTarget(fleeing){
+  // 隠れている間は、箱の隙間から外をうかがう程度に落ち着く
+  if(player.hiding){
+    // ベッドや机の下は目線が低い（camY 0.4 前後）。上を向いて外をうかがう
+    var low = player.hiding.camY < 0.8;
+    return low ? (0.10 + BOT.idlePitch * 0.3) : (BOT.idlePitch * 0.5 - 0.06);
+  }
+  // 逃げている間は行き先を見る。足元を見ている場合ではない
+  if(fleeing) return clamp(BOT.idlePitch * 0.25, -0.10, 0.10);
+  var g = BOT.goal;
+  if(g && g.x !== null){
+    var dx2 = g.x - player.x, dz2 = g.z - player.z;
+    var d2 = Math.sqrt(dx2*dx2 + dz2*dz2);
+    if(d2 < 6.0){
+      // 近づくほど深く見下ろす。拾う瞬間はほぼ真下を向く
+      var h = botLookHeight(g.kind);
+      return clamp(Math.atan2(h - player.y, Math.max(0.45, d2)), -1.0, 0.35);
+    }
+  }
+  return BOT.idlePitch;
+}
 function botSteer(wantRel, dt, vmax){
   BOT.noiseT -= dt;
   if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + botRnd()*0.4; BOT.noise = (botRnd()-0.5)*0.045; }
   var desired = clamp((wantRel + BOT.noise)*4.2, -vmax, vmax);
   BOT.aimVel += clamp(desired - BOT.aimVel, -15*dt, 15*dt);
   input.lookX -= BOT.aimVel*dt;             // player.yaw -= input.lookX
-  if(Math.abs(player.pitch) > 0.015) input.lookY -= player.pitch*0.06;
+  /* 上下。以前は水平へ戻すだけで、ずっと真正面を向いたままだった。
+     歩いているあいだの視線の揺れは、ゆっくりした乱数で作る（人は 2〜5 秒に
+     一度くらい見る高さを変える）。首を振る速さは左右より遅くしてある。 */
+  BOT.idleT -= dt;
+  if(BOT.idleT <= 0){
+    BOT.idleT = 1.6 + botRnd()*3.0;
+    /* 暗い場所を歩くときは足元寄りを見がちで、たまに顔を上げて先を確かめる。
+       9 割は −0.26〜+0.05（やや下向き）、1 割は顔を上げる。 */
+    BOT.idlePitch = (botRnd() < 0.1) ? (0.06 + botRnd()*0.16)
+                                     : (-0.26 + botRnd()*0.31);
+  }
+  // 段差のない揺れだと機械的に見えるので、ゆっくりした波を重ねる
+  BOT.idlePitch2 = Math.sin(player.time*0.55) * 0.035 + Math.sin(player.time*0.23) * 0.025;
+  var wantPitch = botPitchTarget(BOT.fleeT > 0) + BOT.idlePitch2;
+  // 物音の方を振り返るときは、顔も少し上げる
+  if(BOT.lookBackT > 0) wantPitch += 0.10;
+  var dp2 = clamp(wantPitch - player.pitch, -2.2*dt, 2.2*dt);
+  input.lookY -= dp2;                            // player.pitch -= input.lookY なので符号を反転
 }
 
 function botUpdate(dt){
