@@ -3765,6 +3765,7 @@ var buildInfo = null;
 var startedAt = 0;
 
 var forcedSeed = null;
+var skipUI = false;
 function startGame(){
   if(CTX_LOST){ toast('描画の復帰を待っています', 2); return; }
   Audio2.init();
@@ -4918,7 +4919,12 @@ function updateEnv(dt, info){
   return bpm;
 }
 
+/* 検証用の間引き。HUD は状態を読むだけで書き換えない（ボットも DOM を読まない）
+   ので、ヘッドレスでは丸ごと飛ばせる。profile では jsdom の DOM 操作が実行時間の
+   53% を占めていて、そのほとんどがここの textContent 代入と ECG 描画だった。
+   実機では常に false。 */
 function updateHUD(dt, bpm, info){
+  if(skipUI) return;
   updateBar('barBat', player.battery/100);
   updateBar('barSta', player.stamina/100);
   updateBar('barHp',  player.hp/100);
@@ -6220,6 +6226,7 @@ function botUpdate(dt){
 
 // 観戦中は「いま何を考えているか」を出す。見ていて分かるように
 function botHUD(){
+  if(skipUI) return;
   var el = $('botHud');
   if(!el) return;
   if(!BOT.on){ el.hidden = true; return; }
@@ -6302,6 +6309,7 @@ try{
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
     bot: BOT, botOn: function(v){ BOT.on = !!v; }, input: input,
     seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
+    skipUI: function(v){ skipUI = !!v; },
     cheats: cheats, settings: settings, act: doCheatAct,
     openCheats: openCheats, detectMode: detectMode
   };
