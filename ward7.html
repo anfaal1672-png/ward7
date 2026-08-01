@@ -5593,7 +5593,7 @@ function botNearest(kind){
 function botChooseGoal(){
   var t;
   // 切れてからでは遅い。ランプが無いと追跡者より遅くなる
-  if(player.battery < 65 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  if(player.battery < 85 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
   if(!world.exit.open){
     if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
     return { kind:'探索', x:null, z:null };
@@ -5939,10 +5939,14 @@ function botUpdate(dt){
      走破には 400〜600 秒かかる。つまりどうやっても半分以上は消灯で過ごす。
      消灯中は 0.86 倍で追跡者より遅いので、光は「探索」ではなく
      「追われているとき」に回す。探索は視界 6.5m でも時間をかければ進む。 */
+  /* 光を節約して探索してみたら、視界 6.5m では電池そのものを見つけられず、
+     暗いまま走破時間だけが伸びて余計に捕まった。光がないと光を補充できない。
+     なので探索中も点ける。そのぶん電池は見つけ次第すぐ拾いに行く。 */
   var needLight =
     fleeing ||                                   // ここで消えていると必ず捕まる
     th > 0.13 ||                                 // 気配がある。すぐ走るかもしれない
-    player.battery > 88;                         // 満タン近くは使ってよい
+    (BOT.goal && BOT.goal.kind !== '非常口') ||  // 探索も物拾いも見えないと進まない
+    player.battery > 40;
   // 追われている間は待たずに点ける（1.2 秒の迷いが致命傷になる）
   if(fleeing && !player.lamp && player.battery > 1){ toggleLamp(); BOT.lampCd = 1.2; }
   // 残量を温存しようと消灯を増やすと、消灯時間が延びてかえって遅くなった（計測済み）
