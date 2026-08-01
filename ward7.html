@@ -5520,6 +5520,42 @@ function botPropInWay(x0, z0, x1, z1){
   }
   return false;
 }
+/* ぶつかってから避けるのではなく、ぶつかる向きをそもそも入力しない。
+
+   使える性質：進む向きは体の向きと分離できる。
+     dirX = -sin(yaw)*f + cos(yaw)*s   （そのあと正規化）
+   なので f = cos(rel), s = -sin(rel) で正面から rel だけずれた向きへ進める。
+   正規化されるので斜めでも速度は落ちない。全力疾走の条件は f > 0.25 だけ
+   なので、±45 度までは全力のまま横へ出られる。
+   （「逃走中は横歩きすると遅くなる」という以前のコメントは速度に関して誤り） */
+function botNearProps(){
+  var out = [];
+  for(var j=0;j<world.props.length;j++){
+    var o = world.props[j];
+    var dx = o.x-player.x, dz = o.z-player.z;
+    if(dx*dx + dz*dz < 36) out.push(o);        // 6m 以内だけ見れば足りる
+  }
+  return out;
+}
+// 正面から rel だけずれた向きへ、体の幅で reach まで進めるか
+function botDirOpen(rel, reach, near){
+  var a = player.yaw + rel;
+  var fx = -Math.sin(a), fz = -Math.cos(a);
+  var nx = -fz * (player.radius + 0.06), nz = fx * (player.radius + 0.06);
+  for(var sd=-1; sd<=1; sd++){
+    var x0 = player.x + nx*sd, z0 = player.z + nz*sd;
+    if(!hasLOS(world.grid, x0, z0, x0 + fx*reach, z0 + fz*reach)) return false;
+  }
+  for(var j=0;j<near.length;j++){
+    var o = near[j];
+    var ox = o.x - player.x, oz = o.z - player.z;
+    var t = clamp(ox*fx + oz*fz, 0, reach);
+    var cx = ox - fx*t, cz = oz - fz*t;
+    var rr = o.r + player.radius + 0.06;
+    if(cx*cx + cz*cz < rr*rr) return false;
+  }
+  return true;
+}
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
 function botPathList(gx, gy){
   var st0 = worldToCell(player.x, player.z);
@@ -6048,14 +6084,35 @@ function botUpdate(dt){
     wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
   }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
-  var aligned = Math.abs(wantRel) < 0.95;
-  /* 逃走中は横歩きしない（遅くなって追いつかれる）。ただし大きくずれたまま
-     前へ出ると壁に突っ込んで止まる。視点は 4.6rad/s で回るので、
-     ずれが大きいうちは向き直りを優先する。 */
-  var fwdOK = moveFwd && (fleeing ? Math.abs(wantRel) < 1.0 : aligned);
-  input.keys.KeyW = fwdOK;
-  input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
-  input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
+
+  /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
+     その 5 つを体の幅で先に検査し、通るものの中から目標に一番近いものを採る。
+     つまり塞がっている向きのキーは最初から押さない。
+
+     先読みの距離は速度に比例させる。止まりかけているときに 2m 先まで
+     要求すると身動きが取れなくなり、全力で走っているときに 1m しか見ないと
+     間に合わない。実測で全力は 5.755 m/s なので、そこで 2.6m 見る。
+
+     体の向き（botSteer）は目標のまま回す。人も、走る向きを横へずらしながら
+     顔は進みたい方へ向ける。 */
+  var spdNow = Math.sqrt(player.vx*player.vx + player.vz*player.vz);
+  var reach = 0.75 + spdNow*0.32;
+  var nearP = botNearProps();
+  var CAND = [0, 0.785, -0.785, 1.571, -1.571];
+  var pick = null, pickCost = 1e9;
+  for(var ci=0; ci<CAND.length; ci++){
+    var cr = CAND[ci];
+    if(!botDirOpen(cr, reach, nearP)) continue;
+    // 目標からのずれ。真横は全力が出ない（f>0.25 を満たさない）ので少し嫌う
+    var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30;
+    if(cost < pickCost){ pickCost = cost; pick = cr; }
+  }
+  // 目標とかけ離れた向きしか空いていないなら、進まずに向き直る
+  if(pick !== null && Math.abs(botNorm(pick - wantRel)) > 1.9) pick = null;
+  var moving2 = moveFwd && pick !== null;
+  input.keys.KeyW = moving2 && Math.abs(pick) < 1.2;
+  input.keys.KeyA = moving2 && pick > 0.3;
+  input.keys.KeyD = moving2 && pick < -0.3;
   /* スタミナはヒステリシスで使う。
      単一閾値で切ると、回復が 26/s と速いせいで閾値付近を往復し、
      走行と歩行が毎フレーム切り替わって実効速度が落ちる（4.05 m/s まで見た）。
@@ -6065,7 +6122,7 @@ function botUpdate(dt){
      だから「12 を切ったら走るのをやめ、45 まで戻ったらまた走る」。 */
   if(player.stamina < 12) BOT.blown = true;
   else if(player.stamina > 45) BOT.blown = false;
-  input.keys.ShiftLeft = !!(run && !BOT.blown);
+  input.keys.ShiftLeft = !!(run && !BOT.blown && input.keys.KeyW);
 
   /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
@@ -6119,12 +6176,13 @@ function botUpdate(dt){
   BOT.lastX = player.x; BOT.lastZ = player.z;
   // 壁に押しつけている間は走れない（updatePlayer が blockedT<0.45 を要求する）
   if(fleeing && player.blockedT > 0.2){ BOT.escT = 0; BOT.escGoalT = 0; BOT.escWp = null; }
-  if(fwdOK && moved < 0.6*dt){
+  /* 入力を出しているのに進めていないなら、経路の方が悪い。
+     ここで横へ蹴り出すのはやめた（先読みが向きを選んでいるので、上書きすると
+     わざわざ塞がった向きへ押し込むことになる）。経路を引き直すだけにする。 */
+  if(moving2 && moved < 0.6*dt){
     BOT.stuck += dt;
     if(BOT.stuck > (fleeing ? 0.22 : 0.7)){
-      BOT.stuck = 0; BOT.repath = 0; BOT.escT = 0;
-      input.keys.KeyD = true;
-      BOT.aimVel += (rnd()<0.5?-1:1)*2.2;
+      BOT.stuck = 0; BOT.repath = 0; BOT.escT = 0; BOT.escGoalT = 0;
       var c1 = worldToCell(player.x, player.z);
       if(inBounds(c1.x,c1.y)) BOT.penalty[idx(c1.x,c1.y)] += 12;
     }
