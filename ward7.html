@@ -6082,7 +6082,8 @@ function botUpdate(dt){
      見えている壁と什器を使って、開いている向きへ寄せる。
      逃走中は速いぶん先まで、探索中は手前だけ見る。
      それでも詰まったままなら、向きを大きく振って抜ける。 */
-  wantRel = botAvoid(wantRel, fleeing ? 1.9 : 1.2);
+  var avoidReach = fleeing ? 1.9 : 1.2;
+  wantRel = botAvoid(wantRel, avoidReach);
   if(player.blockedT > 0.55){
     if(BOT.unstickT <= 0){ BOT.unstickT = 0.5; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1; }
   }
@@ -6091,11 +6092,16 @@ function botUpdate(dt){
     wantRel = botNorm(wantRel + BOT.unstickDir * 1.35);
   }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
-  var aligned = Math.abs(wantRel) < 0.95;
+  /* 前へ入力してよいかは「体がいま向いている先が開いているか」で決める。
+     以前は wantRel の大きさだけで見ていたので、回避で大きく向きをずらすほど
+     前進をやめてしまい、壁際でその場に立ち止まっていた（48 試行でクリア 1）。
+     狙いと逆の効き方をしていた。 */
+  var headOpen = botDirOpen(0, fleeing ? 1.15 : 0.85, botNearProps());
+  var aligned = Math.abs(wantRel) < 0.95 || headOpen;
   /* 逃走中は横歩きしない（遅くなって追いつかれる）。ただし大きくずれたまま
      前へ出ると壁に突っ込んで止まる。視点は 4.6rad/s で回るので、
      ずれが大きいうちは向き直りを優先する。 */
-  var fwdOK = moveFwd && (fleeing ? Math.abs(wantRel) < 1.0 : aligned);
+  var fwdOK = moveFwd && (fleeing ? (Math.abs(wantRel) < 1.0 || headOpen) : aligned);
   input.keys.KeyW = fwdOK;
   input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
   input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
