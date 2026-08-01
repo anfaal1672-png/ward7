@@ -5483,30 +5483,20 @@ function botScan(){
    実測では、殴られる直前2秒の移動が中央値 6.6m しかなかった（全力なら 11m）。
    そこで、経路の先の方まで見て「まっすぐ行ける一番遠い点」を狙う。
    人間も通路の奥を見て走る。 */
-/* wide = 体の幅ぶん左右にずらした線も通ることを要求する。
-   探索中にこれを常時かけると、廊下が狭くて直線化がほとんど成立せず、
-   マス目どおりのジグザグに戻って失速した（16 試行でクリア 0）。
-   一方で逃走中は、角をかすめる経路で引っかかるのが致命傷になる。
-   実測：逃走 0.5〜6 秒の距離変化 -0.04 → +1.14 m/s。だから逃走中だけ使う。 */
-function botPathAim(gx, gy, wide){
+/* 体の幅ぶん左右にずらした線も通ることを要求する版（wide）を試したが、
+   逃走 0.5〜6 秒の距離変化は -0.04 → +0.50 m/s と改善したのに、
+   クリアは 48 試行で 0 だった。廊下が狭くて直線化が成立せず、
+   マス目どおりのジグザグに落ちる場面が多すぎる。中心の一本で判定する。 */
+function botPathAim(gx, gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
   var aim = null;
   for(var i=Math.min(path.length,10)-1; i>=0; i--){
     var w = cellToWorld(path[i].x, path[i].y);
-    if(botClearLine(player.x, player.z, w.x, w.z, wide) &&
+    if(hasLOS(world.grid, player.x, player.z, w.x, w.z) &&
        !botPropInWay(player.x, player.z, w.x, w.z)){ aim = w; break; }
   }
   return aim || cellToWorld(path[0].x, path[0].y);
-}
-function botClearLine(x0, z0, x1, z1, wide){
-  if(!hasLOS(world.grid, x0, z0, x1, z1)) return false;
-  if(!wide) return true;
-  var dx = x1-x0, dz = z1-z0, len = Math.sqrt(dx*dx+dz*dz);
-  if(len < 0.01) return true;
-  var px = -dz/len * (player.radius + 0.08), pz = dx/len * (player.radius + 0.08);
-  return hasLOS(world.grid, x0+px, z0+pz, x1+px, z1+pz) &&
-         hasLOS(world.grid, x0-px, z0-pz, x1-px, z1-pz);
 }
 // 什器は壁ではないが、ぶつかれば止まる。直線化の判定には入れる
 function botPropInWay(x0, z0, x1, z1){
@@ -5927,7 +5917,7 @@ function botUpdate(dt){
     }
     if(hcut){
       var hcc = worldToCell(hcut.x, hcut.z);
-      var hAim = botPathAim(hcc.x, hcc.y, true);
+      var hAim = botPathAim(hcc.x, hcc.y);
       wantRel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
       run = hcd > 2.0;
       botSay(BOT.ear.muffled ? '壁の陰だ。隠れる' : '隠れ場所へ');
@@ -5941,12 +5931,12 @@ function botUpdate(dt){
       BOT.escT -= dt; BOT.escGoalT -= dt;
       if(BOT.escGoalT <= 0 || !BOT.escGoal){
         var stp = botFleeStep(hpos);
-        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y, true) : null) ||
+        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
                     (stp ? cellToWorld(stp.x, stp.y) : null);
         BOT.escGoalT = 3.0; BOT.escT = 0.4;
         if(!BOT.escWp) BOT.escWorld = player.yaw + botPickEscape(botAway(srcRel), hpos);
       }else if(BOT.escT <= 0 && BOT.escGoal){
-        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y, true) || BOT.escWp;
+        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
         BOT.escT = 0.4;
         // 行き先に着いたら選び直す
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
