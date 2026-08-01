@@ -5386,7 +5386,7 @@ var BOT = {
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, hideWaitT:0, hideSkip:null, hideSkipT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
@@ -5409,7 +5409,7 @@ function botReset(){
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.breathOn = false; BOT.unstickT = 0;
+  BOT.aimVel = 0; BOT.ready = true; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
@@ -6048,7 +6048,14 @@ function botUpdate(dt){
         if(hsc > -1e8 && hdp < hcd){ hcd = hdp; hcut = hs2; }
       }
     }
-    if(hcut && player.got < player.need){
+    /* 箱へ向かうのは、視線が切れているあいだだけ。
+       見られたまま走っても入れないし、そもそも近づいた時点で hunter.lastSeen が
+       その箱に設定されるので、隠れ場所を教えに行くのと同じになる。
+       muffled（音が壁越し＝視線も通っていない）を、向かう条件そのものにする。
+       ちらつきで往復しないよう、切れているあいだ 1.2 秒ぶんの猶予を貯めておく。 */
+    if(BOT.ear.muffled && !sawHunter) BOT.hideGoT = 1.2;
+    else BOT.hideGoT -= dt;
+    if(hcut && player.got < player.need && BOT.hideGoT > 0){
       var hcc = worldToCell(hcut.x, hcut.z);
       var hAim = botPathAim(hcc.x, hcc.y);
       wantRel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
@@ -6061,11 +6068,9 @@ function botUpdate(dt){
         if(!sawHunter && BOT.ear.muffled && BOT.useCd <= 0){
           input.use = true; BOT.useCd = 0.5; BOT.hideWaitT = 0;
         }else{
-          /* 着いたのに入れない（見られている、または視線が通っている）。
-             そのまま留まると箱の周りを回り続ける。実機で指摘された挙動。
-             少しだけ粘って、駄目ならこの箱は諦めて逃走に戻る。 */
+          // 着いたのに入れないまま留まると箱の周りを回る。すぐ諦めて逃走に戻る
           BOT.hideWaitT += dt;
-          if(BOT.hideWaitT > 1.0){
+          if(BOT.hideWaitT > 0.4){
             BOT.hideSkip = hcut.ref || hcut; BOT.hideSkipT = 7; BOT.hideWaitT = 0;
             botSay('入れない。別を探す');
           }
