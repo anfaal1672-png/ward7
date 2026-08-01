@@ -5348,7 +5348,7 @@ var BOT = {
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
   useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0,
-  note:'', noteT:0, lastHp:100
+  note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
 function botReset(){
@@ -5359,7 +5359,7 @@ function botReset(){
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
   BOT.aimVel = 0; BOT.ready = true;
-  BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100;
+  BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
   botSay('病棟に入った');
@@ -5478,6 +5478,75 @@ function botScan(){
 }
 
 // 記憶した地図の上だけで経路を引く。未知のマスは「行けるかも」として通す
+/* 経路の直線化。
+   マス中心を1つずつ目指すと、通路の中でジグザグに折れて曲がるたび減速する。
+   実測では、殴られる直前2秒の移動が中央値 6.6m しかなかった（全力なら 11m）。
+   そこで、経路の先の方まで見て「まっすぐ行ける一番遠い点」を狙う。
+   人間も通路の奥を見て走る。 */
+function botPathAim(gx, gy){
+  var path = botPathList(gx, gy);
+  if(!path || !path.length) return null;
+  var aim = null;
+  for(var i=Math.min(path.length,10)-1; i>=0; i--){
+    var w = cellToWorld(path[i].x, path[i].y);
+    if(hasLOS(world.grid, player.x, player.z, w.x, w.z) &&
+       !botPropInWay(player.x, player.z, w.x, w.z)){ aim = w; break; }
+  }
+  return aim || cellToWorld(path[0].x, path[0].y);
+}
+// 什器は壁ではないが、ぶつかれば止まる。直線化の判定には入れる
+function botPropInWay(x0, z0, x1, z1){
+  var dx = x1-x0, dz = z1-z0, len = Math.sqrt(dx*dx+dz*dz);
+  if(len < 0.01) return false;
+  var n = Math.min(20, Math.max(2, Math.ceil(len/0.5)));
+  for(var i=1;i<=n;i++){
+    var t = i/n, px = x0+dx*t, pz = z0+dz*t;
+    for(var j=0;j<world.props.length;j++){
+      var o = world.props[j];
+      var ddx = px-o.x, ddz = pz-o.z, rr = o.r + 0.42;
+      if(ddx*ddx + ddz*ddz < rr*rr) return true;
+    }
+  }
+  return false;
+}
+// 目的地までの経路をマスの並びで返す（先頭が次の一歩）
+function botPathList(gx, gy){
+  var st0 = worldToCell(player.x, player.z);
+  st0.x = clamp(st0.x,1,GW-2); st0.y = clamp(st0.y,1,GH-2);
+  gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
+  if(st0.x===gx && st0.y===gy) return null;
+  var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
+  var lock = (world.lockDoor && !world.lockDoor.open) ? world.lockDoor.cell : null;
+  var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
+  var DX=[1,-1,0,0], DY=[0,0,1,-1];
+  for(var h=0; h<q.length; h++){
+    var c = q[h], cx = c%GW, cy = (c-cx)/GW;
+    for(var i=0;i<4;i++){
+      var nx = cx+DX[i], ny = cy+DY[i];
+      if(nx<1||ny<1||nx>=GW-1||ny>=GH-1) continue;
+      var k = idx(nx,ny);
+      if(dist[k] >= 0 || K[k] === 2) continue;
+      if(lock && nx===lock.x && ny===lock.y) continue;
+      dist[k] = dist[idx(cx,cy)] + 1;
+      q.push(ny*GW+nx);
+    }
+  }
+  var here = dist[idx(st0.x,st0.y)];
+  if(here < 0) return null;
+  var out = [], cur = st0, guard = 0;
+  while(here > 0 && guard++ < 200){
+    var found = null;
+    for(var j=0;j<4;j++){
+      var ax = cur.x+DX[j], ay = cur.y+DY[j];
+      if(!inBounds(ax,ay)) continue;
+      if(dist[idx(ax,ay)] === here-1){ found = {x:ax,y:ay}; break; }
+    }
+    if(!found) break;
+    out.push(found); cur = found; here--;
+  }
+  return out;
+}
+
 function botPathNext(gx, gy){
   var s = worldToCell(player.x, player.z);
   s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
@@ -5822,12 +5891,12 @@ function botUpdate(dt){
       BOT.escT -= dt; BOT.escGoalT -= dt;
       if(BOT.escGoalT <= 0 || !BOT.escGoal){
         var stp = botFleeStep(hpos);
-        BOT.escWp = stp ? cellToWorld(stp.x, stp.y) : null;
+        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
+                    (stp ? cellToWorld(stp.x, stp.y) : null);
         BOT.escGoalT = 3.0; BOT.escT = 0.4;
         if(!BOT.escWp) BOT.escWorld = player.yaw + botPickEscape(botAway(srcRel), hpos);
       }else if(BOT.escT <= 0 && BOT.escGoal){
-        var nx2 = botPathNext(BOT.escGoal.x, BOT.escGoal.y);
-        BOT.escWp = nx2 ? cellToWorld(nx2.x, nx2.y) : BOT.escWp;
+        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
         BOT.escT = 0.4;
         // 行き先に着いたら選び直す
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
@@ -5835,7 +5904,7 @@ function botUpdate(dt){
       }
       wantRel = BOT.escWp ? botBearing(BOT.escWp.x, BOT.escWp.z)
                           : botNorm(BOT.escWorld - player.yaw);
-      run = player.stamina > 8;
+      run = true;
     }
     BOT.repath = 0;
   }else{
@@ -5845,8 +5914,9 @@ function botUpdate(dt){
       BOT.repath = (g.kind === '探索') ? 0.7 : 0.4;
       var tgt = (g.x !== null) ? worldToCell(g.x, g.z) : botFrontier();
       if(tgt){
+        var aim = botPathAim(tgt.x, tgt.y);
         var nx = botPathNext(tgt.x, tgt.y);
-        BOT.wp = nx ? cellToWorld(nx.x, nx.y) : (g.x !== null ? {x:g.x, z:g.z} : BOT.wp);
+        BOT.wp = aim || (nx ? cellToWorld(nx.x, nx.y) : (g.x !== null ? {x:g.x, z:g.z} : BOT.wp));
         BOT.pathLen = nx ? nx.len : 0;
       }
       botSay(g.kind === '探索' ? '探索中' : (g.kind + 'へ'));
@@ -5920,9 +5990,16 @@ function botUpdate(dt){
   input.keys.KeyW = fwdOK;
   input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
   input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
-  // 逃走中は出し惜しみしない。閾値 10 で切ると走行と歩行が振動して
-  // 実効 4.05 m/s まで落ち、追跡者 4.91〜5.40 に確実に捕まる
-  input.keys.ShiftLeft = !!(run && player.stamina > (fleeing ? 1.5 : 10));
+  /* スタミナはヒステリシスで使う。
+     単一閾値で切ると、回復が 26/s と速いせいで閾値付近を往復し、
+     走行と歩行が毎フレーム切り替わって実効速度が落ちる（4.05 m/s まで見た）。
+     かといって 0 まで使い切ると player.exhausted が立ち、ゲーム側が
+     35 まで回復するまで走行を禁止する。そのあいだ歩行 3.111 m/s しか出ず、
+     追跡者 4.47〜5.40 に確実に捕まる（被弾直前2秒の移動が 6.1m ＝ 歩行速度だった）。
+     だから「12 を切ったら走るのをやめ、45 まで戻ったらまた走る」。 */
+  if(player.stamina < 12) BOT.blown = true;
+  else if(player.stamina > 45) BOT.blown = false;
+  input.keys.ShiftLeft = !!(run && !BOT.blown);
 
   /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
@@ -5942,11 +6019,17 @@ function botUpdate(dt){
   /* 光を節約して探索してみたら、視界 6.5m では電池そのものを見つけられず、
      暗いまま走破時間だけが伸びて余計に捕まった。光がないと光を補充できない。
      なので探索中も点ける。そのぶん電池は見つけ次第すぐ拾いに行く。 */
+  /* 探索中は点滅させる。点けっぱなしだと静穏でも 95 秒で尽き、
+     追われたときに消灯 4.95 m/s で必ず捕まる（被弾の 53% がこれだった）。
+     消しっぱなしだと視界 6.5m で電池自体を見つけられず、暗いままになる。
+     点けて見る → 消して歩く、を繰り返すのが人の使い方でもある。 */
+  BOT.pulseT -= dt;
+  if(BOT.pulseT <= 0){ BOT.pulseOn = !BOT.pulseOn; BOT.pulseT = BOT.pulseOn ? 2.6 : 2.2; }
   var needLight =
     fleeing ||                                   // ここで消えていると必ず捕まる
     th > 0.13 ||                                 // 気配がある。すぐ走るかもしれない
-    (BOT.goal && BOT.goal.kind !== '非常口') ||  // 探索も物拾いも見えないと進まない
-    player.battery > 40;
+    player.battery > 88 ||                       // 満タン近くは惜しまない
+    BOT.pulseOn;                                 // 探索中はここで明滅する
   // 追われている間は待たずに点ける（1.2 秒の迷いが致命傷になる）
   if(fleeing && !player.lamp && player.battery > 1){ toggleLamp(); BOT.lampCd = 1.2; }
   // 残量を温存しようと消灯を増やすと、消灯時間が延びてかえって遅くなった（計測済み）
