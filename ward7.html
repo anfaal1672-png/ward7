@@ -5150,6 +5150,18 @@ function runSelfTest(){
      掛けていたため、キーボードの同時押しで √2 倍（8.14 m/s）出ていた。
      スティックでは出せない加速で、モバイル前提のゲームとして不公平だった。
      見た目に出ないぶん気づきにくいので、ここで押さえる。 */
+  /* 音の左右。spatial() は右ベクトルとの内積を pan に入れるので、
+     プレイヤーの右にある音源は pan>0、左は pan<0 になる。表示もそれに従う。 */
+  (function(){
+    var sy0 = player.yaw, sx0 = player.x, sz0 = player.z, svy = player.viewYaw;
+    player.yaw = 0; player.viewYaw = 0;          // 正面 -Z、右ベクトルは +X
+    var pr = spatial(player.x + 6, player.z, 30, false);
+    var pl = spatial(player.x - 6, player.z, 30, false);
+    player.yaw = sy0; player.viewYaw = svy; player.x = sx0; player.z = sz0;
+    t('右の音は pan が正・左は負', pr.pan > 0.15 && pl.pan < -0.15);
+    t('左右の表示が音と一致する', panDir(pr.pan) === '右' && panDir(pl.pan) === '左');
+  })();
+
   t('斜め入力の速度倍率が 1 を超えない',
     Math.abs(moveScale(1,1) - 1) < 1e-9 && Math.abs(moveScale(1,0) - 1) < 1e-9 &&
     Math.abs(moveScale(0.5,0) - 0.5) < 1e-9);
@@ -6307,6 +6319,13 @@ function botUpdate(dt){
 }
 
 // 観戦中は「いま何を考えているか」を出す。見ていて分かるように
+/* pan は「プレイヤーの右ベクトルとの内積」なので、正が右・負が左。
+   WebAudio の StereoPanner も -1 が左・+1 が右で、音自体は正しく鳴っていた。
+   表示だけが左右逆になっていた（実機で指摘された）。
+   音の向きは目で確かめられないぶん間違いに気づきにくいので、
+   自己診断から呼べる形にして押さえる。 */
+function panDir(v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
+
 function botHUD(){
   if(skipUI) return;
   var el = $('botHud');
@@ -6315,13 +6334,13 @@ function botHUD(){
   el.hidden = false;
   var th = botThreat();
   // 目盛りは文字（▮▯）だと環境によって豆腐になるので、幅で描く
-  var dir = BOT.ear.pan < -0.15 ? '右' : (BOT.ear.pan > 0.15 ? '左' : '前後どちらか');
+  var dir = panDir(BOT.ear.pan);
   /* 足音は別系統（Audio2.hunterStep）で鳴っていて、この表示は唸り声
      （setHunterVoice）しか見ていなかった。実機で足音が聞こえているのに
      「何も聞こえない」と出るのはそのため。ボット自身は足音を使っている
      （chaseHeard・振り返り）ので、表示だけが遅れていた。 */
   var stepAge = player.time - BOT.ear.stepT;
-  var stepDir = BOT.ear.stepPan < -0.15 ? '右' : (BOT.ear.stepPan > 0.15 ? '左' : '前後どちらか');
+  var stepDir = panDir(BOT.ear.stepPan);
   var tail;
   if(stepAge < 1.2){
     tail = '足音 ' + stepDir + (BOT.ear.stepChase ? '・走ってくる' : '') +
