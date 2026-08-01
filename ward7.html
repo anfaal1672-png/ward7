@@ -3932,6 +3932,18 @@ function nearestInteractable(){
   return best;
 }
 
+/* 入力の大きさから速度倍率を出す。1 を超えさせない。
+   もとは正規化に使った len をそのまま倍率にも掛けていたため、キーボードで
+   斜めに入力すると √2 倍（全力 5.755 → 8.139 m/s、歩き 3.111 → 4.400 m/s）
+   出ていた。スティックの入力は大きさが 1 を超えないので、この加速は
+   キーボードでしか出ず、モバイル前提のゲームでタッチだけが不利だった。
+   追跡者は最速 4.473（絶望でも 5.72）で、5.8 m/s を前提に調整されている。
+   自己診断から呼べるように関数に出してある。 */
+function moveScale(f, s){
+  var len = Math.sqrt(f*f + s*s);
+  return len > 1 ? 1 : len;
+}
+
 function updatePlayer(dt){
   readKeys();
 
@@ -3980,14 +3992,8 @@ function updatePlayer(dt){
 
   // 移動
   var f = clamp(input.fwd, -1, 1), s = clamp(input.side, -1, 1);
-  /* len は向きの正規化に使うだけで、速度倍率には使わない。
-     ここで len をそのまま掛けていたため、キーボードで斜めに入力すると
-     √2 倍（全力 5.755 → 8.139 m/s、歩き 3.111 → 4.400 m/s）で動けていた。
-     スティックは大きさが 1 を超えないので、この加速はキーボードでしか出ず、
-     モバイル前提のゲームでタッチだけが不利になっていた。
-     追跡者は最速 4.473（絶望でも 5.72）で、5.8 m/s を前提に調整されている。 */
-  var len = Math.sqrt(f*f + s*s);
-  if(len > 1){ f/=len; s/=len; len = 1; }
+  var len = moveScale(f, s);
+  if(len > 0.0001 && (f*f + s*s) > 1){ var nl = Math.sqrt(f*f + s*s); f/=nl; s/=nl; }
   var moving = len > 0.06;
 
   // 息切れ状態。0まで使い切ったら、ある程度戻るまで走れない（ON/OFFの往復を防ぐ）
@@ -5139,6 +5145,14 @@ function runSelfTest(){
   for(var x=0;x<GW;x++){ if(g[idx(x,0)]!==1 || g[idx(x,GH-1)]!==1) edgeOK=false; }
   for(var y=0;y<GH;y++){ if(g[idx(0,y)]!==1 || g[idx(GW-1,y)]!==1) edgeOK=false; }
   t('外周が閉じている', edgeOK);
+
+  /* 斜め入力が速くなっていないか。len を向きの正規化に使ったあと速度倍率にも
+     掛けていたため、キーボードの同時押しで √2 倍（8.14 m/s）出ていた。
+     スティックでは出せない加速で、モバイル前提のゲームとして不公平だった。
+     見た目に出ないぶん気づきにくいので、ここで押さえる。 */
+  t('斜め入力の速度倍率が 1 を超えない',
+    Math.abs(moveScale(1,1) - 1) < 1e-9 && Math.abs(moveScale(1,0) - 1) < 1e-9 &&
+    Math.abs(moveScale(0.5,0) - 0.5) < 1e-9);
 
   var sc = (buildInfo && buildInfo.start) ? buildInfo.start : {x:1, y:1};
   var field = bfsField(g, sc.x, sc.y);
