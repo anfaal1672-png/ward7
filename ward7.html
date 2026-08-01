@@ -5513,6 +5513,53 @@ function botPropInWay(x0, z0, x1, z1){
   }
   return false;
 }
+/* 壁や什器に体を擦りつけると、その場で止まって殴られる。実測で被弾の 30% が
+   「壁に押しつけられて停止」、さらに 26% が「2 秒でほとんど動けていない」だった。
+   実機でも逃走中に引っかかるのが目立つ、と報告を受けている。
+
+   直し方に注意がいる。以前「経路の直線化そのものに体の幅を要求する」を試したら、
+   廊下が狭くて直線化が成立せずジグザグに落ち、48 試行でクリア 0 まで落ちた。
+   だから遠くの狙点は触らない。目の前 1.7m だけを見て、進行方向を開いている
+   側へ寄せる。人が壁沿いを走るときにやっていることと同じ。 */
+function botNearProps(){
+  var out = [];
+  for(var j=0;j<world.props.length;j++){
+    var o = world.props[j];
+    var dx = o.x-player.x, dz = o.z-player.z;
+    if(dx*dx + dz*dz < 30) out.push(o);      // 5.5m 以内だけ見れば足りる
+  }
+  return out;
+}
+function botDirOpen(rel, reach, near){
+  var a = player.yaw + rel;
+  var fx = -Math.sin(a), fz = -Math.cos(a);
+  // 体の幅ぶん左右にずらした線も見る。中心の一本だけだと角をかすめて引っかかる
+  var nx = -fz * (player.radius + 0.06), nz = fx * (player.radius + 0.06);
+  for(var sd=-1; sd<=1; sd++){
+    var x0 = player.x + nx*sd, z0 = player.z + nz*sd;
+    if(!hasLOS(world.grid, x0, z0, x0 + fx*reach, z0 + fz*reach)) return false;
+  }
+  for(var j=0;j<near.length;j++){
+    var o = near[j];
+    var ox = o.x - player.x, oz = o.z - player.z;
+    var t = clamp(ox*fx + oz*fz, 0, reach);       // 進行方向の線分への射影
+    var cx = ox - fx*t, cz = oz - fz*t;
+    var rr = o.r + player.radius + 0.06;
+    if(cx*cx + cz*cz < rr*rr) return false;
+  }
+  return true;
+}
+// 進みたい向きが塞がっていたら、開いている一番近い向きへ寄せる
+function botAvoid(rel, reach){
+  var near = botNearProps();
+  if(botDirOpen(rel, reach, near)) return rel;
+  for(var i=1;i<=6;i++){
+    var off = i*0.24;
+    if(botDirOpen(rel+off, reach, near)) return rel+off;
+    if(botDirOpen(rel-off, reach, near)) return rel-off;
+  }
+  return rel;
+}
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
 function botPathList(gx, gy){
   var st0 = worldToCell(player.x, player.z);
@@ -6031,14 +6078,17 @@ function botUpdate(dt){
     if(BOT.readT > 0){ BOT.readT -= dt; moveFwd = false; run = false; wantRel *= 0.3; }
   }
 
-  /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
-     実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
-  if(player.blockedT > 0.3 && BOT.unstickT <= 0){
-    BOT.unstickT = 0.7; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1;
+  /* でたらめな向きへ横抜けする案は効かなかった（被弾の 32%→30%）。
+     見えている壁と什器を使って、開いている向きへ寄せる。
+     逃走中は速いぶん先まで、探索中は手前だけ見る。
+     それでも詰まったままなら、向きを大きく振って抜ける。 */
+  wantRel = botAvoid(wantRel, fleeing ? 1.9 : 1.2);
+  if(player.blockedT > 0.55){
+    if(BOT.unstickT <= 0){ BOT.unstickT = 0.5; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1; }
   }
   if(BOT.unstickT > 0){
     BOT.unstickT -= dt;
-    wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
+    wantRel = botNorm(wantRel + BOT.unstickDir * 1.35);
   }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
   var aligned = Math.abs(wantRel) < 0.95;
