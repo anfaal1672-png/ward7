@@ -144,7 +144,19 @@
   #objective b{display:block;font-size:26px;letter-spacing:.02em;color:var(--bone);font-weight:600;margin-top:2px}
   #objective .sub{color:var(--copper);font-size:9.5px;margin-top:6px;max-width:44vw;letter-spacing:.14em;line-height:1.7}
 
-  #toast{
+  #botHud{
+  position:fixed; left:calc(12px + env(safe-area-inset-left)); bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:26; max-width:min(62vw,340px); padding:8px 11px; border-radius:9px;
+  background:rgba(6,10,9,.72); border:1px solid rgba(111,191,168,.28);
+  color:#cfe6df; font-size:11.5px; line-height:1.5; letter-spacing:.02em;
+  pointer-events:none; text-shadow:0 1px 2px #000;
+}
+#botHud b{ color:#6fbfa8; letter-spacing:.12em; margin-right:6px }
+#botHud span{ color:#8fa39d }
+#botHud .mtr{ display:inline-block; width:74px; height:6px; margin:0 7px 1px;
+  background:rgba(143,163,157,.22); border-radius:3px; overflow:hidden; vertical-align:middle }
+#botHud .mtr u{ display:block; height:100%; background:#c8794a; transition:width .12s linear }
+#toast{
     position:absolute;z-index:3;left:50%;top:22%;transform:translateX(-50%);text-align:center;
     font-family:var(--mono);font-size:12px;letter-spacing:.26em;text-transform:uppercase;
     color:var(--bone);opacity:0;transition:opacity .3s;text-shadow:0 0 18px rgba(0,0,0,.9);white-space:nowrap
@@ -278,6 +290,7 @@
   <div id="hideView"></div>
   <div id="reticle"></div>
   <div id="toast"></div>
+  <div id="botHud" hidden></div>
   <div id="note"><b id="noteHead"></b><span id="noteBody"></span></div>
 </div>
 
@@ -329,6 +342,7 @@
     <button class="btn primary" id="btnStart" type="button" style="margin-top:16px">病棟に入る</button>
     <button class="btn ghost" id="btnOpt" type="button">設定</button>
     <button class="btn ghost" id="btnCheat" type="button">チート</button>
+    <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
     <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
       音量を上げるとよく聞こえます。ヘッドホン推奨。
     </p>
@@ -3701,7 +3715,9 @@ $('btnPauseCheat').addEventListener('click', function(){ openCheats('pause'); })
 $('btnCheatBack').addEventListener('click', function(){ showPanel(cheatReturn); });
 $('btnOpt').addEventListener('click', function(){ showPanel('opt'); });
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });
-$('btnStart').addEventListener('click', function(){ startGame(); });
+$('btnStart').addEventListener('click', function(){ BOT.on = false; startGame(); });
+// 観戦モード。?bot=1 でも入れる
+$('btnBot').addEventListener('click', function(){ BOT.on = true; startGame(); });
 $('btnResume').addEventListener('click', function(){ doResume(); });
 $('btnQuit').addEventListener('click', function(){ toTitle(); });
 $('btnRetry').addEventListener('click', function(){ startGame(); });
@@ -3830,6 +3846,8 @@ function startGame(){
   setTimeout(function(){
     if(state === STATE.PLAY) toast(IS_TOUCH ? '左で移動（大きく倒すと走る）' : 'WASD で移動 · Shift で走る', 3);
   }, 3400);
+
+  if(BOT.on) botReset();
 
   if(DEBUG) runSelfTest();
 }
@@ -4732,6 +4750,9 @@ function updateHunter(dt, info){
         var rvx = Math.cos(player.viewYaw), rvz = -Math.sin(player.viewYaw);
         var lat = ((hunter.x - player.x)*rvx + (hunter.z - player.z)*rvz) / Math.max(1, hd);
         Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
+        // 足音は「鳴った・左右・こもったか」だけを控える（距離は渡さない）
+        if(BOT.on){ BOT.ear.stepT = player.time;
+                    BOT.ear.stepPan = clamp(lat,-1,1)*0.85; BOT.ear.stepHot = !!info.los; }
       }
     }
   }
@@ -4838,9 +4859,14 @@ function updateEnv(dt, info){
   if(hunter.group && hunter.group.visible){
     var hs = spatial(hunter.x, hunter.z, 30, !info.los);
     var modeGain = hunter.mode === 'chase' ? 1.0 : (hunter.mode === 'hunt' ? 0.66 : 0.42);
-    Audio2.setHunterVoice(hs.vol * 0.42 * modeGain, hs.pan, hs.cut);
+    var hv = hs.vol * 0.42 * modeGain;
+    Audio2.setHunterVoice(hv, hs.pan, hs.cut);
+    // 観戦モードの「耳」。ボットはここで鳴っている値しか受け取らない
+    if(BOT.on){ BOT.ear.vol = hv; BOT.ear.pan = hs.pan; BOT.ear.cut = hs.cut;
+                BOT.ear.muffled = (hs.cut <= 440); }
   }else{
     Audio2.setHunterVoice(0, 0, 400);
+    if(BOT.on){ BOT.ear.vol = 0; BOT.ear.muffled = true; }
   }
   for(var lb2=0; lb2<2; lb2++){
     var LL = lamps[lb2];
@@ -4987,6 +5013,7 @@ function loop(now){
 
   if(state === STATE.PLAY){
     player.time += dt;
+    if(BOT.on) botUpdate(dt);          // 入力を作る。updatePlayer が読む前に
     var info = updatePlayer(dt);
     if(state === STATE.PLAY){         // updatePlayer 中に勝利した可能性
       updateHunter(dt, info);
@@ -4994,6 +5021,7 @@ function loop(now){
     if(state === STATE.PLAY){
       var bpm = updateEnv(dt, info);
       updateHUD(dt, bpm, info);
+      if(BOT.on) botHUD();
     }
     // フラッシュライトのターゲット
     _v3.set(viewBeam.x, viewBeam.y, -1).normalize()
@@ -5256,6 +5284,15 @@ function runSelfTest(){
     t('指が胴を握っている（浮いていない）', gripOK);
   }
 
+  // --- AI観戦モード ---
+  // 既定では 1 行も走らないこと、走るなら記憶が確保されていることを見る
+  t('AI観戦モードの状態が整合している',
+    BOT.on ? !!(BOT.ready && BOT.known && BOT.known.length === GW*GH &&
+                BOT.penalty && BOT.penalty.length === GW*GH)
+           : (BOT.known === null || !BOT.ready));
+  // 自分の足元は必ず見えている（知覚の入口が壊れていないか）
+  t('AIの視覚判定が働いている', botCanSee(player.x, player.z) === true);
+
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
   scene.traverse(function(o){
@@ -5278,7 +5315,482 @@ function runSelfTest(){
 window.__ward7SelfTest = runSelfTest;
 
 /* =========================================================================
-   19. 起動
+   19. AI観戦モード（?bot=1 またはタイトルの「AIにプレイさせる」）
+   =========================================================================
+   自動で遊ぶ観戦用のモード。普段の操作には一切影響しない（BOT.on が false の
+   間は 1 行も走らない）。
+
+   作りの要は「知っていいことを絞る」こと。世界の座標を全部読んでよいなら
+   最短路で歩けてしまい、見ていて面白くないし人の動きにもならない。
+   このボットが使うのは次の3つだけ:
+
+     目 … 視線が通っていて、光が届いて、視野（±62度）に入っているもの
+     耳 … ゲームが鳴らしている音そのもの（音量・左右の定位・こもり具合）
+     記憶 … 一度見た地形と物
+
+   追跡者の座標は読まない。updateEnv が Audio2 へ渡している音の値を横から
+   控えておき、そこから「近い/遠い」「左/右」「壁越しか」を推定する。
+   前後の区別がつかないのも人間と同じ。
+
+   操作も人と同じ口から入れる。input.keys を押し、input.lookX を動かす。 */
+
+var BOT = {
+  on:false, ready:false,
+  ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false },
+  known:null, penalty:null, seen:[], seenKey:{}, signHint:null,
+  goal:null, wp:null, pathLen:0, repath:0, exploreTgt:null,
+  aimVel:0, noiseT:0, noise:0,
+  fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, hideT:0,
+  glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
+  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0,
+  note:'', noteT:0
+};
+
+function botReset(){
+  BOT.known = new Int8Array(GW*GH);
+  BOT.penalty = new Int16Array(GW*GH);
+  BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
+  BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
+  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.hideT = 0;
+  BOT.aimVel = 0; BOT.ready = true;
+  BOT.ear.vol = 0; BOT.ear.stepT = -99;
+  botSay('病棟に入った');
+}
+function botSay(m){
+  if(BOT.note === m) return;
+  BOT.note = m; BOT.noteT = 2.6;
+}
+
+// 音量から作る脅威度。0=無音 1=すぐそこ
+function botThreat(){
+  var v = BOT.ear.vol;
+  return v <= 0.006 ? 0 : clamp((v - 0.006)/0.26, 0, 1);
+}
+// 定位から作る「音のする向き」（自分の正面基準・左が＋）。前後は分からない
+function botSoundRel(){ return -Math.asin(clamp(BOT.ear.pan/0.85, -1, 1)); }
+
+function botEyeRange(){ return player.lamp ? 20 : 6.5; }
+function botBearing(x, z){
+  return ((Math.atan2(-(x-player.x), -(z-player.z)) - player.yaw + Math.PI*3) % TAU) - Math.PI;
+}
+function botCanSee(x, z){
+  var d = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
+  if(d > botEyeRange()) return false;
+  if(d > 1.2 && Math.abs(botBearing(x,z)) > 1.08) return false;   // 視野 ±62度
+  return hasSight(world.grid, player.x, player.z, x, z);
+}
+function botRemember(kind, x, z, ref){
+  var k = kind + ':' + x.toFixed(1) + ',' + z.toFixed(1);
+  if(BOT.seenKey[k]) return;
+  BOT.seenKey[k] = true;
+  BOT.seen.push({ kind:kind, x:x, z:z, ref:ref });
+  if(kind !== '隠れ場所') botSay(kind + 'を見つけた');
+}
+
+// 視野の中だけを塗る。後ろは見えない＝覚えられない
+function botScan(){
+  var g = world.grid, R = botEyeRange(), K = BOT.known;
+  for(var i=0;i<=28;i++){
+    var a = player.yaw + (-1.08 + i*(2.16/28));
+    var fx = -Math.sin(a), fz = -Math.cos(a);
+    for(var d=0.3; d<R; d+=0.42){
+      var c = worldToCell(player.x + fx*d, player.z + fz*d);
+      if(!inBounds(c.x, c.y)) break;
+      if(g[idx(c.x,c.y)] !== 0){ K[idx(c.x,c.y)] = 2; break; }
+      K[idx(c.x,c.y)] = 1;
+    }
+  }
+  // 足元まわりは光が無くても身体で分かる
+  var h = worldToCell(player.x, player.z);
+  for(var dy=-1; dy<=1; dy++) for(var dx=-1; dx<=1; dx++){
+    var cx = h.x+dx, cy = h.y+dy;
+    if(!inBounds(cx,cy) || K[idx(cx,cy)]) continue;
+    K[idx(cx,cy)] = (g[idx(cx,cy)] === 0) ? 1 : 2;
+  }
+
+  for(var r=0;r<world.records.length;r++){
+    var rc = world.records[r];
+    if(!rc.taken && botCanSee(rc.x, rc.z)) botRemember('カルテ', rc.x, rc.z, rc);
+  }
+  for(var b=0;b<world.batteries.length;b++){
+    var bt = world.batteries[b];
+    if(!bt.taken && botCanSee(bt.x, bt.z)) botRemember('電池', bt.x, bt.z, bt);
+  }
+  if(world.key && !world.key.taken && botCanSee(world.key.x, world.key.z))
+    botRemember('鍵', world.key.x, world.key.z, world.key);
+  if(world.lockDoor && !world.lockDoor.open && botCanSee(world.lockDoor.x, world.lockDoor.z))
+    botRemember('施錠扉', world.lockDoor.x, world.lockDoor.z, world.lockDoor);
+  if(botCanSee(world.exit.x, world.exit.z)) botRemember('非常口', world.exit.x, world.exit.z, world.exit);
+  for(var hi=0; hi<world.hides.length; hi++){
+    var hd = world.hides[hi];
+    if(botCanSee(hd.x, hd.z)) botRemember('隠れ場所', hd.x, hd.z, hd);
+  }
+  // 点いている誘導灯が見えたら覚える（それが標識の役目）
+  if(world.exit.open){
+    for(var zi=0; zi<world.zones.length; zi++){
+      var Z = world.zones[zi];
+      if(Z.mat.opacity > 0.05 && botCanSee(Z.x, Z.z))
+        BOT.signHint = { x:Z.x, z:Z.z, t:player.time };
+    }
+  }
+}
+
+// 記憶した地図の上だけで経路を引く。未知のマスは「行けるかも」として通す
+function botPathNext(gx, gy){
+  var s = worldToCell(player.x, player.z);
+  s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
+  gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
+  if(s.x===gx && s.y===gy) return null;
+  var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
+  var lock = (world.lockDoor && !world.lockDoor.open) ? world.lockDoor.cell : null;
+  var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
+  var DX=[1,-1,0,0], DY=[0,0,1,-1];
+  for(var h=0; h<q.length; h++){
+    var c = q[h], cx = c%GW, cy = (c-cx)/GW;
+    for(var i=0;i<4;i++){
+      var nx = cx+DX[i], ny = cy+DY[i];
+      if(nx<1||ny<1||nx>=GW-1||ny>=GH-1) continue;
+      var k = idx(nx,ny);
+      if(dist[k] >= 0 || K[k] === 2) continue;
+      if(lock && nx===lock.x && ny===lock.y) continue;
+      dist[k] = dist[idx(cx,cy)] + 1;
+      q.push(ny*GW+nx);
+    }
+  }
+  var here = dist[idx(s.x,s.y)];
+  if(here < 0) return null;
+  for(var j=0;j<4;j++){
+    var ax = s.x+DX[j], ay = s.y+DY[j];
+    if(!inBounds(ax,ay)) continue;
+    if(dist[idx(ax,ay)] === here-1) return { x:ax, y:ay, len:here };
+  }
+  return null;
+}
+
+/* 未探索の境界へ向かう。一度決めた行き先は着くまで変えない。
+   毎フレーム選び直すと近い境界のあいだを往復して前に進まない。
+   距離は直線ではなく記憶地図の上の歩数で測る（すぐ隣に見えて実は
+   大回りが要る境界に引っ張られないため）。 */
+function botPickExplore(){
+  var K = BOT.known;
+  var s = worldToCell(player.x, player.z);
+  s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
+  var dist = new Int32Array(K.length).fill(-1);
+  var q = [s.y*GW+s.x]; dist[idx(s.x,s.y)] = 0;
+  var DX=[1,-1,0,0], DY=[0,0,1,-1];
+  for(var h=0; h<q.length; h++){
+    var c = q[h], cx = c%GW, cy = (c-cx)/GW;
+    for(var i=0;i<4;i++){
+      var nx = cx+DX[i], ny = cy+DY[i];
+      if(nx<1||ny<1||nx>=GW-1||ny>=GH-1) continue;
+      var k = idx(nx,ny);
+      if(dist[k] >= 0 || K[k] === 2) continue;
+      dist[k] = dist[idx(cx,cy)] + 1;
+      q.push(ny*GW+nx);
+    }
+  }
+  var best = null, bs = 1e9;
+  for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
+    if(K[idx(x,y)] !== 1) continue;
+    if(K[idx(x+1,y)] && K[idx(x-1,y)] && K[idx(x,y+1)] && K[idx(x,y-1)]) continue;
+    var d = dist[idx(x,y)];
+    if(d < 0) continue;
+    var sc = d + BOT.penalty[idx(x,y)];
+    if(sc < bs){ bs = sc; best = {x:x, y:y}; }
+  }
+  return best;
+}
+function botFrontier(){
+  var t = BOT.exploreTgt, K = BOT.known;
+  if(t){
+    var w = cellToWorld(t.x, t.y);
+    var reached = Math.sqrt((w.x-player.x)*(w.x-player.x)+(w.z-player.z)*(w.z-player.z)) < CELL*0.9;
+    var stale = K[idx(t.x,t.y)] !== 1 ||
+      (K[idx(t.x+1,t.y)] && K[idx(t.x-1,t.y)] && K[idx(t.x,t.y+1)] && K[idx(t.x,t.y-1)]);
+    if(!reached && !stale) return t;
+    if(reached) BOT.penalty[idx(t.x,t.y)] += 4;
+  }
+  BOT.exploreTgt = botPickExplore();
+  return BOT.exploreTgt;
+}
+
+function botNearest(kind){
+  var best = null, bd = 1e9;
+  for(var i=0;i<BOT.seen.length;i++){
+    var it = BOT.seen[i];
+    if(it.kind !== kind) continue;
+    if(it.ref && it.ref.taken) continue;
+    if(kind === '施錠扉' && it.ref && it.ref.open) continue;
+    var d = Math.sqrt((it.x-player.x)*(it.x-player.x)+(it.z-player.z)*(it.z-player.z));
+    if(d < bd){ bd = d; best = it; }
+  }
+  return best;
+}
+
+function botChooseGoal(){
+  var t;
+  if(player.battery < 30 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  if(!world.exit.open){
+    if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
+    return { kind:'探索', x:null, z:null };
+  }
+  if(world.lockDoor && !world.lockDoor.open && !player.hasKey){
+    if((t = botNearest('鍵'))) return { kind:'鍵', x:t.x, z:t.z, obj:t.ref };
+    return { kind:'探索', x:null, z:null };
+  }
+  if(world.lockDoor && !world.lockDoor.open && player.hasKey){
+    if((t = botNearest('施錠扉'))) return { kind:'施錠扉', x:t.x, z:t.z, obj:t.ref };
+  }
+  if((t = botNearest('非常口'))) return { kind:'非常口', x:t.x, z:t.z, obj:t.ref };
+  if(BOT.signHint && (player.time - BOT.signHint.t) < 25)
+    return { kind:'誘導灯', x:BOT.signHint.x, z:BOT.signHint.z };
+  return { kind:'探索', x:null, z:null };
+}
+
+/* 逃げ道。まっすぐ長い廊下は相手からもずっと見えているので、走力差が
+   6%しかないこのゲームでは振り切れない。人は角を曲がって姿を消す。
+   音と見た向きから相手のいるあたりを推定し、その位置から見えなくなる
+   場所へ出られる道を高く評価する。 */
+function botEstHunter(rel, th){
+  var d = 3.5 + (1 - clamp(th,0,1))*18;
+  var a = player.yaw + rel;
+  return { x: player.x - Math.sin(a)*d, z: player.z - Math.cos(a)*d };
+}
+function botPickEscape(awayRel, hpos){
+  var best = awayRel, bs = -1e9;
+  for(var i=-6;i<=6;i++){
+    var rel = awayRel + i*0.314;
+    var a = player.yaw + rel;
+    var fx = -Math.sin(a), fz = -Math.cos(a);
+    var open = 0;
+    for(var d=0.5; d<22; d+=0.5){
+      var c = worldToCell(player.x+fx*d, player.z+fz*d);
+      if(!inBounds(c.x,c.y) || world.grid[idx(c.x,c.y)] !== 0) break;
+      open = d;
+    }
+    if(open < 2.5) continue;
+    var sc = Math.min(open,12)*0.6 - Math.abs(((rel-awayRel+Math.PI*3)%TAU)-Math.PI)*4;
+    if(hpos){
+      if(open >= 5 && !hasLOS(world.grid, player.x+fx*5, player.z+fz*5, hpos.x, hpos.z)) sc += 9;
+      if(open >= 9 && !hasLOS(world.grid, player.x+fx*9, player.z+fz*9, hpos.x, hpos.z)) sc += 9;
+    }
+    if(sc > bs){ bs = sc; best = rel; }
+  }
+  return best;
+}
+
+// 視点。瞬間移動させず、加速と最高角速度と手ぶれを通す
+function botSteer(wantRel, dt, vmax){
+  BOT.noiseT -= dt;
+  if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + rnd()*0.4; BOT.noise = (rnd()-0.5)*0.045; }
+  var desired = clamp((wantRel + BOT.noise)*4.2, -vmax, vmax);
+  BOT.aimVel += clamp(desired - BOT.aimVel, -15*dt, 15*dt);
+  input.lookX -= BOT.aimVel*dt;             // player.yaw -= input.lookX
+  if(Math.abs(player.pitch) > 0.015) input.lookY -= player.pitch*0.06;
+}
+
+function botUpdate(dt){
+  if(!BOT.ready) return;
+  BOT.noteT -= dt;
+  var K = BOT.known;
+  botScan();
+
+  // 隠れている間：気配が遠のいたら出る
+  if(player.hiding){
+    input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
+    holdBtnDown = true;                      // 息を止める（ボタンを押しているのと同じ）
+    BOT.hideT += dt;
+    BOT.useCd -= dt;
+    if(botThreat() < 0.10 && BOT.hideT > 3.5 && BOT.useCd <= 0){
+      input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; holdBtnDown = false; botSay('出る');
+    }
+    return;
+  }
+  BOT.hideT = 0; holdBtnDown = false;
+
+  // --- 追跡者の把握（目と耳だけ）---
+  var th = botThreat();
+  var sawHunter = false, hunterRel = 0;
+  if(hunter.group && hunter.group.visible){
+    var hb = botBearing(hunter.x, hunter.z);
+    var hdd = Math.sqrt((hunter.x-player.x)*(hunter.x-player.x)+(hunter.z-player.z)*(hunter.z-player.z));
+    if(hdd < botEyeRange() && Math.abs(hb) < 1.08 &&
+       hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
+      sawHunter = true; hunterRel = hb;
+    }
+  }
+  var danger = sawHunter || (th > 0.42 && !BOT.ear.muffled);
+  if(danger){ BOT.fleeT = 3.0; BOT.unseenT = 0; } else BOT.unseenT += dt;
+  BOT.fleeT -= dt;
+  var fleeing = BOT.fleeT > 0;
+  BOT.cautionT = (th > 0.16) ? 2.0 : Math.max(0, BOT.cautionT - dt);
+
+  var wantRel = 0, moveFwd = true, run = false;
+  BOT.repath -= dt;
+
+  if(fleeing){
+    botSay('見つかった');
+    var srcRel = sawHunter ? hunterRel : botSoundRel();
+    var hpos = botEstHunter(srcRel, th);
+    // 姿が切れて少し経ち、近くに隠れ場所を覚えていれば入る
+    var hide = null;
+    if(BOT.unseenT > 1.1){
+      var hh = botNearest('隠れ場所');
+      if(hh && Math.sqrt((hh.x-player.x)*(hh.x-player.x)+(hh.z-player.z)*(hh.z-player.z)) < 9) hide = hh;
+    }
+    if(hide){
+      wantRel = botBearing(hide.x, hide.z);
+      run = player.stamina > 8;
+      var hdist = Math.sqrt((hide.x-player.x)*(hide.x-player.x)+(hide.z-player.z)*(hide.z-player.z));
+      if(hdist < 1.9 && BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; botSay('隠れる'); }
+    }else{
+      // 逃げる向きは一度決めたら 2 秒は変えない。毎フレーム選び直すと
+      // ジグザグに走って減速し、壁にこすって追いつかれる
+      BOT.escT -= dt;
+      if(BOT.escT <= 0){
+        BOT.escRel = botPickEscape(((srcRel + Math.PI*4) % TAU) - Math.PI + Math.PI, hpos);
+        BOT.escT = 2.0;
+        BOT.escWorld = player.yaw + BOT.escRel;     // 世界基準で覚える
+      }
+      wantRel = ((BOT.escWorld - player.yaw + Math.PI*3) % TAU) - Math.PI;
+      run = player.stamina > 8;
+    }
+    BOT.repath = 0;
+  }else{
+    if(!BOT.goal || BOT.repath <= 0 || (BOT.goal.obj && BOT.goal.obj.taken)){
+      var g = botChooseGoal();
+      BOT.goal = g;
+      BOT.repath = (g.kind === '探索') ? 0.7 : 0.4;
+      var tgt = (g.x !== null) ? worldToCell(g.x, g.z) : botFrontier();
+      if(tgt){
+        var nx = botPathNext(tgt.x, tgt.y);
+        BOT.wp = nx ? cellToWorld(nx.x, nx.y) : (g.x !== null ? {x:g.x, z:g.z} : BOT.wp);
+        BOT.pathLen = nx ? nx.len : 0;
+      }
+      botSay(g.kind === '探索' ? '探索中' : (g.kind + 'へ'));
+    }
+    if(BOT.wp){
+      var d2g = (BOT.goal && BOT.goal.x !== null)
+        ? Math.sqrt((BOT.goal.x-player.x)*(BOT.goal.x-player.x)+(BOT.goal.z-player.z)*(BOT.goal.z-player.z))
+        : 99;
+      var ax = (d2g < CELL*0.9) ? BOT.goal.x : BOT.wp.x;
+      var az = (d2g < CELL*0.9) ? BOT.goal.z : BOT.wp.z;
+      wantRel = botBearing(ax, az);
+    }
+    run = (BOT.cautionT <= 0 && player.stamina > 55 && BOT.pathLen > 5);
+
+    // まだ見つかってはいないが、はっきり近い音がする。先に距離を取る
+    if(th > 0.24 && !BOT.ear.muffled){
+      var sr = botSoundRel();
+      BOT.escT -= dt;
+      if(BOT.escT <= 0){
+        BOT.escWorld = player.yaw + botPickEscape(((sr + Math.PI*4) % TAU) - Math.PI + Math.PI,
+                                                  botEstHunter(sr, th));
+        BOT.escT = 1.6;
+      }
+      wantRel = ((BOT.escWorld - player.yaw + Math.PI*3) % TAU) - Math.PI;
+      run = player.stamina > 30;
+      botSay('近い。離れる');
+    }
+
+    // 角では首を振って左右を確かめる
+    BOT.glanceT -= dt;
+    if(BOT.glanceHold > 0){
+      BOT.glanceHold -= dt;
+      wantRel += BOT.glanceDir * 0.84;
+      run = false;
+    }else if(BOT.glanceT <= 0){
+      BOT.glanceT = 2.6 + rnd()*3.4;
+      BOT.glanceHold = 0.45 + rnd()*0.35;
+      BOT.glanceDir = (rnd()<0.5) ? -1 : 1;
+    }
+    // 背後で足音が鳴ったら振り返る
+    if((player.time - BOT.ear.stepT) < 0.25 && BOT.ear.stepHot && th > 0.10 && BOT.lookBackT <= 0){
+      BOT.lookBackT = 0.9; botSay('物音');
+    }
+    if(BOT.lookBackT > 0){
+      BOT.lookBackT -= dt;
+      wantRel = botSoundRel() + (BOT.ear.pan > 0 ? 0.6 : -0.6);
+      moveFwd = false; run = false;
+    }
+    // 拾った直後は少し立ち止まる（人はカルテを読む）
+    if(BOT.readT > 0){ BOT.readT -= dt; moveFwd = false; run = false; wantRel *= 0.3; }
+  }
+
+  botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
+  var aligned = Math.abs(wantRel) < 0.95;
+  // 逃走中は横歩きしない（遅くなって追いつかれる）。斜めでも前へ出る
+  var fwdOK = moveFwd && (fleeing ? Math.abs(wantRel) < 2.0 : aligned);
+  input.keys.KeyW = fwdOK;
+  input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
+  input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
+  input.keys.ShiftLeft = !!(run && player.stamina > 10);
+
+  // ランプ。気配が濃くまだ見つかっていないなら消す（明かりは見つかる原因）
+  BOT.lampCd -= dt;
+  if(BOT.lampCd <= 0){
+    if(!fleeing && th > 0.5 && player.lamp && player.battery > 0){ toggleLamp(); BOT.lampCd = 3; }
+    else if(th < 0.12 && !player.lamp && player.battery > 3){ toggleLamp(); BOT.lampCd = 3; }
+  }
+
+  // 拾う・使う
+  BOT.useCd -= dt;
+  if(BOT.goal && BOT.goal.x !== null && BOT.useCd <= 0 && !fleeing){
+    var dd = Math.sqrt((BOT.goal.x-player.x)*(BOT.goal.x-player.x)+(BOT.goal.z-player.z)*(BOT.goal.z-player.z));
+    if(dd < 2.0){
+      input.use = true; BOT.useCd = 0.35;
+      if(BOT.goal.kind === 'カルテ') BOT.readT = 0.8;
+    }
+  }
+
+  // 引っかかり
+  var moved = Math.sqrt((player.x-BOT.lastX)*(player.x-BOT.lastX)+(player.z-BOT.lastZ)*(player.z-BOT.lastZ));
+  BOT.lastX = player.x; BOT.lastZ = player.z;
+  if(fwdOK && moved < 0.6*dt){
+    BOT.stuck += dt;
+    if(BOT.stuck > 0.7){
+      BOT.stuck = 0; BOT.repath = 0; BOT.escT = 0;
+      input.keys.KeyD = true;
+      BOT.aimVel += (rnd()<0.5?-1:1)*2.2;
+      var c1 = worldToCell(player.x, player.z);
+      if(inBounds(c1.x,c1.y)) BOT.penalty[idx(c1.x,c1.y)] += 12;
+    }
+  }else BOT.stuck = Math.max(0, BOT.stuck - dt*2);
+
+  var cc = worldToCell(player.x, player.z), ck = cc.x+','+cc.y;
+  if(ck === BOT.lastCell){
+    BOT.dwell += dt;
+    if(BOT.dwell > 2.5){ BOT.dwell = 0;
+      if(inBounds(cc.x,cc.y)) BOT.penalty[idx(cc.x,cc.y)] += 6; }
+  }else { BOT.lastCell = ck; BOT.dwell = 0; }
+}
+
+// 観戦中は「いま何を考えているか」を出す。見ていて分かるように
+function botHUD(){
+  var el = $('botHud');
+  if(!el) return;
+  if(!BOT.on){ el.hidden = true; return; }
+  el.hidden = false;
+  var th = botThreat();
+  // 目盛りは文字（▮▯）だと環境によって豆腐になるので、幅で描く
+  var dir = BOT.ear.pan < -0.15 ? '右' : (BOT.ear.pan > 0.15 ? '左' : '前後どちらか');
+  var tail = th > 0.02 ? (dir + (BOT.ear.muffled ? '・壁越し' : '・直接')) : '何も聞こえない';
+  el.innerHTML =
+    '<b>AI</b> ' + (BOT.note || '…') +
+    '<br><span>耳</span><i class="mtr"><u style="width:' + Math.round(th*100) + '%"></u></i>' +
+    '<span>' + tail + '</span>' +
+    '<br><span>見つけた ' + BOT.seen.length + ' 件 / 歩いた範囲 ' +
+      Math.round(botMapped()/(GW*GH)*100) + '%</span>';
+}
+function botMapped(){
+  if(!BOT.known) return 0;
+  var n = 0;
+  for(var i=0;i<BOT.known.length;i++) if(BOT.known[i]) n++;
+  return n;
+}
+
+/* =========================================================================
+   20. 起動
    ========================================================================= */
 try{
   $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')';
@@ -5290,6 +5802,8 @@ try{
   syncSettingsUI();
   buildCheatUI();
   camera.position.set(0,1.7,0);
+
+  if(/[?&]bot=1/.test(location.search)) BOT.on = true;
 
   bootedOK = true;
   state = STATE.TITLE;
@@ -5333,6 +5847,7 @@ try{
                      noise:+postMat.uniforms.uNoise.value.toFixed(3),
                      scan:+postMat.uniforms.uScan.value.toFixed(3),
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
+    bot: BOT, botOn: function(v){ BOT.on = !!v; },
     cheats: cheats, settings: settings, act: doCheatAct,
     openCheats: openCheats, detectMode: detectMode
   };
