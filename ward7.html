@@ -5902,6 +5902,18 @@ function botUpdate(dt){
   var K = BOT.known;
   botScan();
 
+  /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
+     いる」と告げるとおり、以降は隠れても居場所を嗅ぎつけられる。実測でその
+     区間の 35% をロッカーの中で過ごし、そのあいだ相手はまっすぐ歩いてきていた。
+     追跡者は hunt 状態が 57% で、その速度 3.27 m/s はこちらの 5.755 m/s より
+     遅い。走れば振り切れる相手から、隠れて待っていた。 */
+  if(player.hiding && player.got >= player.need){
+    input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
+    holdBtnDown = false;
+    if(BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; botSay('隠れても無駄だ'); }
+    BOT.useCd -= dt;
+    return;
+  }
   // 隠れている間：気配が遠のいたら出る
   if(player.hiding){
     input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
@@ -5999,7 +6011,7 @@ function botUpdate(dt){
         if(hsc > -1e8 && hdp < hcd){ hcd = hdp; hcut = hs2; }
       }
     }
-    if(hcut){
+    if(hcut && player.got < player.need){
       var hcc = worldToCell(hcut.x, hcut.z);
       var hAim = botPathAim(hcc.x, hcc.y);
       wantRel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
