@@ -5347,7 +5347,7 @@ var BOT = {
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0,
+  useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
@@ -5358,7 +5358,7 @@ function botReset(){
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true;
+  BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
@@ -5823,6 +5823,8 @@ function botUpdate(dt){
       if(BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; holdBtnDown = false; botSay('見つかった。出る'); }
       return;
     }
+    /* 息は止めっぱなしにする。「遠いときは吸って回復」を試したら 25%→6% まで
+       落ちた。閾値では 3.2m の可聴圏に入る前に止められない。 */
     holdBtnDown = true;                      // 息を止める（ボタンを押しているのと同じ）
     if(player.lamp && BOT.lampCd <= 0){ toggleLamp(); BOT.lampCd = 2; }   // 明かりが漏れる
     BOT.lampCd -= dt;
@@ -5884,8 +5886,42 @@ function botUpdate(dt){
        追跡中の相手は最後に見た場所へ真っ直ぐ来るので、箱に入るのは
        動く的をやめて止まった的になるだけ。実測でも、距離を 4.5→7.5m まで
        広げて逃げ切りかけたところで隠れ、そのまま殴られ続けて死んでいた。
-       隠れるのは「まだ追われていないが気配がある」ときだけにする。 */
-    {
+       隠れるのは「まだ追われていないが気配がある」ときだけにする。
+
+       ただし例外がひとつある。壁を挟んで姿が切れている瞬間に箱へ入ると
+       hideSeen が立たず、hunter.memT も 0 に落ちて追跡が完全に切れる。
+       走力差 6% では走って振り切れないので、これが唯一の確実な逃げ道。
+       条件は「相手が見えていない」かつ「音が壁越し（＝視線も通っていない）」。
+       カルテを全部集めた後は居場所を嗅ぎつけられるので、この手は使わない。 */
+    /* 計測：この手が決まった 10 回はすべて追跡が切れ、中で殴られた回数は 0。
+       効かないのではなく「その瞬間に箱が近くにない」のが問題だった
+       （逃走 446 秒のうち、壁越し かつ 箱が 7m 以内 は 51 秒しかない）。
+       そこで逃走の行き先そのものを箱にして、着く頃には壁の陰にいる状態を作る。 */
+    var hcut = null, hcd = 1e9;
+    if(player.got < player.need){
+      for(var hi=0; hi<BOT.seen.length; hi++){
+        var hs2 = BOT.seen[hi];
+        if(hs2.kind !== '隠れ場所') continue;
+        var hdp = Math.sqrt((hs2.x-player.x)*(hs2.x-player.x)+(hs2.z-player.z)*(hs2.z-player.z));
+        if(hdp > 17) continue;
+        // 相手を挟んだ向こう側の箱へ走るのは、相手に向かって走るのと同じ
+        var hdh = hpos ? Math.sqrt((hs2.x-hpos.x)*(hs2.x-hpos.x)+(hs2.z-hpos.z)*(hs2.z-hpos.z)) : 99;
+        if(hdh < hdp + 2.5) continue;
+        var hsc = hdh - hdp*1.4;
+        if(hsc > -1e8 && hdp < hcd){ hcd = hdp; hcut = hs2; }
+      }
+    }
+    if(hcut){
+      var hcc = worldToCell(hcut.x, hcut.z);
+      var hAim = botPathAim(hcc.x, hcc.y);
+      wantRel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
+      run = hcd > 2.0;
+      botSay(BOT.ear.muffled ? '壁の陰だ。隠れる' : '隠れ場所へ');
+      BOT.useCd -= dt;
+      // 入るところを見られたら意味がない。姿が切れている瞬間だけ入る
+      var hreach = (hcut.ref && hcut.ref.reach) ? hcut.ref.reach - 0.15 : 1.85;
+      if(hcd < hreach && !sawHunter && BOT.ear.muffled && BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; }
+    }else{
       /* 行き先は 3 秒保ち、そこへの経路だけ 0.4 秒ごとに引き直す。
          行き先まで変えると向きが揺れて失速する。 */
       BOT.escT -= dt; BOT.escGoalT -= dt;
@@ -5981,6 +6017,15 @@ function botUpdate(dt){
     if(BOT.readT > 0){ BOT.readT -= dt; moveFwd = false; run = false; wantRel *= 0.3; }
   }
 
+  /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
+     実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
+  if(player.blockedT > 0.3 && BOT.unstickT <= 0){
+    BOT.unstickT = 0.7; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1;
+  }
+  if(BOT.unstickT > 0){
+    BOT.unstickT -= dt;
+    wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
+  }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
   var aligned = Math.abs(wantRel) < 0.95;
   /* 逃走中は横歩きしない（遅くなって追いつかれる）。ただし大きくずれたまま
