@@ -5392,7 +5392,7 @@ var BOT = {
   on:false, ready:false,
   ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false },
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
-  goal:null, wp:null, pathLen:0, repath:0, exploreTgt:null,
+  goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0,
   flip:false, flipStrike:0, volPrev:0, volT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
@@ -5792,10 +5792,16 @@ function botChooseGoal(){
        「最後の移動」で起きていた。出口の在り処が分かるまで最後の 1 枚は残す。
        ※これは「全部集めると追われ方が変わる」を知っている前提の動き。
          見つからないまま時間を溶かさないよう締切を切る。 */
+    /* 最後の 1 枚を取った瞬間から、隠れが効かない状態で出口まで走ることになる。
+       行き先が分かっていて、かつ静かなときを選ぶ（実測 0.05 は約 15m 以遠）。 */
+    var lastReady = botNearest('非常口') && player.hasKey && botThreat() < 0.05 &&
+                    BOT.fleeT <= 0 && !player.hiding;
     if(player.got === player.need - 1 && player.time < 480 &&
-       (!botNearest('非常口') || !player.hasKey) && (t = botNearest('カルテ'))){
+       !lastReady && (t = botNearest('カルテ'))){
+      BOT.seekExit = true;
       return { kind:'探索', x:null, z:null };
     }
+    BOT.seekExit = false;
     if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
     return { kind:'探索', x:null, z:null };
   }
@@ -6217,7 +6223,9 @@ function botUpdate(dt){
        判定がある）。足音が近づいてきて、まだ見られていないうちに入る。 */
     var hh0 = botNearest('隠れ場所');
     var hd0 = hh0 ? Math.sqrt((hh0.x-player.x)*(hh0.x-player.x)+(hh0.z-player.z)*(hh0.z-player.z)) : 1e9;
-    if(th > 0.14 && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < 11 && !sawHunter && BOT.fleeT <= 0){
+    /* 最後の 1 枚を残して待っている間は集めるものが無い。無理に動かず早めに隠れる */
+    var hThLo = BOT.seekExit ? 0.09 : 0.14, hDist = BOT.seekExit ? 15 : 11;
+    if(th > hThLo && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < hDist && !sawHunter && BOT.fleeT <= 0){
       wantRel = botBearing(hh0.x, hh0.z);
       run = (hd0 > 3 && player.stamina > 20);
       moveFwd = true;
