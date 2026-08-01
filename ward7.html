@@ -4750,8 +4750,11 @@ function updateHunter(dt, info){
         var rvx = Math.cos(player.viewYaw), rvz = -Math.sin(player.viewYaw);
         var lat = ((hunter.x - player.x)*rvx + (hunter.z - player.z)*rvz) / Math.max(1, hd);
         Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
-        // 足音は「鳴った・左右・こもったか」だけを控える（距離は渡さない）
-        if(BOT.on){ BOT.ear.stepT = player.time;
+        /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
+           走りの足音は 115Hz・短い減衰、歩きは 82Hz・長い減衰で鳴り分けている。
+           人はこの違いを聞き分けて「こっちへ走ってきている」と分かるので、
+           ボットにも早期警報として渡してよい。 */
+        if(BOT.on){ BOT.ear.stepT = player.time; BOT.ear.stepChase = !!chasing;
                     BOT.ear.stepPan = clamp(lat,-1,1)*0.85; BOT.ear.stepHot = !!info.los; }
       }
     }
@@ -5336,7 +5339,7 @@ window.__ward7SelfTest = runSelfTest;
 
 var BOT = {
   on:false, ready:false,
-  ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false },
+  ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false },
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
   goal:null, wp:null, pathLen:0, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0,
@@ -5774,7 +5777,11 @@ function botUpdate(dt){
       sawHunter = true; hunterRel = hb;
     }
   }
-  var danger = sawHunter || (th > 0.42 && !BOT.ear.muffled);
+  /* 走っている足音が聞こえたら、音量が上がりきる前に動き出す。
+     音量だけを見ていると約 13m まで気づけず、相手の視認距離 20m のあいだに
+     7m ぶん無償で詰められていた。 */
+  var chaseHeard = (player.time - BOT.ear.stepT) < 0.9 && BOT.ear.stepChase && th > 0.06;
+  var danger = sawHunter || (th > 0.42 && !BOT.ear.muffled) || chaseHeard;
   if(sawHunter){ BOT.flip = false; BOT.flipStrike = 0; }   // 見えたなら迷う必要はない
   botTrackHunter(dt, sawHunter);
   botMarkDanger(dt, th, BOT.hpos);
@@ -5913,7 +5920,9 @@ function botUpdate(dt){
   input.keys.KeyW = fwdOK;
   input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
   input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
-  input.keys.ShiftLeft = !!(run && player.stamina > 10);
+  // 逃走中は出し惜しみしない。閾値 10 で切ると走行と歩行が振動して
+  // 実効 4.05 m/s まで落ち、追跡者 4.91〜5.40 に確実に捕まる
+  input.keys.ShiftLeft = !!(run && player.stamina > (fleeing ? 1.5 : 10));
 
   /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
@@ -5926,11 +5935,14 @@ function botUpdate(dt){
      なので「見る必要があるときと、速さが要るときだけ点ける」。
      既知の通路を目的地へ歩くだけなら、暗くても歩ける。 */
   BOT.lampCd -= dt;
+  /* 光の配分。初期 69 秒ぶん＋電池 5 個で合計およそ 224 秒しかないのに、
+     走破には 400〜600 秒かかる。つまりどうやっても半分以上は消灯で過ごす。
+     消灯中は 0.86 倍で追跡者より遅いので、光は「探索」ではなく
+     「追われているとき」に回す。探索は視界 6.5m でも時間をかければ進む。 */
   var needLight =
-    fleeing ||                                   // 速さが要る
-    th > 0.10 ||                                 // 気配がある。見たいし走るかもしれない
-    (BOT.goal && BOT.goal.kind === '探索') ||    // 探索は見えないと進まない
-    player.battery > 82;                         // 十分あるなら点けておく
+    fleeing ||                                   // ここで消えていると必ず捕まる
+    th > 0.13 ||                                 // 気配がある。すぐ走るかもしれない
+    player.battery > 88;                         // 満タン近くは使ってよい
   // 追われている間は待たずに点ける（1.2 秒の迷いが致命傷になる）
   if(fleeing && !player.lamp && player.battery > 1){ toggleLamp(); BOT.lampCd = 1.2; }
   // 残量を温存しようと消灯を増やすと、消灯時間が延びてかえって遅くなった（計測済み）
