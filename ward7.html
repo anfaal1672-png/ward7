@@ -5345,7 +5345,7 @@ var BOT = {
   aimVel:0, noiseT:0, noise:0,
   flip:false, flipStrike:0, volPrev:0, volT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
-  escGoal:null, escGoalT:0, hideT:0,
+  escGoal:null, escGoalT:0, escAhead:null, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
   useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
@@ -5357,7 +5357,7 @@ function botReset(){
   BOT.danger = new Int16Array(GW*GH);
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
-  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
+  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escAhead = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
   BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
@@ -5559,6 +5559,38 @@ function botAvoid(rel, reach){
     if(botDirOpen(rel-off, reach, near)) return rel-off;
   }
   return rel;
+}
+/* インコース。経路はマスの中心を順に辿るので、曲がり角では外側を大きく回る。
+   人は角の内側をぎりぎりで回る。ぶつからない範囲でいちばん内側の線を選ぶ。
+
+   やり方：見えている一番遠い点（外側の線）と、その先のマスの向き（最短の線）の
+   あいだを、内側から外側へ順に試して、最初に通れた向きを採る。
+   角に擦って止まると本末転倒なので、通れるかどうかは体の幅で判定する。 */
+function botPathAimPair(gx, gy){
+  var path = botPathList(gx, gy);
+  if(!path || !path.length) return null;
+  var far = 0;
+  for(var i=Math.min(path.length,10)-1; i>=0; i--){
+    var w = cellToWorld(path[i].x, path[i].y);
+    if(hasLOS(world.grid, player.x, player.z, w.x, w.z) &&
+       !botPropInWay(player.x, player.z, w.x, w.z)){ far = i; break; }
+  }
+  var ai = Math.min(path.length-1, far+4);
+  return { aim: cellToWorld(path[far].x, path[far].y),
+           ahead: (ai > far) ? cellToWorld(path[ai].x, path[ai].y) : null };
+}
+function botInsideRel(aim, ahead, reach){
+  var relFar = botBearing(aim.x, aim.z);
+  if(!ahead) return relFar;
+  var relAhead = botBearing(ahead.x, ahead.z);
+  var span = botNorm(relFar - relAhead);
+  if(Math.abs(span) < 0.06) return relFar;
+  var near = botNearProps();
+  for(var k=0;k<=6;k++){
+    var rel = botNorm(relAhead + span*(k/6));
+    if(botDirOpen(rel, reach, near)) return rel;
+  }
+  return relFar;
 }
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
 function botPathList(gx, gy){
@@ -5988,18 +6020,20 @@ function botUpdate(dt){
       BOT.escT -= dt; BOT.escGoalT -= dt;
       if(BOT.escGoalT <= 0 || !BOT.escGoal){
         var stp = botFleeStep(hpos);
-        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
-                    (stp ? cellToWorld(stp.x, stp.y) : null);
+        var pr0 = BOT.escGoal ? botPathAimPair(BOT.escGoal.x, BOT.escGoal.y) : null;
+        BOT.escWp = (pr0 ? pr0.aim : null) || (stp ? cellToWorld(stp.x, stp.y) : null);
+        BOT.escAhead = pr0 ? pr0.ahead : null;
         BOT.escGoalT = 3.0; BOT.escT = 0.4;
         if(!BOT.escWp) BOT.escWorld = player.yaw + botPickEscape(botAway(srcRel), hpos);
       }else if(BOT.escT <= 0 && BOT.escGoal){
-        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
+        var pr1 = botPathAimPair(BOT.escGoal.x, BOT.escGoal.y);
+        if(pr1){ BOT.escWp = pr1.aim; BOT.escAhead = pr1.ahead; }
         BOT.escT = 0.4;
         // 行き先に着いたら選び直す
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
         if(Math.sqrt((gw2.x-player.x)*(gw2.x-player.x)+(gw2.z-player.z)*(gw2.z-player.z)) < CELL) BOT.escGoalT = 0;
       }
-      wantRel = BOT.escWp ? botBearing(BOT.escWp.x, BOT.escWp.z)
+      wantRel = BOT.escWp ? botInsideRel(BOT.escWp, BOT.escAhead, 2.2)
                           : botNorm(BOT.escWorld - player.yaw);
       run = true;
     }
