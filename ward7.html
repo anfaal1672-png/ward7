@@ -5345,7 +5345,7 @@ var BOT = {
   aimVel:0, noiseT:0, noise:0,
   flip:false, flipStrike:0, volPrev:0, volT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
-  escGoal:null, escGoalT:0, escAhead:null, hideT:0,
+  escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
   useCd:0, lampCd:0, stuck:0, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
@@ -5357,7 +5357,7 @@ function botReset(){
   BOT.danger = new Int16Array(GW*GH);
   BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
   BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
-  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escAhead = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
+  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
   BOT.aimVel = 0; BOT.ready = true; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
@@ -5512,85 +5512,6 @@ function botPropInWay(x0, z0, x1, z1){
     }
   }
   return false;
-}
-/* 壁や什器に体を擦りつけると、その場で止まって殴られる。実測で被弾の 30% が
-   「壁に押しつけられて停止」、さらに 26% が「2 秒でほとんど動けていない」だった。
-   実機でも逃走中に引っかかるのが目立つ、と報告を受けている。
-
-   直し方に注意がいる。以前「経路の直線化そのものに体の幅を要求する」を試したら、
-   廊下が狭くて直線化が成立せずジグザグに落ち、48 試行でクリア 0 まで落ちた。
-   だから遠くの狙点は触らない。目の前 1.7m だけを見て、進行方向を開いている
-   側へ寄せる。人が壁沿いを走るときにやっていることと同じ。 */
-function botNearProps(){
-  var out = [];
-  for(var j=0;j<world.props.length;j++){
-    var o = world.props[j];
-    var dx = o.x-player.x, dz = o.z-player.z;
-    if(dx*dx + dz*dz < 30) out.push(o);      // 5.5m 以内だけ見れば足りる
-  }
-  return out;
-}
-function botDirOpen(rel, reach, near){
-  var a = player.yaw + rel;
-  var fx = -Math.sin(a), fz = -Math.cos(a);
-  // 体の幅ぶん左右にずらした線も見る。中心の一本だけだと角をかすめて引っかかる
-  var nx = -fz * (player.radius + 0.06), nz = fx * (player.radius + 0.06);
-  for(var sd=-1; sd<=1; sd++){
-    var x0 = player.x + nx*sd, z0 = player.z + nz*sd;
-    if(!hasLOS(world.grid, x0, z0, x0 + fx*reach, z0 + fz*reach)) return false;
-  }
-  for(var j=0;j<near.length;j++){
-    var o = near[j];
-    var ox = o.x - player.x, oz = o.z - player.z;
-    var t = clamp(ox*fx + oz*fz, 0, reach);       // 進行方向の線分への射影
-    var cx = ox - fx*t, cz = oz - fz*t;
-    var rr = o.r + player.radius + 0.06;
-    if(cx*cx + cz*cz < rr*rr) return false;
-  }
-  return true;
-}
-// 進みたい向きが塞がっていたら、開いている一番近い向きへ寄せる
-function botAvoid(rel, reach){
-  var near = botNearProps();
-  if(botDirOpen(rel, reach, near)) return rel;
-  for(var i=1;i<=6;i++){
-    var off = i*0.24;
-    if(botDirOpen(rel+off, reach, near)) return rel+off;
-    if(botDirOpen(rel-off, reach, near)) return rel-off;
-  }
-  return rel;
-}
-/* インコース。経路はマスの中心を順に辿るので、曲がり角では外側を大きく回る。
-   人は角の内側をぎりぎりで回る。ぶつからない範囲でいちばん内側の線を選ぶ。
-
-   やり方：見えている一番遠い点（外側の線）と、その先のマスの向き（最短の線）の
-   あいだを、内側から外側へ順に試して、最初に通れた向きを採る。
-   角に擦って止まると本末転倒なので、通れるかどうかは体の幅で判定する。 */
-function botPathAimPair(gx, gy){
-  var path = botPathList(gx, gy);
-  if(!path || !path.length) return null;
-  var far = 0;
-  for(var i=Math.min(path.length,10)-1; i>=0; i--){
-    var w = cellToWorld(path[i].x, path[i].y);
-    if(hasLOS(world.grid, player.x, player.z, w.x, w.z) &&
-       !botPropInWay(player.x, player.z, w.x, w.z)){ far = i; break; }
-  }
-  var ai = Math.min(path.length-1, far+4);
-  return { aim: cellToWorld(path[far].x, path[far].y),
-           ahead: (ai > far) ? cellToWorld(path[ai].x, path[ai].y) : null };
-}
-function botInsideRel(aim, ahead, reach){
-  var relFar = botBearing(aim.x, aim.z);
-  if(!ahead) return relFar;
-  var relAhead = botBearing(ahead.x, ahead.z);
-  var span = botNorm(relFar - relAhead);
-  if(Math.abs(span) < 0.06) return relFar;
-  var near = botNearProps();
-  for(var k=0;k<=6;k++){
-    var rel = botNorm(relAhead + span*(k/6));
-    if(botDirOpen(rel, reach, near)) return rel;
-  }
-  return relFar;
 }
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
 function botPathList(gx, gy){
@@ -6020,20 +5941,18 @@ function botUpdate(dt){
       BOT.escT -= dt; BOT.escGoalT -= dt;
       if(BOT.escGoalT <= 0 || !BOT.escGoal){
         var stp = botFleeStep(hpos);
-        var pr0 = BOT.escGoal ? botPathAimPair(BOT.escGoal.x, BOT.escGoal.y) : null;
-        BOT.escWp = (pr0 ? pr0.aim : null) || (stp ? cellToWorld(stp.x, stp.y) : null);
-        BOT.escAhead = pr0 ? pr0.ahead : null;
+        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
+                    (stp ? cellToWorld(stp.x, stp.y) : null);
         BOT.escGoalT = 3.0; BOT.escT = 0.4;
         if(!BOT.escWp) BOT.escWorld = player.yaw + botPickEscape(botAway(srcRel), hpos);
       }else if(BOT.escT <= 0 && BOT.escGoal){
-        var pr1 = botPathAimPair(BOT.escGoal.x, BOT.escGoal.y);
-        if(pr1){ BOT.escWp = pr1.aim; BOT.escAhead = pr1.ahead; }
+        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
         BOT.escT = 0.4;
         // 行き先に着いたら選び直す
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
         if(Math.sqrt((gw2.x-player.x)*(gw2.x-player.x)+(gw2.z-player.z)*(gw2.z-player.z)) < CELL) BOT.escGoalT = 0;
       }
-      wantRel = BOT.escWp ? botInsideRel(BOT.escWp, BOT.escAhead, 2.2)
+      wantRel = BOT.escWp ? botBearing(BOT.escWp.x, BOT.escWp.z)
                           : botNorm(BOT.escWorld - player.yaw);
       run = true;
     }
@@ -6112,30 +6031,21 @@ function botUpdate(dt){
     if(BOT.readT > 0){ BOT.readT -= dt; moveFwd = false; run = false; wantRel *= 0.3; }
   }
 
-  /* でたらめな向きへ横抜けする案は効かなかった（被弾の 32%→30%）。
-     見えている壁と什器を使って、開いている向きへ寄せる。
-     逃走中は速いぶん先まで、探索中は手前だけ見る。
-     それでも詰まったままなら、向きを大きく振って抜ける。 */
-  var avoidReach = fleeing ? 1.9 : 1.2;
-  wantRel = botAvoid(wantRel, avoidReach);
-  if(player.blockedT > 0.55){
-    if(BOT.unstickT <= 0){ BOT.unstickT = 0.5; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1; }
+  /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
+     実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
+  if(player.blockedT > 0.3 && BOT.unstickT <= 0){
+    BOT.unstickT = 0.7; BOT.unstickDir = (rnd() < 0.5) ? -1 : 1;
   }
   if(BOT.unstickT > 0){
     BOT.unstickT -= dt;
-    wantRel = botNorm(wantRel + BOT.unstickDir * 1.35);
+    wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
   }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
-  /* 前へ入力してよいかは「体がいま向いている先が開いているか」で決める。
-     以前は wantRel の大きさだけで見ていたので、回避で大きく向きをずらすほど
-     前進をやめてしまい、壁際でその場に立ち止まっていた（48 試行でクリア 1）。
-     狙いと逆の効き方をしていた。 */
-  var headOpen = botDirOpen(0, fleeing ? 1.15 : 0.85, botNearProps());
-  var aligned = Math.abs(wantRel) < 0.95 || headOpen;
+  var aligned = Math.abs(wantRel) < 0.95;
   /* 逃走中は横歩きしない（遅くなって追いつかれる）。ただし大きくずれたまま
      前へ出ると壁に突っ込んで止まる。視点は 4.6rad/s で回るので、
      ずれが大きいうちは向き直りを優先する。 */
-  var fwdOK = moveFwd && (fleeing ? (Math.abs(wantRel) < 1.0 || headOpen) : aligned);
+  var fwdOK = moveFwd && (fleeing ? Math.abs(wantRel) < 1.0 : aligned);
   input.keys.KeyW = fwdOK;
   input.keys.KeyA = moveFwd && !fleeing && !aligned && wantRel > 0;
   input.keys.KeyD = moveFwd && !fleeing && !aligned && wantRel < 0;
