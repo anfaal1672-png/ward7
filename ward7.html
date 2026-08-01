@@ -6153,12 +6153,20 @@ function botUpdate(dt){
   var nearP = botNearProps();
   var CAND = [0, 0.785, -0.785, 1.571, -1.571];
   var pick = null, pickCost = 1e9;
-  for(var ci=0; ci<CAND.length; ci++){
-    var cr = CAND[ci];
-    if(!botDirOpen(cr, reach, nearP)) continue;
-    // 目標からのずれ。真横は全力が出ない（f>0.25 を満たさない）ので少し嫌う
-    var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30;
-    if(cost < pickCost){ pickCost = cost; pick = cr; }
+  /* どの向きも塞がっているなら、先読みを詰めてもう一度見る。
+     見きれずに止まったままだと、狭いところで永久に固まる。
+     実際、進行方向を細かく選ぶ版ではこれで 45% のフレームが入力ゼロになった。
+     人も、行き止まりで固まらずに半歩ずつ探る。 */
+  for(var pass=0; pass<3 && pick === null; pass++){
+    var rr2 = reach * (pass === 0 ? 1 : (pass === 1 ? 0.55 : 0.3));
+    pickCost = 1e9;
+    for(var ci=0; ci<CAND.length; ci++){
+      var cr = CAND[ci];
+      if(!botDirOpen(cr, rr2, nearP)) continue;
+      // 目標からのずれ。真横は全力が出ない（f>0.25 を満たさない）ので少し嫌う
+      var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30;
+      if(cost < pickCost){ pickCost = cost; pick = cr; }
+    }
   }
   // 目標とかけ離れた向きしか空いていないなら、進まずに向き直る
   if(pick !== null && Math.abs(botNorm(pick - wantRel)) > 1.9) pick = null;
