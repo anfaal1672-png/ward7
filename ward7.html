@@ -6022,7 +6022,11 @@ function botUpdate(dt){
       var az = (d2g < CELL*0.9) ? BOT.goal.z : BOT.wp.z;
       wantRel = botBearing(ax, az);
     }
-    run = (BOT.cautionT <= 0 && player.stamina > 55 && BOT.pathLen > 5);
+    /* 「目的地が 5 マス以上先」を走る条件にしていたが、これが 86% の時間で
+       不成立で、探索のダッシュ率は 11%、平均速度 2.93 m/s しか出ていなかった。
+       条件を外すと 収集 +16% に対し 被弾 +6% で、カルテ/被弾 は 1.03 → 1.15。
+       スタミナは制約になっていない（走行 6.47/s に対し歩行中の回復が 26/s）。 */
+    run = (BOT.cautionT <= 0 && player.stamina > 55);
 
     /* まだ見つかってはいない段階での対処。
        このゲームは走力差が 6% しかなく、追われてから振り切るのは現実的でない。
