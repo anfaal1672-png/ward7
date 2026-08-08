@@ -2398,13 +2398,18 @@ function buildWorld(){
     world.key = { grp:keyGrp, spr:keySpr, x:kw.x, z:kw.z, taken:false, phase:rnd()*TAU };
   }
 
-  // --- 施錠された扉：非常口へ入る手前の通路をふさぐ ---
-  var preCell = null;
+  /* --- 施錠された扉：非常口へ入る手前の通路をふさぐ ---
+     collideMove は施錠中「非常口のマス全体」を通行不可にする。ところが扉の板を
+     1 面にしか置いていなかったため、非常口のマスに開いた隣がもう一方向あると、
+     そちら側は「見た目は素通しの通路なのに進めない」＝見えない壁になっていた。
+     実測で 40 本中 13 本（33%）で発生し、3 方向のものもあった。
+     通行できる面すべてに板を置いて、見た目と当たり判定を一致させる。 */
+  var preCell = null, lockDirs = [];
   for(var pdi=0; pdi<4; pdi++){
     var pnx = far.x + EDIRS[pdi][0], pny = far.y + EDIRS[pdi][1];
     if(inBounds(pnx, pny) && g[idx(pnx, pny)] === 0){
-      preCell = { x:pnx, y:pny, dir:EDIRS[pdi] };
-      break;
+      lockDirs.push(EDIRS[pdi]);
+      if(!preCell) preCell = { x:pnx, y:pny, dir:EDIRS[pdi] };
     }
   }
   if(preCell){
@@ -2414,17 +2419,29 @@ function buildWorld(){
       color:0x6a6f68, roughness:0.55, metalness:0.55, emissive:0x2a1408, emissiveIntensity:0.35
     });
     var lockGrp = new THREE.Group();
-    var lg = new THREE.Mesh(new THREE.BoxGeometry(CELL*0.94, WALL_H*0.92, 0.16), lockMat);
-    lg.position.y = WALL_H*0.46; lockGrp.add(lg);
-    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.26),
-      new THREE.MeshStandardMaterial({ color:0xc9b56a, metalness:0.9, roughness:0.3 }));
-    handle.position.set(CELL*0.3, WALL_H*0.42, 0.12); lockGrp.add(handle);
-    lockGrp.position.set(lockX, 0, lockZ);
-    lockGrp.rotation.y = Math.atan2(preCell.dir[0], preCell.dir[1]);
+    for(var ldi=0; ldi<lockDirs.length; ldi++){
+      var ld = lockDirs[ldi];
+      var leaf = new THREE.Group();
+      var lg = new THREE.Mesh(new THREE.BoxGeometry(CELL*0.94, WALL_H*0.92, 0.16), lockMat);
+      lg.position.y = WALL_H*0.46; leaf.add(lg);
+      // 取っ手は手前の面だけに付ける（開けに来る側）
+      if(ldi === 0){
+        var handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.26),
+          new THREE.MeshStandardMaterial({ color:0xc9b56a, metalness:0.9, roughness:0.3 }));
+        handle.position.set(CELL*0.3, WALL_H*0.42, 0.12); leaf.add(handle);
+      }
+      leaf.position.set(ld[0]*(CELL/2), 0, ld[1]*(CELL/2));
+      leaf.rotation.y = Math.atan2(ld[0], ld[1]);
+      lockGrp.add(leaf);
+    }
+    lockGrp.position.set(ew.x, 0, ew.z);
     world.group.add(lockGrp);
     world.lockDoor = {
       cell:{ x:far.x, y:far.y },       // 施錠中はこのマスへ入れない
-      x:lockX, z:lockZ, group:lockGrp, mat:lockMat, open:false
+      x:lockX, z:lockZ, group:lockGrp, mat:lockMat, open:false,
+      // 開けに行く先。扉の板はマスの境界にあり、そこを目標にすると経路探索が
+      // 除外している非常口のマス側へ丸められて到達不能になることがある
+      preCell:{ x:preCell.x, y:preCell.y }
     };
   }
 
@@ -5811,7 +5828,18 @@ function botChooseGoal(){
     return { kind:'探索', x:null, z:null };
   }
   if(world.lockDoor && !world.lockDoor.open && player.hasKey){
-    if((t = botNearest('施錠扉'))) return { kind:'施錠扉', x:t.x, z:t.z, obj:t.ref };
+    /* 扉の板はマスの境界にあり、その座標は 30% の確率で「非常口のマス」側へ
+       丸まる。そのマスは経路探索が除外しているので、目標にすると経路が
+       引けず、扉の前まで行けないまま終わっていた。
+       開けに行く側のマスの中心を目標にする。 */
+    if((t = botNearest('施錠扉'))){
+      var pc2 = world.lockDoor.preCell;
+      if(pc2){
+        var pw2 = cellToWorld(pc2.x, pc2.y);
+        return { kind:'施錠扉', x:pw2.x, z:pw2.z, obj:t.ref };
+      }
+      return { kind:'施錠扉', x:t.x, z:t.z, obj:t.ref };
+    }
   }
   if((t = botNearest('非常口'))) return { kind:'非常口', x:t.x, z:t.z, obj:t.ref };
   if(BOT.signHint && (player.time - BOT.signHint.t) < 25)
