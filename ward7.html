@@ -5822,7 +5822,17 @@ function botChooseGoal(){
   var t;
   // 切れてからでは遅い。ランプが無いと追跡者より遅くなる
   /* 電池切れが被弾の 33% を占める。見つけたら満タンでない限り拾っておく */
-  if(player.battery < 99.5 && (t = botNearest('電池'))) return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  /* 電池は世界に 6 個しかなく、1 個 +45 で 100 が上限。満タン近くで拾うと
+     その差はそのまま消える。ランプの消費は 1.05/s なので 45 は 43 秒ぶん。
+     6 個 + 初期 100 = 370 ＝ 352 秒で、クリア時間の中央値 350 秒とほぼ同じ。
+     取りこぼしではなく「早く取りすぎて捨てている」ぶんが効く残量だった。
+     55% 以下まで待てば 1 単位も無駄にならない。場所は BOT.seen が覚えている
+     ので急ぐ必要はない。例外として目の前（4m 以内）なら 20 の無駄までは許す。 */
+  if((t = botNearest('電池'))){
+    var bdd = Math.sqrt((t.x-player.x)*(t.x-player.x) + (t.z-player.z)*(t.z-player.z));
+    if(player.battery <= 55 || (bdd < 4 && player.battery <= 75))
+      return { kind:'電池', x:t.x, z:t.z, obj:t.ref };
+  }
   /* 鍵は見つけ次第その場で取る。
      以前は「全部集めて非常口が開いてから」しか鍵を目標にしていなかったので、
      途中で見かけた鍵を素通りして、あとで取りに戻っていた。実測で 4枚目 258s /
@@ -5898,7 +5908,16 @@ function botTrackHunter(dt, sawHunter){
   if(sawHunter){ BOT.hpos = { x:hunter.x, z:hunter.z }; BOT.hposFresh = 0; return; }
   BOT.hposFresh += dt;
   if(botThreat() < 0.04){ BOT.hpos = null; return; }   // もう聞こえない＝見当を捨てる
-  // 見てから時間が経ったら、足跡をさかのぼった点に置き直す。
+  /* 見てから時間が経ったら置き直す。まず耳で。
+     聴覚が前後を持つようになったので、方位は正確・距離は気配の強さ相当で
+     出せる。逃走先の選定も危険地図もこの点を基準にしているので、ここが
+     ずれていると「相手の方へ逃げる」が起きる（実測で逃走開始の 46%）。 */
+  var thT = botThreat();
+  if(BOT.hposFresh > 0.35 && thT > 0.05){
+    BOT.hpos = botEstHunter(botHearRel(), thT);
+    return;
+  }
+  // 音も無いときだけ、自分の足跡をさかのぼった点を当て推量に使う。
   // プレイヤー自身に収束させると、どの向きも同じに見えて逃げ先が決まらない
   if(BOT.hposFresh > 0.5){
     var want = 5.0;                       // これくらい後ろ
@@ -5968,18 +5987,31 @@ function botFleeStep(hpos){
      いる間は 2.7m→5.1m と離せていたのに、曲がった直後に一気に詰められていた。
      いま走っている向きを続けられる行き先を優遇して、なるべく曲がらない。 */
   var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  /* 相手のいる側を向いたまま逃げ出すと、ahead*7（いまの向きを続ける加点）が
+     そのまま「相手の方へ走る」加点になっていた。実機で「逃げる向きに敵を
+     選ぶことがある」と指摘された挙動。相手の方位に近いマスは候補から外す。
+     全部落ちたら制限を緩めて選び直す（行き止まりで固まらないため）。 */
+  var hbx = hpos.x - player.x, hbz = hpos.z - player.z;
+  var hbl = Math.sqrt(hbx*hbx + hbz*hbz) || 1;
+  hbx /= hbl; hbz /= hbl;
   var best = null, bs = -1e9;
-  for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
-    var k2 = idx(x,y);
-    if(K[k2] === 2) continue;
-    var dp = pf[k2]; if(dp < 0 || dp < 4 || dp > 26) continue;   // 遠すぎず近すぎず
-    var dh = hf[k2]; if(dh < 0) dh = 45;          // 相手から辿れない＝安全
-    var w2 = cellToWorld(x,y);
-    var vx = w2.x - player.x, vz = w2.z - player.z;
-    var vl = Math.sqrt(vx*vx+vz*vz) || 1;
-    var ahead = (vx/vl)*fx + (vz/vl)*fz;          // いまの向きとの一致（-1..1）
-    var sc = dh*1.0 - dp*0.25 + ahead*7;
-    if(sc > bs){ bs = sc; best = {x:x, y:y}; }
+  for(var pass2=0; pass2<2 && !best; pass2++){
+    var lim2 = pass2 === 0 ? 0.35 : 0.72;       // 70 度以内 → 44 度以内を除外
+    bs = -1e9;
+    for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
+      var k2 = idx(x,y);
+      if(K[k2] === 2) continue;
+      var dp = pf[k2]; if(dp < 0 || dp < 4 || dp > 26) continue;   // 遠すぎず近すぎず
+      var dh = hf[k2]; if(dh < 0) dh = 45;          // 相手から辿れない＝安全
+      var w2 = cellToWorld(x,y);
+      var vx = w2.x - player.x, vz = w2.z - player.z;
+      var vl = Math.sqrt(vx*vx+vz*vz) || 1;
+      var toH = (vx/vl)*hbx + (vz/vl)*hbz;          // 相手の方位との一致
+      if(toH > lim2) continue;
+      var ahead = (vx/vl)*fx + (vz/vl)*fz;          // いまの向きとの一致（-1..1）
+      var sc = dh*1.0 - dp*0.25 + ahead*7 - Math.max(0, toH)*12;
+      if(sc > bs){ bs = sc; best = {x:x, y:y}; }
+    }
   }
   if(!best) return null;
   BOT.escGoal = best;
@@ -6001,6 +6033,9 @@ function botPickEscape(awayRel, hpos){
     if(open < 2.5) continue;
     var sc = Math.min(open,12)*0.6 - Math.abs(((rel-awayRel+Math.PI*3)%TAU)-Math.PI)*4;
     if(hpos){
+      // 相手の方位から 60 度以内へは走り出さない
+      var ehl = Math.sqrt((hpos.x-player.x)*(hpos.x-player.x)+(hpos.z-player.z)*(hpos.z-player.z)) || 1;
+      if(fx*(hpos.x-player.x)/ehl + fz*(hpos.z-player.z)/ehl > 0.5) continue;
       if(open >= 5 && !hasLOS(world.grid, player.x+fx*5, player.z+fz*5, hpos.x, hpos.z)) sc += 9;
       if(open >= 9 && !hasLOS(world.grid, player.x+fx*9, player.z+fz*9, hpos.x, hpos.z)) sc += 9;
     }
@@ -6339,7 +6374,9 @@ function botUpdate(dt){
       if(Math.abs(off) < lim) wantRel = botNorm(avR + (off >= 0 ? lim : -lim));
     }
 
-    // 角では首を振って左右を確かめる
+    /* 角では首を振って左右を確かめる。
+       ただし壁しかない一本道でも振っていて、そのたび減速していた（run=false）。
+       実際に脇道が開いている側だけを見る。両側とも壁なら振らない。 */
     BOT.glanceT -= dt;
     if(BOT.glanceHold > 0){
       BOT.glanceHold -= dt;
@@ -6347,8 +6384,14 @@ function botUpdate(dt){
       run = false;
     }else if(BOT.glanceT <= 0){
       BOT.glanceT = 2.6 + botRnd()*3.4;
-      BOT.glanceHold = 0.45 + botRnd()*0.35;
-      BOT.glanceDir = (botRnd()<0.5) ? -1 : 1;
+      var gnear = botNearProps();
+      var gl = botDirOpen(1.45, 2.4, gnear), gr = botDirOpen(-1.45, 2.4, gnear);
+      if(gl || gr){
+        BOT.glanceHold = 0.45 + botRnd()*0.35;
+        BOT.glanceDir = (gl && gr) ? ((botRnd()<0.5) ? -1 : 1) : (gl ? 1 : -1);
+      }else{
+        BOT.glanceT = 1.0;                  // 次の角までは短い間隔で見直す
+      }
     }
     // 背後で足音が鳴ったら振り返る
     if((player.time - BOT.ear.stepT) < 0.25 && BOT.ear.stepHot && th > 0.10 && BOT.lookBackT <= 0){
