@@ -5443,7 +5443,8 @@ var BOT = {
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
   useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
-  note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
+  note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0,
+  startCell:null
 };
 
 /* 初期値をそのまま控えておく。
@@ -5494,6 +5495,7 @@ function botReset(){
   BOT.danger = new Int16Array(GW*GH);
   BOT.seen = []; BOT.seenKey = {}; BOT.trail = [];
   BOT.ear.worldA = player.yaw;      // 初期の向きだけは現在の姿勢に合わせる
+  BOT.startCell = worldToCell(player.x, player.z);   // 入ってきた場所を覚える
   BOT.ready = true;
   botSay('病棟に入った');
 }
@@ -5796,6 +5798,31 @@ function botPickExplore(){
       q.push(ny*GW+nx);
     }
   }
+  /* 非常口をまだ知らない終盤は、いちばん近い境界ではなく
+     「入ってきた場所から遠い境界」を優先する。
+     非常口は起点からの歩数が最大のマスに置かれる（世界生成の規則）ので、
+     人が「入口から遠いほうへ行けば出口がある」と考えるのと同じ推測。
+     実測：3/4 に着いた時点で地図の 69% は踏破済みなのに、非常口が
+     見つかるのは中央値 266 秒。クリアした回は 214 秒、落とした回は 315 秒で、
+     ここが勝敗のいちばん強い予測子だった。 */
+  var farSeek = BOT.seekExit && BOT.startCell;
+  var sdist = null;
+  if(farSeek){
+    sdist = new Int32Array(K.length).fill(-1);
+    var q2 = [BOT.startCell.y*GW + BOT.startCell.x];
+    sdist[idx(BOT.startCell.x, BOT.startCell.y)] = 0;
+    for(var h2=0; h2<q2.length; h2++){
+      var c2 = q2[h2], cx2 = c2%GW, cy2 = (c2-cx2)/GW;
+      for(var i2=0;i2<4;i2++){
+        var nx2 = cx2+DX[i2], ny2 = cy2+DY[i2];
+        if(nx2<1||ny2<1||nx2>=GW-1||ny2>=GH-1) continue;
+        var k2 = idx(nx2,ny2);
+        if(sdist[k2] >= 0 || K[k2] === 2) continue;
+        sdist[k2] = sdist[idx(cx2,cy2)] + 1;
+        q2.push(ny2*GW+nx2);
+      }
+    }
+  }
   var best = null, bs = 1e9;
   for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
     if(K[idx(x,y)] !== 1) continue;
@@ -5803,6 +5830,10 @@ function botPickExplore(){
     var d = dist[idx(x,y)];
     if(d < 0) continue;
     var sc = d + BOT.penalty[idx(x,y)];
+    if(farSeek){
+      var sd2 = sdist[idx(x,y)];
+      if(sd2 >= 0) sc = d*0.55 + BOT.penalty[idx(x,y)] - sd2*1.2;
+    }
     if(sc < bs){ bs = sc; best = {x:x, y:y}; }
   }
   return best;
@@ -5870,6 +5901,23 @@ function botChooseGoal(){
     if(player.got === player.need - 1 && player.time < 700 &&
        !lastReady && (t = botNearest('カルテ'))){
       BOT.seekExit = true;
+      /* 待ち方が二種類ある。
+         非常口も鍵もまだ知らないなら、探すしかない（探索）。
+         両方すでに知っていて「静かになるのを待つだけ」なら、探索に出る
+         理由がない。歩き回れば足音で見つかるだけなので、最後の 1 枚の
+         近くの隠れ場所へ寄って待つ。
+         実測：負け 125 本のうち 65 本（52%）がこの「カルテ 3/4」の局面で
+         起きていた。 */
+      if(botNearest('非常口') && player.hasKey){
+        var wsp = null, wbest = 1e9;
+        for(var wi=0; wi<BOT.seen.length; wi++){
+          var ws = BOT.seen[wi];
+          if(ws.kind !== '隠れ場所') continue;
+          var wd = Math.sqrt((ws.x-t.x)*(ws.x-t.x) + (ws.z-t.z)*(ws.z-t.z));
+          if(wd < wbest && wd < 16){ wbest = wd; wsp = ws; }
+        }
+        if(wsp) return { kind:'待機', x:wsp.x, z:wsp.z, obj:wsp.ref };
+      }
       return { kind:'探索', x:null, z:null };
     }
     BOT.seekExit = false;
@@ -6071,7 +6119,7 @@ function botLookHeight(kind){
   if(kind === '鍵')     return 0.85;
   if(kind === '施錠扉') return 1.30;
   if(kind === '非常口') return 1.45;
-  if(kind === '隠れ場所') return 1.25;
+  if(kind === '隠れ場所' || kind === '待機') return 1.25;
   return 1.55;
 }
 function botPitchTarget(fleeing){
