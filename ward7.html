@@ -3831,6 +3831,10 @@ function startGame(){
   player.pitch = 0;
   player.hp = 100; player.battery = 100; player.stamina = 100; player.sanity = 100;
   player.lamp = true; player.got = 0; player.need = d.records; player.time = 0;
+  /* 速度を戻していなかった。タイトルへ戻って遊び直すと、前の周回が
+     終わった瞬間の速度で滑り出す（死んだ位置で走っていれば 5.7 m/s）。
+     再現検証で「同じ種なのに 1 本目と 2 本目で結果が違う」原因もこれ。 */
+  player.vx = 0; player.vz = 0;
   player.hurtT = 0; player.deadT = 0; player.shake = 0; player.bob = 0; player.stepAcc = 0;
   player.exhausted = false; player.blockedT = 0; $('barSta').classList.remove('exh');
   player.hiding = null; player.hideSeen = false; player.holdBreath = false; player.breathBroken = 0;
@@ -5442,6 +5446,22 @@ var BOT = {
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0
 };
 
+/* 初期値をそのまま控えておく。
+   botReset() が並べ書きで、増やした項目を書き足し忘れると前の周回の値が
+   残る。実測で useCd と glanceT が持ち越されていた（タイトルへ戻って
+   遊び直すと 1 回目と 2 回目で挙動が変わる）。
+   数える方（初期値）と消す方（reset）を一箇所にまとめて、書き忘れを消す。 */
+var BOT_INIT = (function(){
+  var o = {};
+  for(var k in BOT){
+    var v = BOT[k];
+    if(k === 'on' || k === 'ear') continue;                 // on は設定、ear は別で戻す
+    if(v === null || typeof v !== 'object') o[k] = v;
+  }
+  return o;
+})();
+var EAR_INIT = (function(){ var o = {}; for(var k in BOT.ear) o[k] = BOT.ear[k]; return o; })();
+
 /* ボットの乱数はゲーム側と分ける。
    共有していたせいで、演出用の乱数消費がひとつずれるだけでボットの判断が
    丸ごと変わり、同じ種・同じコードでも被弾ペースが 0.72 と 1.09 で
@@ -5467,18 +5487,14 @@ function botRnd(){
 function botReset(){
   botRndState = (forcedSeed !== null ? forcedSeed : (Date.now() & 0x7fffffff)) | 0;
   botLookState = botRndState ^ 0x5bf03635;
+  for(var k in BOT_INIT) BOT[k] = BOT_INIT[k];
+  for(var k2 in EAR_INIT) BOT.ear[k2] = EAR_INIT[k2];
   BOT.known = new Int8Array(GW*GH);
   BOT.penalty = new Int16Array(GW*GH);
   BOT.danger = new Int16Array(GW*GH);
-  BOT.seen = []; BOT.seenKey = {}; BOT.signHint = null;
-  BOT.goal = null; BOT.wp = null; BOT.exploreTgt = null;
-  BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
-  BOT.aimVel = 0; BOT.ready = true; BOT.idleT = 0; BOT.idlePitch = 0; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
-  BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
-  BOT.quietT = 0;
-  BOT.ear.worldA = player.yaw; BOT.ear.err = 0; BOT.ear.errT = 0;
-  BOT.ear.conf = 0; BOT.ear.heardT = -99; BOT.ear.stepWorld = 0;
-  BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
+  BOT.seen = []; BOT.seenKey = {}; BOT.trail = [];
+  BOT.ear.worldA = player.yaw;      // 初期の向きだけは現在の姿勢に合わせる
+  BOT.ready = true;
   botSay('病棟に入った');
 }
 function botSay(m){
