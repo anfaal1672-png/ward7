@@ -4798,7 +4798,9 @@ function updateHunter(dt, info){
            人はこの違いを聞き分けて「こっちへ走ってきている」と分かるので、
            ボットにも早期警報として渡してよい。 */
         if(BOT.on){ BOT.ear.stepT = player.time; BOT.ear.stepChase = !!chasing;
-                    BOT.ear.stepPan = clamp(lat,-1,1)*0.85; BOT.ear.stepHot = !!info.los; }
+                    BOT.ear.stepPan = clamp(lat,-1,1)*0.85; BOT.ear.stepHot = !!info.los;
+                    // 向きは左右成分ではなく世界角で控える（前後が潰れない）
+                    BOT.ear.stepWorld = Math.atan2(-(hunter.x-player.x), -(hunter.z-player.z)); }
       }
     }
   }
@@ -5364,6 +5366,26 @@ function runSelfTest(){
   // 自分の足元は必ず見えている（知覚の入口が壊れていないか）
   t('AIの視覚判定が働いている', botCanSee(player.x, player.z) === true);
 
+  /* 聴覚の前後。旧版は pan だけを見ていて真後ろの音を「前」と答えていた。
+     作り直した botHear は世界角を保つので、背後の音は '後ろ' になること。
+     方位の呼び名も左右を取り違えていないか同時に押さえる。 */
+  (function(){
+    var hx0 = hunter.x, hz0 = hunter.z, hy0 = player.yaw;
+    var ev0 = BOT.ear.vol, ec0 = BOT.ear.conf, ew0 = BOT.ear.worldA, ee0 = BOT.ear.err;
+    player.yaw = 0;                       // 正面は -z 方向
+    BOT.ear.vol = 0.2; BOT.ear.conf = 0; BOT.ear.errT = 99; BOT.ear.err = 0;
+    hunter.x = player.x; hunter.z = player.z + 8;      // 真後ろ
+    botHear(0.016);
+    t('聴覚が背後の音を背後と答える', dirName(botHearRel()) === '後ろ');
+    BOT.ear.conf = 0;
+    hunter.x = player.x + 8; hunter.z = player.z;      // 真右
+    botHear(0.016);
+    t('聴覚の左右が合っている', dirName(botHearRel()) === '右');
+    hunter.x = hx0; hunter.z = hz0; player.yaw = hy0;
+    BOT.ear.vol = ev0; BOT.ear.conf = ec0; BOT.ear.worldA = ew0;
+    BOT.ear.err = ee0; BOT.ear.errT = 0;
+  })();
+
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
   scene.traverse(function(o){
@@ -5407,12 +5429,12 @@ window.__ward7SelfTest = runSelfTest;
 
 var BOT = {
   on:false, ready:false,
-  ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false },
+  ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false,
+        stepWorld:0, worldA:0, err:0, errT:0, conf:0, heardT:-99 },
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
   goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0,
-  flip:false, flipStrike:0, volPrev:0, volT:0, volX:0, volZ:0, volDx:0, volDz:0,
-  hpos:null, hposFresh:0, trail:[], trailT:0,
+  quietT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
@@ -5453,8 +5475,9 @@ function botReset(){
   BOT.fleeT = 0; BOT.cautionT = 0; BOT.unseenT = 0; BOT.escT = 0; BOT.escWp = null; BOT.escGoal = null; BOT.escGoalT = 0; BOT.hideT = 0;
   BOT.aimVel = 0; BOT.ready = true; BOT.idleT = 0; BOT.idlePitch = 0; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
-  BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
-  BOT.volX = player.x; BOT.volZ = player.z; BOT.volDx = 0; BOT.volDz = 0;
+  BOT.quietT = 0;
+  BOT.ear.worldA = player.yaw; BOT.ear.err = 0; BOT.ear.errT = 0;
+  BOT.ear.conf = 0; BOT.ear.heardT = -99; BOT.ear.stepWorld = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
   botSay('病棟に入った');
 }
@@ -5468,58 +5491,43 @@ function botThreat(){
   var v = BOT.ear.vol;
   return v <= 0.006 ? 0 : clamp((v - 0.006)/0.26, 0, 1);
 }
-/* 定位から作る「音のする向き」（自分の正面基準・左が＋）。
-   pan は左右成分だけなので、真後ろの音は「正面」と同じ値になる。
-   つまり前後が区別できない（人間もヘッドホンでは同じ）。
+/* --- 聴覚（作り直し）-------------------------------------------------------
+   旧版はスピーカーの左右成分 pan だけをボットに渡していた。
+   pan = -sin(方位)*0.85 は同じ値を返す方位が 2 つあり（前寄りと後ろ寄り）、
+   前後が区別できない。そこを「逃げているのに音が大きくなったら反転」という
+   推定で当てにいっていたが、実測で信念が 46% の時間 90 度以上ずれており、
+   「見つかっていないのに敵へ寄っていく」挙動の根がこれだった。
 
-   人は「逃げているのに音が大きくなる＝逆へ走っている」と気づいて反転する。
-   BOT.flip がその判断。botHearRel() が反転を織り込んだ向きを返す。 */
-function botSoundRel(){ return -Math.asin(clamp(BOT.ear.pan/0.85, -1, 1)); }
-function botHearRel(){
-  /* pan = -sin(相対方位)*0.85 なので、同じ pan を与える方位は 2 つある:
-       β = r   （前寄り）と  β = π - r （後ろ寄り）
-     もう一方は「r の逆向き（r+π）」ではない。ここを取り違えると、
-     反転したつもりで左右が入れ替わるだけになる。 */
-  var r = botSoundRel();
-  return BOT.flip ? botNorm(Math.PI - r) : r;
-}
-/* 音量の増減で前後の取り違えを直す。
-   逃走中だけ「音が近づく＝逆」と判定していたが、それだと探索中と
-   追跡が切れた直後は一度も訂正されない。実測でその 2 局面では信念が
-   90 度以上ずれたまま 46% / 29% の時間、相手の方へ歩いていた。
-   そこで「前回信じていた向きへ実際に何 m 進んだか」を測り、
-   近づいたのに音が減る／離れたのに音が増える、を一般の矛盾として拾う。 */
-function botTrackVolume(dt, fleeing){
-  BOT.volT -= dt;
-  if(BOT.volT > 0) return;
-  var now = botThreat();
-  var d = now - BOT.volPrev;
-  var proj = (player.x - BOT.volX)*BOT.volDx + (player.z - BOT.volZ)*BOT.volDz;
-  // 無音のあいだは何も学べない
-  if(now < 0.02 && BOT.volPrev < 0.02){ BOT.flipStrike = 0; }
-  else{
-    var bad = (fleeing && d > 0.03) ||        // 逃げている最中に音が近づいてくる
-              (proj >  0.35 && d < -0.02) ||  // 音源へ寄ったのに小さくなった
-              (proj < -0.35 && d >  0.03);    // 音源から離れたのに大きくなった
-    if(bad){
-      BOT.flipStrike++;
-      if(BOT.flipStrike >= 2){
-        BOT.flip = !BOT.flip; BOT.flipStrike = 0;
-        BOT.escT = 0; BOT.escWp = null;
-        botSay('逆だ');
-      }
-    }else if(Math.abs(proj) > 0.35 && Math.abs(d) > 0.02){
-      BOT.flipStrike = 0;                   // 増減が向きと矛盾しない＝合っている
-    }
+   作り直し方針：向きそのものを渡す。代わりに距離と遮蔽に応じた角度誤差を
+   乗せ、0.9 秒ごとに引き直す。前後は潰れないが精度は距離なりに落ちる。
+   BOT.ear.worldA が「音のする向き」の世界角、botHearRel() が正面基準。 */
+function botHear(dt){
+  var e = BOT.ear;
+  if(e.vol <= 0.006){
+    e.conf = Math.max(0, e.conf - dt*0.9);
+    return;
   }
-  // 次の判定用に「いま信じている向き」と位置を残す（反転を適用した後の値）
-  var hw = botHearRel() + player.yaw;
-  BOT.volDx = -Math.sin(hw); BOT.volDz = -Math.cos(hw);
-  BOT.volX = player.x; BOT.volZ = player.z;
-  BOT.volPrev = now;
-  BOT.volT = 0.35;
+  var hdx = hunter.x - player.x, hdz = hunter.z - player.z;
+  var hd = Math.sqrt(hdx*hdx + hdz*hdz);
+  var trueW = Math.atan2(-hdx, -hdz);
+  // 誤差の幅：3m で約 ±10 度、15m で約 ±24 度、壁越しはその倍
+  e.errT -= dt;
+  if(e.errT <= 0){
+    e.errT = 0.9;
+    var sd = (0.12 + hd*0.019) * (e.muffled ? 2.0 : 1.0);
+    e.err = (botRnd()*2 - 1) * sd;
+  }
+  var tgt = trueW + e.err;
+  /* 追従は世界角のうえで行う。正面基準のまま平滑化すると、
+     自分が首を振っただけで音源が動いたことになってしまう。 */
+  if(e.conf <= 0.001) e.worldA = tgt;
+  else e.worldA = botNorm(e.worldA + botNorm(tgt - e.worldA) * (1 - Math.exp(-dt*7)));
+  e.conf = Math.min(1, e.conf + dt*2.0);
+  e.heardT = player.time;
 }
-
+function botHearRel(){ return botNorm(BOT.ear.worldA - player.yaw); }
+// 足音は鳴った瞬間の向きをそのまま覚えている
+function botStepRel(){ return botNorm(BOT.ear.stepWorld - player.yaw); }
 // 角度を -π..π に畳む。逃走方向の計算で手書きして符号を間違えたので関数にする
 function botNorm(a){ return ((a % TAU) + TAU + Math.PI) % TAU - Math.PI; }
 function botAway(rel){ return botNorm(rel + Math.PI); }   // 「その向きの逆」
@@ -5661,16 +5669,11 @@ function botDirOpen(rel, reach, near){
   }
   return true;
 }
-// 目的地までの経路をマスの並びで返す（先頭が次の一歩）
-function botPathList(gx, gy){
-  var st0 = worldToCell(player.x, player.z);
-  st0.x = clamp(st0.x,1,GW-2); st0.y = clamp(st0.y,1,GH-2);
-  gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
-  if(st0.x===gx && st0.y===gy) return null;
+/* 目的地からの歩数場。avoid=true なら危険地図の濃いマスを壁として扱う。 */
+function botFlow(gx, gy, lock, avoid){
   var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
-  var lock = (world.lockDoor && !world.lockDoor.open) ? world.lockDoor.cell : null;
-  var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
   var DX=[1,-1,0,0], DY=[0,0,1,-1];
+  var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
   for(var h=0; h<q.length; h++){
     var c = q[h], cx = c%GW, cy = (c-cx)/GW;
     for(var i=0;i<4;i++){
@@ -5679,12 +5682,28 @@ function botPathList(gx, gy){
       var k = idx(nx,ny);
       if(dist[k] >= 0 || K[k] === 2) continue;
       if(lock && nx===lock.x && ny===lock.y) continue;
+      if(avoid && BOT.danger[k] >= 20) continue;
       dist[k] = dist[idx(cx,cy)] + 1;
       q.push(ny*GW+nx);
     }
   }
+  return dist;
+}
+// 目的地までの経路をマスの並びで返す（先頭が次の一歩）
+function botPathList(gx, gy){
+  var st0 = worldToCell(player.x, player.z);
+  st0.x = clamp(st0.x,1,GW-2); st0.y = clamp(st0.y,1,GH-2);
+  gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
+  if(st0.x===gx && st0.y===gy) return null;
+  var lock = (world.lockDoor && !world.lockDoor.open) ? world.lockDoor.cell : null;
+  /* 気配のした辺りを通らない経路を先に探す。危険地図はこれまで書くだけで
+     一度も読まれておらず、探索の経路が相手の目の前を横切っていた。
+     迂回できないときだけ、危険を無視した経路に落とす（閉じ込め防止）。 */
+  var dist = botFlow(gx, gy, lock, true);
+  if(dist[idx(st0.x,st0.y)] < 0) dist = botFlow(gx, gy, lock, false);
   var here = dist[idx(st0.x,st0.y)];
   if(here < 0) return null;
+  var DX=[1,-1,0,0], DY=[0,0,1,-1];
   var out = [], cur = st0, guard = 0;
   while(here > 0 && guard++ < 200){
     var found = null;
@@ -5704,24 +5723,12 @@ function botPathNext(gx, gy){
   s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
   gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
   if(s.x===gx && s.y===gy) return null;
-  var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
   var lock = (world.lockDoor && !world.lockDoor.open) ? world.lockDoor.cell : null;
-  var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
-  var DX=[1,-1,0,0], DY=[0,0,1,-1];
-  for(var h=0; h<q.length; h++){
-    var c = q[h], cx = c%GW, cy = (c-cx)/GW;
-    for(var i=0;i<4;i++){
-      var nx = cx+DX[i], ny = cy+DY[i];
-      if(nx<1||ny<1||nx>=GW-1||ny>=GH-1) continue;
-      var k = idx(nx,ny);
-      if(dist[k] >= 0 || K[k] === 2) continue;
-      if(lock && nx===lock.x && ny===lock.y) continue;
-      dist[k] = dist[idx(cx,cy)] + 1;
-      q.push(ny*GW+nx);
-    }
-  }
+  var dist = botFlow(gx, gy, lock, true);
+  if(dist[idx(s.x,s.y)] < 0) dist = botFlow(gx, gy, lock, false);
   var here = dist[idx(s.x,s.y)];
   if(here < 0) return null;
+  var DX=[1,-1,0,0], DY=[0,0,1,-1];
   for(var j=0;j<4;j++){
     var ax = s.x+DX[j], ay = s.y+DY[j];
     if(!inBounds(ax,ay)) continue;
@@ -5906,8 +5913,15 @@ function botTrackHunter(dt, sawHunter){
   }
 }
 
+/* 気配の大きさから距離を出す。
+   以前は d = 3.5 + (1-th)*18 という直線で、th=0.355（実測 3.2m）を
+   15.1m と答えていた。いちばん危ない近距離で推定が最も外れており、
+   逃走先も危険地図もその外れ値の上に作られていた。
+   実測の対応（hunt 中）:
+     3.2m→0.355  6m→0.092  9m→0.072  13m→0.048  18m→0.025
+   これに合う減衰曲線に置き換える（4.3 / 9.5 / 14 / 20m と答える）。 */
 function botEstHunter(rel, th){
-  var d = 3.5 + (1 - clamp(th,0,1))*18;
+  var d = clamp(2.2 / Math.pow(Math.max(th, 0.012), 0.6), 2.0, 26);
   var a = player.yaw + rel;
   return { x: player.x - Math.sin(a)*d, z: player.z - Math.cos(a)*d };
 }
@@ -6061,6 +6075,7 @@ function botUpdate(dt){
   BOT.noteT -= dt;
   var K = BOT.known;
   botScan();
+  botHear(dt);   // 音の向きは隠れている間も更新する（出る判断に使う）
 
   /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
      いる」と告げるとおり、以降は隠れても居場所を嗅ぎつけられる。実測でその
@@ -6104,12 +6119,22 @@ function botUpdate(dt){
     BOT.lampCd -= dt;
     BOT.hideT += dt;
     BOT.useCd -= dt;
-    if(botThreat() < 0.07 && BOT.hideT > 4.0 && BOT.useCd <= 0){
-      input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; holdBtnDown = false; botSay('出る');
+    /* 出るのが早すぎた。閾値 0.07 は約 9m 相当で、hunt 中の相手が
+       まだこちらへ歩いてくる距離。しかも一瞬でも下回れば出ていたので、
+       壁の陰を通り過ぎただけの谷で飛び出していた。
+       「静かな状態が続いた時間」を貯め、それが 3 秒たまってから出る。
+       ただし箱の中では時間だけが減るので、40 秒で見切りをつける。 */
+    if(thHide < 0.045) BOT.quietT += dt;
+    else if(thHide > 0.08) BOT.quietT = 0;
+    var leave = (BOT.quietT > 3.0 && BOT.hideT > 5.0) ||
+                (BOT.hideT > 40 && thHide < 0.10);
+    if(leave && BOT.useCd <= 0){
+      input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; BOT.quietT = 0;
+      holdBtnDown = false; botSay('出る');
     }
     return;
   }
-  BOT.hideT = 0; holdBtnDown = false;
+  BOT.hideT = 0; BOT.quietT = 0; holdBtnDown = false;
 
   // --- 追跡者の把握（目と耳だけ）---
   var th = botThreat();
@@ -6127,14 +6152,20 @@ function botUpdate(dt){
      7m ぶん無償で詰められていた。 */
   var chaseHeard = (player.time - BOT.ear.stepT) < 0.9 && BOT.ear.stepChase && th > 0.06;
   var danger = sawHunter || (th > 0.42 && !BOT.ear.muffled) || chaseHeard;
-  if(sawHunter){ BOT.flip = false; BOT.flipStrike = 0; }   // 見えたなら迷う必要はない
   botTrackHunter(dt, sawHunter);
-  botMarkDanger(dt, th, BOT.hpos);
-  botTrackVolume(dt, BOT.fleeT > 0);
+  /* 危険地図には「耳の推定」を入れる。BOT.hpos は最後に姿を見た位置で、
+     実測で 12〜25 秒古いことがほとんどだった。聴覚が前後を持った今は
+     向きが正確なので、こちらの方が使える。 */
+  botMarkDanger(dt, th, sawHunter ? { x:hunter.x, z:hunter.z }
+                                  : (th > 0.05 ? botEstHunter(botHearRel(), th) : null));
   if(danger){
-    // 追われ始めた瞬間、姿が見えていないなら「背後にいる」を既定にする。
-    // 追跡はほぼ背後から来るので、音量の増減を待つ 0.7 秒が命取りになる
-    if(BOT.fleeT <= 0 && !sawHunter){ BOT.flip = true; BOT.flipStrike = 0; }
+    /* 逃げ始める瞬間に、前の逃走で使った行き先を捨てる。
+       escGoalT は逃走中しか減らないので、切れた追跡の続きから
+       古い行き先を最大 3 秒引きずっていた。「逃げる向きが決まるのが遅い」
+       「追跡が切れた直後に敵の方へ行く」はどちらもこれが原因。 */
+    if(BOT.fleeT <= 0){
+      BOT.escGoal = null; BOT.escGoalT = 0; BOT.escT = 0; BOT.escWp = null;
+    }
     BOT.fleeT = 3.0; BOT.unseenT = 0;
   } else BOT.unseenT += dt;
   BOT.hideSkipT -= dt;
@@ -6325,7 +6356,7 @@ function botUpdate(dt){
     }
     if(BOT.lookBackT > 0){
       BOT.lookBackT -= dt;
-      wantRel = botSoundRel() + (BOT.ear.pan > 0 ? 0.6 : -0.6);
+      wantRel = botStepRel();
       moveFwd = false; run = false;
     }
     // 拾った直後は少し立ち止まる（人はカルテを読む）
@@ -6469,6 +6500,16 @@ function botUpdate(dt){
    音の向きは目で確かめられないぶん間違いに気づきにくいので、
    自己診断から呼べる形にして押さえる。 */
 function panDir(v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
+/* 聴覚が前後を持つようになったので、表示も 8 方位にする。
+   rel は正面基準・左が＋（botBearing と同じ向き）。 */
+function dirName(rel){
+  var a = botNorm(rel), q = Math.abs(a);
+  if(q < 0.393) return '前';
+  if(q < 1.178) return a > 0 ? '左前' : '右前';
+  if(q < 1.963) return a > 0 ? '左' : '右';
+  if(q < 2.749) return a > 0 ? '左後ろ' : '右後ろ';
+  return '後ろ';
+}
 
 function botHUD(){
   if(skipUI) return;
@@ -6478,13 +6519,13 @@ function botHUD(){
   el.hidden = false;
   var th = botThreat();
   // 目盛りは文字（▮▯）だと環境によって豆腐になるので、幅で描く
-  var dir = panDir(BOT.ear.pan);
+  var dir = dirName(botHearRel());
   /* 足音は別系統（Audio2.hunterStep）で鳴っていて、この表示は唸り声
      （setHunterVoice）しか見ていなかった。実機で足音が聞こえているのに
      「何も聞こえない」と出るのはそのため。ボット自身は足音を使っている
      （chaseHeard・振り返り）ので、表示だけが遅れていた。 */
   var stepAge = player.time - BOT.ear.stepT;
-  var stepDir = panDir(BOT.ear.stepPan);
+  var stepDir = dirName(botStepRel());
   var tail;
   if(stepAge < 1.2){
     tail = '足音 ' + stepDir + (BOT.ear.stepChase ? '・走ってくる' : '') +
