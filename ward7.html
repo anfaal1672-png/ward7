@@ -5600,7 +5600,19 @@ function botScan(){
     botRemember('鍵', world.key.x, world.key.z, world.key);
   if(world.lockDoor && !world.lockDoor.open && botCanSee(world.lockDoor.x, world.lockDoor.z))
     botRemember('施錠扉', world.lockDoor.x, world.lockDoor.z, world.lockDoor);
-  if(botCanSee(world.exit.x, world.exit.z)) botRemember('非常口', world.exit.x, world.exit.z, world.exit);
+  /* 非常口だけは見え方が違う。扉の脇に赤い誘導灯（PointLight）が点いていて、
+     ランプを消していても暗い廊下の先に赤い光として見える。
+     botCanSee は「ランプが消えていれば 6.5m・視野 ±62 度」なので、
+     明滅で消えている 46% の時間、目の前の非常口を素通りしていた。
+     実測：打ち切りに終わった 16 本は地図を 100% 踏破していながら、
+     6 本が非常口を最後まで見つけていない。歩き足りないのではなく
+     見落としだった。 */
+  var exd = Math.sqrt((world.exit.x-player.x)*(world.exit.x-player.x) +
+                      (world.exit.z-player.z)*(world.exit.z-player.z));
+  if((botCanSee(world.exit.x, world.exit.z) ||
+      (exd < 22 && Math.abs(botBearing(world.exit.x, world.exit.z)) < 1.35 &&
+       hasSight(world.grid, player.x, player.z, world.exit.x, world.exit.z))))
+    botRemember('非常口', world.exit.x, world.exit.z, world.exit);
   for(var hi=0; hi<world.hides.length; hi++){
     var hd = world.hides[hi];
     if(botCanSee(hd.x, hd.z)) botRemember('隠れ場所', hd.x, hd.z, hd);
@@ -6552,11 +6564,15 @@ function botUpdate(dt){
      点けて見る → 消して歩く、を繰り返すのが人の使い方でもある。 */
   BOT.pulseT -= dt;
   if(BOT.pulseT <= 0){ BOT.pulseOn = !BOT.pulseOn; BOT.pulseT = BOT.pulseOn ? 2.6 : 2.2; }
-  var needLight =
+  /* ランプの光は「相手の方を向いたとき」に居場所を教える。
+     updateHunter は視野の外でも sight+6 まで、pdot>0.86（正面 ±30 度）で
+     seen を立てる。気配のする向きを正面に入れたまま照らさない。 */
+  var lampRisk = !fleeing && th > 0.06 && Math.abs(botHearRel()) < 0.62;
+  var needLight = !lampRisk && (
     fleeing ||                                   // ここで消えていると必ず捕まる
     th > 0.13 ||                                 // 気配がある。すぐ走るかもしれない
     player.battery > 88 ||                       // 満タン近くは惜しまない
-    BOT.pulseOn;                                 // 探索中はここで明滅する
+    BOT.pulseOn);                                // 探索中はここで明滅する
   // 追われている間は待たずに点ける（1.2 秒の迷いが致命傷になる）
   if(fleeing && !player.lamp && player.battery > 1){ toggleLamp(); BOT.lampCd = 1.2; }
   // 残量を温存しようと消灯を増やすと、消灯時間が延びてかえって遅くなった（計測済み）
