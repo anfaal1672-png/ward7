@@ -5588,15 +5588,24 @@ function botScan(){
     K[idx(cx,cy)] = (g[idx(cx,cy)] === 0) ? 1 : 2;
   }
 
+  /* カルテ・電池・鍵は加算合成のグロースプライト（emissive 付き）で描かれていて、
+     暗がりでも光って見える。誘導灯と同じ理屈で、ランプが消えていても
+     少し離れたところから気づけるようにする。誘導灯より控えめの 13m。 */
+  var glowSee = function(x, z){
+    if(botCanSee(x, z)) return true;
+    var gd = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
+    return gd < 18 && Math.abs(botBearing(x, z)) < 1.22 &&
+           hasSight(world.grid, player.x, player.z, x, z);
+  };
   for(var r=0;r<world.records.length;r++){
     var rc = world.records[r];
-    if(!rc.taken && botCanSee(rc.x, rc.z)) botRemember('カルテ', rc.x, rc.z, rc);
+    if(!rc.taken && glowSee(rc.x, rc.z)) botRemember('カルテ', rc.x, rc.z, rc);
   }
   for(var b=0;b<world.batteries.length;b++){
     var bt = world.batteries[b];
-    if(!bt.taken && botCanSee(bt.x, bt.z)) botRemember('電池', bt.x, bt.z, bt);
+    if(!bt.taken && glowSee(bt.x, bt.z)) botRemember('電池', bt.x, bt.z, bt);
   }
-  if(world.key && !world.key.taken && botCanSee(world.key.x, world.key.z))
+  if(world.key && !world.key.taken && glowSee(world.key.x, world.key.z))
     botRemember('鍵', world.key.x, world.key.z, world.key);
   if(world.lockDoor && !world.lockDoor.open && botCanSee(world.lockDoor.x, world.lockDoor.z))
     botRemember('施錠扉', world.lockDoor.x, world.lockDoor.z, world.lockDoor);
