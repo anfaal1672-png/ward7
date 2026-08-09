@@ -5411,7 +5411,8 @@ var BOT = {
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
   goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0,
-  flip:false, flipStrike:0, volPrev:0, volT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
+  flip:false, flipStrike:0, volPrev:0, volT:0, volX:0, volZ:0, volDx:0, volDz:0,
+  hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
@@ -5453,6 +5454,7 @@ function botReset(){
   BOT.aimVel = 0; BOT.ready = true; BOT.idleT = 0; BOT.idlePitch = 0; BOT.hideWaitT = 0; BOT.hideSkip = null; BOT.hideSkipT = 0; BOT.hideGoT = 0; BOT.breathOn = false; BOT.unstickT = 0;
   BOT.ear.vol = 0; BOT.ear.stepT = -99; BOT.lastHp = 100; BOT.blown = false; BOT.pulseOn = true; BOT.pulseT = 0;
   BOT.flip = false; BOT.flipStrike = 0; BOT.volPrev = 0; BOT.volT = 0;
+  BOT.volX = player.x; BOT.volZ = player.z; BOT.volDx = 0; BOT.volDz = 0;
   BOT.hpos = null; BOT.hposFresh = 0; BOT.trail = []; BOT.trailT = 0;
   botSay('病棟に入った');
 }
@@ -5481,21 +5483,39 @@ function botHearRel(){
   var r = botSoundRel();
   return BOT.flip ? botNorm(Math.PI - r) : r;
 }
+/* 音量の増減で前後の取り違えを直す。
+   逃走中だけ「音が近づく＝逆」と判定していたが、それだと探索中と
+   追跡が切れた直後は一度も訂正されない。実測でその 2 局面では信念が
+   90 度以上ずれたまま 46% / 29% の時間、相手の方へ歩いていた。
+   そこで「前回信じていた向きへ実際に何 m 進んだか」を測り、
+   近づいたのに音が減る／離れたのに音が増える、を一般の矛盾として拾う。 */
 function botTrackVolume(dt, fleeing){
   BOT.volT -= dt;
   if(BOT.volT > 0) return;
   var now = botThreat();
-  // 逃げている最中に音が近づいてくるなら、前後の取り違え
-  if(fleeing && now > BOT.volPrev + 0.03){
-    BOT.flipStrike++;
-    if(BOT.flipStrike >= 2){
-      BOT.flip = !BOT.flip; BOT.flipStrike = 0;
-      BOT.escT = 0; BOT.escWp = null;
-      botSay('逆だ');
+  var d = now - BOT.volPrev;
+  var proj = (player.x - BOT.volX)*BOT.volDx + (player.z - BOT.volZ)*BOT.volDz;
+  // 無音のあいだは何も学べない
+  if(now < 0.02 && BOT.volPrev < 0.02){ BOT.flipStrike = 0; }
+  else{
+    var bad = (fleeing && d > 0.03) ||        // 逃げている最中に音が近づいてくる
+              (proj >  0.35 && d < -0.02) ||  // 音源へ寄ったのに小さくなった
+              (proj < -0.35 && d >  0.03);    // 音源から離れたのに大きくなった
+    if(bad){
+      BOT.flipStrike++;
+      if(BOT.flipStrike >= 2){
+        BOT.flip = !BOT.flip; BOT.flipStrike = 0;
+        BOT.escT = 0; BOT.escWp = null;
+        botSay('逆だ');
+      }
+    }else if(Math.abs(proj) > 0.35 && Math.abs(d) > 0.02){
+      BOT.flipStrike = 0;                   // 増減が向きと矛盾しない＝合っている
     }
-  }else if(now < BOT.volPrev - 0.02){
-    BOT.flipStrike = 0;                   // 遠ざかっている＝向きは合っている
   }
+  // 次の判定用に「いま信じている向き」と位置を残す（反転を適用した後の値）
+  var hw = botHearRel() + player.yaw;
+  BOT.volDx = -Math.sin(hw); BOT.volDz = -Math.cos(hw);
+  BOT.volX = player.x; BOT.volZ = player.z;
   BOT.volPrev = now;
   BOT.volT = 0.35;
 }
@@ -6254,7 +6274,9 @@ function botUpdate(dt){
     var hd0 = hh0 ? Math.sqrt((hh0.x-player.x)*(hh0.x-player.x)+(hh0.z-player.z)*(hh0.z-player.z)) : 1e9;
     /* 最後の 1 枚を残して待っている間は集めるものが無い。無理に動かず早めに隠れる */
     var hThLo = BOT.seekExit ? 0.09 : 0.14, hDist = BOT.seekExit ? 15 : 11;
+    var hideMove = false;
     if(th > hThLo && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < hDist && !sawHunter && BOT.fleeT <= 0){
+      hideMove = true;
       wantRel = botBearing(hh0.x, hh0.z);
       run = (hd0 > 3 && player.stamina > 20);
       moveFwd = true;
@@ -6272,6 +6294,18 @@ function botUpdate(dt){
       wantRel = botNorm(BOT.escWorld - player.yaw);
       run = player.stamina > 30;
       botSay('近い。離れる');
+    }
+
+    /* 気配のする向きへ、正面から寄っていかない。
+       探索の目的地はマップ上の都合だけで決まるので、まだ見つかっていない
+       段階で相手へ真っ直ぐ歩いていく局面が実測で 46% あった。
+       進みたい向きが音源の向きに近すぎるなら、外側へ振って迂回する。
+       隠れに行く途中（hideMove）は箱が最優先なので触らない。 */
+    if(th > 0.06 && !sawHunter && !hideMove && BOT.lookBackT <= 0){
+      var avR = botHearRel();
+      var off = botNorm(wantRel - avR);
+      var lim = 1.30 + th*0.7;             // 近いほど大きく避ける（約 75〜115 度）
+      if(Math.abs(off) < lim) wantRel = botNorm(avR + (off >= 0 ? lim : -lim));
     }
 
     // 角では首を振って左右を確かめる
