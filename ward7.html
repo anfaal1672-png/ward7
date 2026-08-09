@@ -5919,7 +5919,7 @@ function botChooseGoal(){
        行き先が分かっていて、かつ静かなときを選ぶ（実測 0.05 は約 15m 以遠）。 */
     var lastReady = botNearest('非常口') && player.hasKey && botThreat() < 0.05 &&
                     BOT.fleeT <= 0 && !player.hiding;
-    if(player.got === player.need - 1 && player.time < 700 &&
+    if(player.got === player.need - 1 && player.time < 900 &&
        !lastReady && (t = botNearest('カルテ'))){
       BOT.seekExit = true;
       /* 待ち方が二種類ある。
@@ -5942,6 +5942,23 @@ function botChooseGoal(){
       return { kind:'探索', x:null, z:null };
     }
     BOT.seekExit = false;
+    /* どのカルテを先に取るか。最後の 1 枚を取った瞬間から居場所が漏れ続けるので、
+       そこから非常口までの距離が短いほどよい。非常口の場所が分かっていて
+       候補が複数あるなら、非常口から遠い方を先に片付け、近い方を残す。
+       自分からの距離も見ないと地図を横断しに行くので、両方を重みで混ぜる。 */
+    var ex2 = botNearest('非常口');
+    if(ex2){
+      var pick2 = null, pb2 = -1e9;
+      for(var ri=0; ri<BOT.seen.length; ri++){
+        var rs = BOT.seen[ri];
+        if(rs.kind !== 'カルテ' || (rs.ref && rs.ref.taken)) continue;
+        var dme = Math.sqrt((rs.x-player.x)*(rs.x-player.x) + (rs.z-player.z)*(rs.z-player.z));
+        var dex = Math.sqrt((rs.x-ex2.x)*(rs.x-ex2.x) + (rs.z-ex2.z)*(rs.z-ex2.z));
+        var sc2 = dex - dme*0.8;
+        if(sc2 > pb2){ pb2 = sc2; pick2 = rs; }
+      }
+      if(pick2) return { kind:'カルテ', x:pick2.x, z:pick2.z, obj:pick2.ref };
+    }
     if((t = botNearest('カルテ'))) return { kind:'カルテ', x:t.x, z:t.z, obj:t.ref };
     return { kind:'探索', x:null, z:null };
   }
