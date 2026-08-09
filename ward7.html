@@ -4882,7 +4882,7 @@ function updateHunter(dt, info){
     hunter.attackCd = 1.7;
     hunter.punchArm = (rnd() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
     hunter.swingT = SWING_DUR;        // 殴打モーションの長さ
-    hunter.stunT = 1.45;              // 振り抜いたあとの硬直（長め）
+    hunter.stunT = 3.5;               // 振り抜いたあとの硬直。逃げ直す猶予になる
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
     player.shake = 1.4; player.hurtT = 0.5;
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
@@ -6390,7 +6390,7 @@ function botUpdate(dt){
   var fleeing = BOT.fleeT > 0;
   BOT.cautionT = (th > 0.16) ? 2.0 : Math.max(0, BOT.cautionT - dt);
 
-  // 殴られた直後は 0.9m 弾き飛ばされ、相手は 1.45 秒硬直する。
+  // 殴られた直後は 0.9m 弾き飛ばされ、相手は 3.5 秒硬直する。
   // 逃げ先を引き直して、この硬直のあいだに距離を稼ぐ
   if(player.hp < BOT.lastHp){
     BOT.lastHp = player.hp;
