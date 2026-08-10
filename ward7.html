@@ -6632,14 +6632,20 @@ function botUpdate(dt){
      見きれずに止まったままだと、狭いところで永久に固まる。
      実際、進行方向を細かく選ぶ版ではこれで 45% のフレームが入力ゼロになった。
      人も、行き止まりで固まらずに半歩ずつ探る。 */
+  /* 通るかどうかだけでなく、どれだけ先まで通るかも見る。
+     同じ「通る」でも、すぐ先で詰まる向きを選ぶとその場でこすり続ける。
+     余裕のある向きを少し優遇する（体の向きは目標のまま。ここを変えると
+     目標に寄っていけなくなり、実測で打ち切りが 43 → 110 本に増えた）。 */
   for(var pass=0; pass<3 && pick === null; pass++){
     var rr2 = reach * (pass === 0 ? 1 : (pass === 1 ? 0.55 : 0.3));
     pickCost = 1e9;
     for(var ci=0; ci<CAND.length; ci++){
       var cr = CAND[ci];
       if(!botDirOpen(cr, rr2, nearP)) continue;
+      // その先 2 倍まで見て、余裕があるほど安い
+      var room = botDirOpen(cr, rr2*2.0, nearP) ? 0.30 : 0;
       // 目標からのずれ。真横は全力が出ない（f>0.25 を満たさない）ので少し嫌う
-      var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30;
+      var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30 - room;
       if(cost < pickCost){ pickCost = cost; pick = cr; }
     }
   }
