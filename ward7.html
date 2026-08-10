@@ -5726,6 +5726,56 @@ function botScan(){
    逃走 0.5〜6 秒の距離変化は -0.04 → +0.50 m/s と改善したのに、
    クリアは 48 試行で 0 だった。廊下が狭くて直線化が成立せず、
    マス目どおりのジグザグに落ちる場面が多すぎる。中心の一本で判定する。 */
+/* 思考の上書き：進路の脇に拾えるものがあれば、寄り道と呼べない範囲で寄る。
+   目的地そのものは変えない。電池を取りに行く途中でカルテを踏んだり、
+   逃げている途中で電池の上を通ったりするのに、素通りしていた。 */
+function botDetour(wantRel){
+  var best = null, bd = 1e9;
+  for(var i=0;i<BOT.seen.length;i++){
+    var sn = BOT.seen[i];
+    if(sn.kind !== 'カルテ' && sn.kind !== '電池' && sn.kind !== '鍵') continue;
+    if(sn.ref && sn.ref.taken) continue;
+    // 最後の 1 枚をわざと残して待っているあいだは、カルテに寄らない
+    if(sn.kind === 'カルテ' && BOT.seekExit) continue;
+    if(sn.kind === '電池' && player.battery > 75) continue;   // 満タン近くは寄る意味がない
+    var dx = sn.x-player.x, dz = sn.z-player.z;
+    var d = Math.sqrt(dx*dx+dz*dz);
+    if(d > 4.5 || d < 0.7) continue;
+    var rel = botBearing(sn.x, sn.z);
+    if(Math.abs(botNorm(rel - wantRel)) > 0.85) continue;     // 進路から大きく外れる
+    if(d < bd){ bd = d; best = rel; }
+  }
+  return best;
+}
+
+/* 逃げているときの曲がり方。
+   直線で見えるいちばん先のマスを目標にしていたので、角に着いてから
+   曲がる向きを決めていた。曲がるたび減速し、そこで詰められる。
+   ひとつ先の区間の向きを見て、角の内側へ寄せた点を狙う（インを突く）。 */
+function botFleeAim(gx, gy){
+  var path = botPathList(gx, gy);
+  if(!path || !path.length) return null;
+  var ai = -1;
+  for(var i=Math.min(path.length,12)-1; i>=0; i--){
+    var w = cellToWorld(path[i].x, path[i].y);
+    if(hasLOS(world.grid, player.x, player.z, w.x, w.z) &&
+       !botPropInWay(player.x, player.z, w.x, w.z)){ ai = i; break; }
+  }
+  if(ai < 0) return cellToWorld(path[0].x, path[0].y);
+  var aim = cellToWorld(path[ai].x, path[ai].y);
+  // 角の先の向き。そちらへ内側を削るように寄せる
+  var nx2 = path[Math.min(ai+2, path.length-1)];
+  if(!nx2 || (nx2.x === path[ai].x && nx2.y === path[ai].y)) return aim;
+  var nw = cellToWorld(nx2.x, nx2.y);
+  var ox = nw.x - aim.x, oz = nw.z - aim.z;
+  var ol = Math.sqrt(ox*ox + oz*oz) || 1;
+  var cut = CELL * 0.42;
+  var cx = aim.x + ox/ol*cut, cz = aim.z + oz/ol*cut;
+  // 内側を削った結果が壁の中なら、素直に角を狙う
+  if(!hasLOS(world.grid, player.x, player.z, cx, cz)) return aim;
+  return { x:cx, z:cz };
+}
+
 function botPathAim(gx, gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
@@ -6505,13 +6555,13 @@ function botUpdate(dt){
       BOT.escT -= dt; BOT.escGoalT -= dt;
       if(BOT.escGoalT <= 0 || !BOT.escGoal){
         var stp = botFleeStep(hpos);
-        BOT.escWp = (BOT.escGoal ? botPathAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
+        BOT.escWp = (BOT.escGoal ? botFleeAim(BOT.escGoal.x, BOT.escGoal.y) : null) ||
                     (stp ? cellToWorld(stp.x, stp.y) : null);
-        BOT.escGoalT = 3.0; BOT.escT = 0.4;
+        BOT.escGoalT = 3.0; BOT.escT = 0.25;
         if(!BOT.escWp) BOT.escWorld = player.yaw + botPickEscape(botAway(srcRel), hpos);
       }else if(BOT.escT <= 0 && BOT.escGoal){
-        BOT.escWp = botPathAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
-        BOT.escT = 0.4;
+        BOT.escWp = botFleeAim(BOT.escGoal.x, BOT.escGoal.y) || BOT.escWp;
+        BOT.escT = 0.25;
         // 行き先に着いたら選び直す
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
         if(Math.sqrt((gw2.x-player.x)*(gw2.x-player.x)+(gw2.z-player.z)*(gw2.z-player.z)) < CELL) BOT.escGoalT = 0;
@@ -6556,9 +6606,26 @@ function botUpdate(dt){
     var hh0 = botNearest('隠れ場所');
     var hd0 = hh0 ? Math.sqrt((hh0.x-player.x)*(hh0.x-player.x)+(hh0.z-player.z)*(hh0.z-player.z)) : 1e9;
     /* 最後の 1 枚を残して待っている間は集めるものが無い。無理に動かず早めに隠れる */
-    var hThLo = BOT.seekExit ? 0.09 : 0.14, hDist = BOT.seekExit ? 15 : 11;
+    /* 気配 0.14 は約 7m。そこから箱まで走っても間に合わないので、
+       これまでの「隠れる」は始める時点で手遅れだった。
+       もっと遠い（＝早い）段階で決める。0.07 は約 11m 相当。 */
+    var hThLo = BOT.seekExit ? 0.055 : 0.07, hDist = BOT.seekExit ? 15 : 11;
+    /* 間に合わない箱へは向かわない。
+       着く前に見つかれば、入っても hideSeen が立って意味がないうえ、
+       そこまでの往復がまるごと時間の損になる。
+       着くまでの時間と、相手が詰めてくるまでの時間を比べる。
+       相手の距離は気配の強さから、詰める速さは追跡の最大 4.473 m/s で見る。
+       箱が相手のいる側にあるときも向かわない（教えに行くのと同じ）。 */
+    var hideOK = false;
+    if(hh0){
+      var hDistEst = clamp(2.2 / Math.pow(Math.max(th, 0.012), 0.6), 2.0, 26);
+      var tReach = hd0 / (hd0 > 3 ? 5.755 : 3.111) + 0.5;      // 走って行って入るまで
+      var tThreat = Math.max(0, hDistEst - 4.0) / 4.473;        // 見つかるまで
+      var boxRel = Math.abs(botNorm(botBearing(hh0.x, hh0.z) - botHearRel()));
+      hideOK = (tReach + 0.6 < tThreat) && (boxRel > 0.7);
+    }
     var hideMove = false;
-    if(th > hThLo && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < hDist && !sawHunter && BOT.fleeT <= 0){
+    if(hideOK && th > hThLo && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < hDist && !sawHunter && BOT.fleeT <= 0){
       hideMove = true;
       wantRel = botBearing(hh0.x, hh0.z);
       run = (hd0 > 3 && player.stamina > 20);
@@ -6644,6 +6711,10 @@ function botUpdate(dt){
 
      体の向き（botSteer）は目標のまま回す。人も、走る向きを横へずらしながら
      顔は進みたい方へ向ける。 */
+  if(!player.hiding){
+    var detRel = botDetour(wantRel);
+    if(detRel !== null) wantRel = detRel;
+  }
   var spdNow = Math.sqrt(player.vx*player.vx + player.vz*player.vz);
   var reach = 0.75 + spdNow*0.32;
   var nearP = botNearProps();
@@ -6735,6 +6806,17 @@ function botUpdate(dt){
     if(dd < 2.0){
       input.use = true; BOT.useCd = 0.35;
       if(BOT.goal.kind === 'カルテ') BOT.readT = 0.8;
+    }
+  }
+  /* 目的地でなくても、手が届くところにあるなら拾う（逃走中も）。
+     nearestInteractable が返すのは実際に use が効く相手そのものなので、
+     これで拾い物が返るならロッカーに誤って入ることはない。 */
+  if(BOT.useCd <= 0 && !player.hiding){
+    var nb = nearestInteractable();
+    if(nb && nb.type === 'record' && BOT.seekExit) nb = null;   // 待っている最後の1枚は拾わない
+    if(nb && (nb.type === 'record' || nb.type === 'battery' || nb.type === 'key')){
+      input.use = true; BOT.useCd = 0.35;
+      if(nb.type === 'record' && !fleeing) BOT.readT = 0.8;
     }
   }
 
