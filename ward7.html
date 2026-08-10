@@ -5726,6 +5726,26 @@ function botScan(){
    逃走 0.5〜6 秒の距離変化は -0.04 → +0.50 m/s と改善したのに、
    クリアは 48 試行で 0 だった。廊下が狭くて直線化が成立せず、
    マス目どおりのジグザグに落ちる場面が多すぎる。中心の一本で判定する。 */
+/* 相手のいる向きへ寄っていかないための補正。
+   声の定位（botHearRel）は 0.9 秒ごとに誤差を引き直した推定だが、
+   足音は鳴った瞬間の向きそのもので誤差が無い。新しいうちは足音を信じる。
+   また、足音が聞こえている＝相手が動いている＝声より確かな手がかりなので、
+   声がまだ小さくても避ける理由になる。 */
+function botAvoidSrc(){
+  if((player.time - BOT.ear.stepT) < 2.5) return { rel:botStepRel(), hot:true };
+  if(botThreat() > 0.05) return { rel:botHearRel(), hot:false };
+  return null;
+}
+function botAvoidRel(rel){
+  var src = botAvoidSrc();
+  if(!src) return rel;
+  var th2 = botThreat();
+  var lim = 1.30 + Math.max(th2, src.hot ? 0.12 : 0) * 0.7;   // 約 75〜115 度
+  var off = botNorm(rel - src.rel);
+  if(Math.abs(off) < lim) return botNorm(src.rel + (off >= 0 ? lim : -lim));
+  return rel;
+}
+
 /* 思考の上書き：進路の脇に拾えるものがあれば、寄り道と呼べない範囲で寄る。
    目的地そのものは変えない。電池を取りに行く途中でカルテを踏んだり、
    逃げている途中で電池の上を通ったりするのに、素通りしていた。 */
@@ -5743,6 +5763,9 @@ function botDetour(wantRel){
     if(d > 4.5 || d < 0.7) continue;
     var rel = botBearing(sn.x, sn.z);
     if(Math.abs(botNorm(rel - wantRel)) > 0.85) continue;     // 進路から大きく外れる
+    // 気配や足音のする側にあるものへは寄らない（拾いに行って殴られる）
+    var av = botAvoidSrc();
+    if(av && Math.abs(botNorm(rel - av.rel)) < 0.9) continue;
     if(d < bd){ bd = d; best = rel; }
   }
   return best;
@@ -6651,12 +6674,7 @@ function botUpdate(dt){
        段階で相手へ真っ直ぐ歩いていく局面が実測で 46% あった。
        進みたい向きが音源の向きに近すぎるなら、外側へ振って迂回する。
        隠れに行く途中（hideMove）は箱が最優先なので触らない。 */
-    if(th > 0.06 && !sawHunter && !hideMove && BOT.lookBackT <= 0){
-      var avR = botHearRel();
-      var off = botNorm(wantRel - avR);
-      var lim = 1.30 + th*0.7;             // 近いほど大きく避ける（約 75〜115 度）
-      if(Math.abs(off) < lim) wantRel = botNorm(avR + (off >= 0 ? lim : -lim));
-    }
+    if(!sawHunter && !hideMove && BOT.lookBackT <= 0) wantRel = botAvoidRel(wantRel);
 
     /* 角では首を振って左右を確かめる。
        ただし壁しかない一本道でも振っていて、そのたび減速していた（run=false）。
@@ -6699,6 +6717,15 @@ function botUpdate(dt){
     BOT.unstickT -= dt;
     wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
   }
+  /* 寄り道（拾い物）は体の向きを決める前に混ぜる。
+     ここが botSteer の後ろにあったので、体は目標を向いたまま足だけが
+     拾い物へ寄り、そのうえ探索中の回避補正も後から上書きされていた。 */
+  if(!player.hiding && !fleeing){
+    var detRel = botDetour(wantRel);
+    if(detRel !== null) wantRel = detRel;
+    // 最後にもう一度、相手の側へ向いていないか見る（拾い物に釣られた分を戻す）
+    if(!sawHunter) wantRel = botAvoidRel(wantRel);
+  }
   botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
 
   /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
@@ -6711,10 +6738,6 @@ function botUpdate(dt){
 
      体の向き（botSteer）は目標のまま回す。人も、走る向きを横へずらしながら
      顔は進みたい方へ向ける。 */
-  if(!player.hiding){
-    var detRel = botDetour(wantRel);
-    if(detRel !== null) wantRel = detRel;
-  }
   var spdNow = Math.sqrt(player.vx*player.vx + player.vz*player.vz);
   var reach = 0.75 + spdNow*0.32;
   var nearP = botNearProps();
