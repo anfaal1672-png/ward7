@@ -5517,7 +5517,7 @@ var BOT = {
         stepWorld:0, worldA:0, err:0, errT:0, conf:0, heardT:-99 },
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
   goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
-  aimVel:0, noiseT:0, noise:0,
+  aimVel:0, noiseT:0, noise:0, fixT:0, tremT:0,
   quietT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
@@ -6278,8 +6278,29 @@ function botPitchTarget(fleeing){
 function botSteer(wantRel, dt, vmax){
   BOT.noiseT -= dt;
   if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + botRnd()*0.4; BOT.noise = (botRnd()-0.5)*0.045; }
-  var desired = clamp((wantRel + BOT.noise)*4.2, -vmax, vmax);
-  BOT.aimVel += clamp(desired - BOT.aimVel, -15*dt, 15*dt);
+  /* 人の首は一定速度では回らない。「速く振る → 止めて確かめる」の繰り返しで、
+     止まっているあいだも完全には静止しない。
+     ここまでは誤差へ比例した速度で滑らかに追い続けていて、それが
+     いちばん機械に見えるところだった。
+
+     ・大きくずれたときは勢いよく振り出す（利得を上げる）
+     ・目標に乗ったら 0.1〜0.3 秒だけ止めて確かめる（固視）
+     ・止まっているあいだも、周期の違う 2 つの波で細かく震える
+
+     逃げている最中は固視を入れない（振り向きが遅れると殴られる）。 */
+  BOT.tremT += dt;
+  var trem = Math.sin(BOT.tremT*11.3)*0.006 + Math.sin(BOT.tremT*3.7)*0.010;
+  var err = wantRel + BOT.noise + trem;
+  if(BOT.fixT > 0){
+    BOT.fixT -= dt;
+    BOT.aimVel += clamp(-BOT.aimVel, -22*dt, 22*dt);
+  }else{
+    var gain = (Math.abs(err) > 0.6) ? 6.4 : 4.2;
+    var desired = clamp(err*gain, -vmax, vmax);
+    BOT.aimVel += clamp(desired - BOT.aimVel, -15*dt, 15*dt);
+    if(BOT.fleeT <= 0 && Math.abs(err) < 0.10 && Math.abs(BOT.aimVel) < 0.8)
+      BOT.fixT = 0.10 + botLookRnd()*0.22;
+  }
   input.lookX -= BOT.aimVel*dt;             // player.yaw -= input.lookX
   /* 上下。以前は水平へ戻すだけで、ずっと真正面を向いたままだった。
      歩いているあいだの視線の揺れは、ゆっくりした乱数で作る（人は 2〜5 秒に
