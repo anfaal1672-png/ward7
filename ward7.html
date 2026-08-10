@@ -5507,9 +5507,46 @@ window.__ward7SelfTest = runSelfTest;
 
    追跡者の座標は読まない。updateEnv が Audio2 へ渡している音の値を横から
    控えておき、そこから「近い/遠い」「左/右」「壁越しか」を推定する。
-   前後の区別がつかないのも人間と同じ。
+   聴覚は前後も区別する（左右成分だけでは真後ろの音が「前」と同じ値になり、
+   それが「見つかっていないのに敵へ寄っていく」挙動の根だった）。
+   代わりに距離と遮蔽に応じた角度誤差を乗せてある。
 
-   操作も人と同じ口から入れる。input.keys を押し、input.lookX を動かす。 */
+   操作も人と同じ口から入れる。input.keys を押し、input.lookX を動かす。
+
+   ---------------------------------------------------------------------------
+   作り直しにあたって、実測から分かったこと（この章の設計はこれで決まっている）
+
+   1. 負けの本体は判断の質ではなく、知覚の穴だった。
+      打ち切りに終わった回は地図を 100% 踏破していながら非常口を見落として
+      いた。ランプ消灯中の視界が 6.5m しかないのに、探索中は 46% の時間
+      消していたため。誘導灯も拾い物も光っているので、暗くても見えるように
+      した（誘導灯 22m / 拾い物 18m）。この 2 つで +5.7 ポイント。
+
+   2. 被弾は積み重ならない。一度の遭遇でまとまって起きる。
+      1 試行あたり 0 発が 47%、3 発が 3%、4 発（＝死亡）が 17%。
+      3 発もらった時点で 83% 死ぬ。ばらばらに起きるなら死亡は 3.4% のはずで、
+      実際は 16.7%。だから平均被弾率ではなく「最初の接触を起こさない」ことを
+      最適化する。走力では負けていない（逃走中の平均 5.04 m/s 対 4.47）。
+
+   3. 体の向きは常に目的地へ。避けるのは足だけ。
+      空いている向きへ体ごと向ける案を 2 通り試して、どちらも被弾は減るのに
+      打ち切りが 2.5 倍（43 → 110 本）に増えた。目的地に寄っていけなくなる。
+
+   4. 相手の向きは「足音 > 声」。足音は鳴った瞬間の向きそのもので誤差が無い。
+
+   5. 資源で増やせるのは電池だけ。ただし 1 個 +45 で上限 100 なので、
+      早く拾うほど捨てている。残りの道のりで使うぶんが残っていれば拾わない。
+
+   6. 非常口は世界生成で「起点から最も遠いマス」に置かれる。
+      探すときは起点から遠い側の境界を優先する。
+
+   7. 隠れるのは「間に合うとき」だけ。気配 0.14（約 7m）で決めていたのは
+      始める時点で手遅れだった。約 11m で決め、着くまでの時間と相手が
+      詰めてくる時間を比べて、勝てるときだけ向かう。
+
+   8. ランプは点けるほど不利。相手は視野の外でも 22m まで、こちらが
+      正面 ±30 度に相手を入れて照らすと見つける。明滅（2.6 秒点/2.2 秒消）が
+      最良で、そこから点灯を増やすと 83% → 60% まで落ちる。 */
 
 var BOT = {
   on:false, ready:false,
@@ -6395,33 +6432,81 @@ function botSteer(wantRel, dt, vmax){
   input.lookY -= dp2;                            // player.pitch -= input.lookY なので符号を反転
 }
 
+/* --- 一フレームの流れ ------------------------------------------------------
+   知覚 → 事実 → 方針 → 操作 の 4 段に分ける。
+   もとは 470 行の一本道で、どの判断がどの入力に効くのかを追えなくなっていた。
+   それで実際に踏んだ事故が 2 つある。
+     ・拾い物への寄り道が回避補正より後ろにあり、回避を丸ごと上書きしていた
+     ・逃走の行き先が逃走中しか更新されず、切れた追跡の行き先を持ち越していた
+   どちらも「後ろの段が前の段を書き潰す」形だった。段を分けて、
+   体の向きを決めるのは botAim 一箇所だけにする。
+
+   F（事実）… その瞬間に知覚できたこと。ここより後では作らない。
+   A（方針）… どこへ向かい、走るか、前へ出るか。向きの補正はまだ掛けない。 */
 function botUpdate(dt){
   if(!BOT.ready) return;
   BOT.noteT -= dt;
-  var K = BOT.known;
   botScan();
-  botHear(dt);   // 音の向きは隠れている間も更新する（出る判断に使う）
+  botHear(dt);                    // 隠れている間も向きは追う（出る判断に使う）
 
-  /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
+  var F = botFacts();
+  if(botHidden(dt, F)) return;    // 箱の中にいるなら、そこで完結する
+
+  botTrackHunter(dt, F.saw);
+    /* 危険地図には「耳の推定」を入れる。BOT.hpos は最後に姿を見た位置で、
+     実測で 12〜25 秒古いことがほとんどだった。聴覚が前後を持った今は
+     向きが正確なので、こちらの方が使える。 */
+  botMarkDanger(dt, F.th, F.saw ? { x:hunter.x, z:hunter.z }
+                                  : (F.th > 0.05 ? botEstHunter(botHearRel(), F.th) : null));
+  botMood(dt, F);
+
+  var A = F.flee ? botPlanFlee(dt, F) : botPlanExplore(dt, F);
+  botAim(dt, F, A);
+  var moving = botFeet(A, F);
+  botLamp(dt, F);
+  botHands(dt, F);
+  botUnstick(dt, F, moving);
+}
+
+/* --- 事実：いま知覚できていること ----------------------------------------- */
+function botFacts(){
+  var F = { th:botThreat(), saw:false, sawRel:0, danger:false, flee:false };
+  if(hunter.group && hunter.group.visible){
+    var hb = botBearing(hunter.x, hunter.z);
+    var hdd = Math.sqrt((hunter.x-player.x)*(hunter.x-player.x)+(hunter.z-player.z)*(hunter.z-player.z));
+    if(hdd < botEyeRange() && Math.abs(hb) < 1.08 &&
+       hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
+      F.saw = true; F.sawRel = hb;
+    }
+  }
+    /* 走っている足音が聞こえたら、音量が上がりきる前に動き出す。
+     音量だけを見ていると約 13m まで気づけず、相手の視認距離 20m のあいだに
+     7m ぶん無償で詰められていた。 */
+  F.chaseHeard = (player.time - BOT.ear.stepT) < 0.9 && BOT.ear.stepChase && F.th > 0.06;
+  F.danger = F.saw || (F.th > 0.42 && !BOT.ear.muffled) || F.chaseHeard;
+  return F;
+}
+
+/* --- 箱の中にいるあいだ ---------------------------------------------------- */
+function botHidden(dt, F){
+  if(!player.hiding){ BOT.hideT = 0; BOT.quietT = 0; holdBtnDown = false; return false; }
+  input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
+    /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
      いる」と告げるとおり、以降は隠れても居場所を嗅ぎつけられる。実測でその
      区間の 35% をロッカーの中で過ごし、そのあいだ相手はまっすぐ歩いてきていた。
      追跡者は hunt 状態が 57% で、その速度 3.27 m/s はこちらの 5.755 m/s より
      遅い。走れば振り切れる相手から、隠れて待っていた。 */
-  if(player.hiding && player.got >= player.need){
-    input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
+  if(player.got >= player.need){
     holdBtnDown = false;
     if(BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; botSay('隠れても無駄だ'); }
     BOT.useCd -= dt;
-    return;
+    return true;
   }
-  // 隠れている間：気配が遠のいたら出る
-  if(player.hiding){
-    input.keys.KeyW = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
-    // 殴られている＝見つかっている。箱の中にいても意味がないので出て走る
+      // 殴られている＝見つかっている。箱の中にいても意味がないので出て走る
     if(player.hp < BOT.lastHp){
       BOT.lastHp = player.hp;
       if(BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; holdBtnDown = false; botSay('見つかった。出る'); }
-      return;
+      return true;
     }
     /* 息を止めるのは相手が近いときだけ。
        隠れていて音で気づかれるのは 3.2m 以内（updateHunter の hiding 分岐）で、
@@ -6457,33 +6542,13 @@ function botUpdate(dt){
       input.use = true; BOT.useCd = 0.8; BOT.hideT = 0; BOT.quietT = 0;
       holdBtnDown = false; botSay('出る');
     }
-    return;
-  }
-  BOT.hideT = 0; BOT.quietT = 0; holdBtnDown = false;
+    return true;
+  return true;
+}
 
-  // --- 追跡者の把握（目と耳だけ）---
-  var th = botThreat();
-  var sawHunter = false, hunterRel = 0;
-  if(hunter.group && hunter.group.visible){
-    var hb = botBearing(hunter.x, hunter.z);
-    var hdd = Math.sqrt((hunter.x-player.x)*(hunter.x-player.x)+(hunter.z-player.z)*(hunter.z-player.z));
-    if(hdd < botEyeRange() && Math.abs(hb) < 1.08 &&
-       hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
-      sawHunter = true; hunterRel = hb;
-    }
-  }
-  /* 走っている足音が聞こえたら、音量が上がりきる前に動き出す。
-     音量だけを見ていると約 13m まで気づけず、相手の視認距離 20m のあいだに
-     7m ぶん無償で詰められていた。 */
-  var chaseHeard = (player.time - BOT.ear.stepT) < 0.9 && BOT.ear.stepChase && th > 0.06;
-  var danger = sawHunter || (th > 0.42 && !BOT.ear.muffled) || chaseHeard;
-  botTrackHunter(dt, sawHunter);
-  /* 危険地図には「耳の推定」を入れる。BOT.hpos は最後に姿を見た位置で、
-     実測で 12〜25 秒古いことがほとんどだった。聴覚が前後を持った今は
-     向きが正確なので、こちらの方が使える。 */
-  botMarkDanger(dt, th, sawHunter ? { x:hunter.x, z:hunter.z }
-                                  : (th > 0.05 ? botEstHunter(botHearRel(), th) : null));
-  if(danger){
+/* --- 気分：逃走・警戒・被弾への反応 ---------------------------------------- */
+function botMood(dt, F){
+    if(F.danger){
     /* 逃げ始める瞬間に、前の逃走で使った行き先を捨てる。
        escGoalT は逃走中しか減らないので、切れた追跡の続きから
        古い行き先を最大 3 秒引きずっていた。「逃げる向きが決まるのが遅い」
@@ -6495,8 +6560,8 @@ function botUpdate(dt){
   } else BOT.unseenT += dt;
   BOT.hideSkipT -= dt;
   BOT.fleeT -= dt;
-  var fleeing = BOT.fleeT > 0;
-  BOT.cautionT = (th > 0.16) ? 2.0 : Math.max(0, BOT.cautionT - dt);
+  F.flee = BOT.fleeT > 0;   // 被弾の反応より前。元の順番を保つ
+  BOT.cautionT = (F.th > 0.16) ? 2.0 : Math.max(0, BOT.cautionT - dt);
 
   // 殴られた直後は 0.9m 弾き飛ばされ、相手は 3.0 秒硬直する。
   // 逃げ先を引き直して、この硬直のあいだに距離を稼ぐ
@@ -6505,13 +6570,14 @@ function botUpdate(dt){
     BOT.escT = 0; BOT.escGoalT = 0; BOT.escWp = null; BOT.escGoal = null;
     BOT.fleeT = Math.max(BOT.fleeT, 4.0);
   }else if(player.hp > BOT.lastHp) BOT.lastHp = player.hp;
+}
 
-  var wantRel = 0, moveFwd = true, run = false;
-  BOT.repath -= dt;
-
-  if(fleeing){
-    botSay('見つかった');
-    var srcRel = sawHunter ? hunterRel : botHearRel();
+/* --- 方針：逃げる ---------------------------------------------------------- */
+function botPlanFlee(dt, F){
+  var A = { rel:0, fwd:true, run:false, hideMove:false };
+  var th = F.th, sawHunter = F.saw;
+      botSay('見つかった');
+    var srcRel = sawHunter ? F.sawRel : botHearRel();
     var hpos = BOT.hpos || botEstHunter(srcRel, th);
     /* 追われている最中は隠れない。
        追跡中の相手は最後に見た場所へ真っ直ぐ来るので、箱に入るのは
@@ -6554,8 +6620,8 @@ function botUpdate(dt){
     if(hcut && player.got < player.need && BOT.hideGoT > 0){
       var hcc = worldToCell(hcut.x, hcut.z);
       var hAim = botPathAim(hcc.x, hcc.y);
-      wantRel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
-      run = hcd > 2.0;
+      A.rel = botBearing(hAim ? hAim.x : hcut.x, hAim ? hAim.z : hcut.z);
+      A.run = hcd > 2.0;
       botSay(BOT.ear.muffled ? '壁の陰だ。隠れる' : '隠れ場所へ');
       BOT.useCd -= dt;
       // 入るところを見られたら意味がない。姿が切れている瞬間だけ入る
@@ -6589,13 +6655,20 @@ function botUpdate(dt){
         var gw2 = cellToWorld(BOT.escGoal.x, BOT.escGoal.y);
         if(Math.sqrt((gw2.x-player.x)*(gw2.x-player.x)+(gw2.z-player.z)*(gw2.z-player.z)) < CELL) BOT.escGoalT = 0;
       }
-      wantRel = BOT.escWp ? botBearing(BOT.escWp.x, BOT.escWp.z)
+      A.rel = BOT.escWp ? botBearing(BOT.escWp.x, BOT.escWp.z)
                           : botNorm(BOT.escWorld - player.yaw);
-      run = true;
+      A.run = true;
     }
-    BOT.repath = 0;
-  }else{
-    if(!BOT.goal || BOT.repath <= 0 || (BOT.goal.obj && BOT.goal.obj.taken)){
+  BOT.repath = 0;
+  return A;
+}
+
+/* --- 方針：探索する -------------------------------------------------------- */
+function botPlanExplore(dt, F){
+  var A = { rel:0, fwd:true, run:false, hideMove:false };
+  var th = F.th, sawHunter = F.saw;
+  BOT.repath -= dt;
+      if(!BOT.goal || BOT.repath <= 0 || (BOT.goal.obj && BOT.goal.obj.taken)){
       var g = botChooseGoal();
       BOT.goal = g;
       BOT.repath = (g.kind === '探索') ? 0.7 : 0.4;
@@ -6614,13 +6687,13 @@ function botUpdate(dt){
         : 99;
       var ax = (d2g < CELL*0.9) ? BOT.goal.x : BOT.wp.x;
       var az = (d2g < CELL*0.9) ? BOT.goal.z : BOT.wp.z;
-      wantRel = botBearing(ax, az);
+      A.rel = botBearing(ax, az);
     }
     /* 「目的地が 5 マス以上先」を走る条件にしていたが、これが 86% の時間で
        不成立で、探索のダッシュ率は 11%、平均速度 2.93 m/s しか出ていなかった。
        条件を外すと 収集 +16% に対し 被弾 +6% で、カルテ/被弾 は 1.03 → 1.15。
        スタミナは制約になっていない（走行 6.47/s に対し歩行中の回復が 26/s）。 */
-    run = (BOT.cautionT <= 0 && player.stamina > 55);
+    A.run = (BOT.cautionT <= 0 && player.stamina > 55);
 
     /* まだ見つかってはいない段階での対処。
        このゲームは走力差が 6% しかなく、追われてから振り切るのは現実的でない。
@@ -6647,12 +6720,12 @@ function botUpdate(dt){
       var boxRel = Math.abs(botNorm(botBearing(hh0.x, hh0.z) - botHearRel()));
       hideOK = (tReach + 0.6 < tThreat) && (boxRel > 0.7);
     }
-    var hideMove = false;
+    
     if(hideOK && th > hThLo && th < 0.55 && BOT.ear.muffled && hh0 && hd0 < hDist && !sawHunter && BOT.fleeT <= 0){
-      hideMove = true;
-      wantRel = botBearing(hh0.x, hh0.z);
-      run = (hd0 > 3 && player.stamina > 20);
-      moveFwd = true;
+      A.hideMove = true;
+      A.rel = botBearing(hh0.x, hh0.z);
+      A.run = (hd0 > 3 && player.stamina > 20);
+      A.fwd = true;
       botSay('隠れる');
       if(hd0 < 1.9 && BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; }
     }
@@ -6664,8 +6737,8 @@ function botUpdate(dt){
         BOT.escWorld = player.yaw + botPickEscape(botAway(sr), BOT.hpos || botEstHunter(sr, th));
         BOT.escT = 1.6;
       }
-      wantRel = botNorm(BOT.escWorld - player.yaw);
-      run = player.stamina > 30;
+      A.rel = botNorm(BOT.escWorld - player.yaw);
+      A.run = player.stamina > 30;
       botSay('近い。離れる');
     }
 
@@ -6674,7 +6747,7 @@ function botUpdate(dt){
        段階で相手へ真っ直ぐ歩いていく局面が実測で 46% あった。
        進みたい向きが音源の向きに近すぎるなら、外側へ振って迂回する。
        隠れに行く途中（hideMove）は箱が最優先なので触らない。 */
-    if(!sawHunter && !hideMove && BOT.lookBackT <= 0) wantRel = botAvoidRel(wantRel);
+    if(!sawHunter && !A.hideMove && BOT.lookBackT <= 0) A.rel = botAvoidRel(A.rel);
 
     /* 角では首を振って左右を確かめる。
        ただし壁しかない一本道でも振っていて、そのたび減速していた（run=false）。
@@ -6682,8 +6755,8 @@ function botUpdate(dt){
     BOT.glanceT -= dt;
     if(BOT.glanceHold > 0){
       BOT.glanceHold -= dt;
-      wantRel += BOT.glanceDir * 0.84;
-      run = false;
+      A.rel = A.rel + BOT.glanceDir * 0.84;
+      A.run = false;
     }else if(BOT.glanceT <= 0){
       BOT.glanceT = 2.6 + botRnd()*3.4;
       var gnear = botNearProps();
@@ -6701,34 +6774,40 @@ function botUpdate(dt){
     }
     if(BOT.lookBackT > 0){
       BOT.lookBackT -= dt;
-      wantRel = botStepRel();
-      moveFwd = false; run = false;
+      A.rel = botStepRel();
+      A.fwd = false; A.run = false;
     }
     // 拾った直後は少し立ち止まる（人はカルテを読む）
-    if(BOT.readT > 0){ BOT.readT -= dt; moveFwd = false; run = false; wantRel *= 0.3; }
-  }
+    if(BOT.readT > 0){ BOT.readT -= dt; A.fwd = false; A.run = false; A.rel *= 0.3; }
+  return A;
+}
 
-  /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
+/* --- 体の向き。補正を掛ける場所はここ一箇所だけ ---------------------------- */
+function botAim(dt, F, A){
+    /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
      実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
   if(player.blockedT > 0.3 && BOT.unstickT <= 0){
     BOT.unstickT = 0.7; BOT.unstickDir = (botRnd() < 0.5) ? -1 : 1;
   }
   if(BOT.unstickT > 0){
     BOT.unstickT -= dt;
-    wantRel = botNorm(wantRel + BOT.unstickDir * 1.15);
+    A.rel = botNorm(A.rel + BOT.unstickDir * 1.15);
   }
-  /* 寄り道（拾い物）は体の向きを決める前に混ぜる。
+    /* 寄り道（拾い物）は体の向きを決める前に混ぜる。
      ここが botSteer の後ろにあったので、体は目標を向いたまま足だけが
      拾い物へ寄り、そのうえ探索中の回避補正も後から上書きされていた。 */
-  if(!player.hiding && !fleeing){
-    var detRel = botDetour(wantRel);
-    if(detRel !== null) wantRel = detRel;
+  if(!player.hiding && !F.flee){
+    var detRel = botDetour(A.rel);
+    if(detRel !== null) A.rel = detRel;
     // 最後にもう一度、相手の側へ向いていないか見る（拾い物に釣られた分を戻す）
-    if(!sawHunter) wantRel = botAvoidRel(wantRel);
+    if(!F.saw) A.rel = botAvoidRel(A.rel);
   }
-  botSteer(wantRel, dt, fleeing ? 4.6 : 3.0);
+  botSteer(A.rel, dt, F.flee ? 4.6 : 3.0);
+}
 
-  /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
+/* --- 足：出せる 5 方向から選ぶ --------------------------------------------- */
+function botFeet(A, F){
+    /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
      その 5 つを体の幅で先に検査し、通るものの中から目標に一番近いものを採る。
      つまり塞がっている向きのキーは最初から押さない。
 
@@ -6760,13 +6839,13 @@ function botUpdate(dt){
       // その先 2 倍まで見て、余裕があるほど安い
       var room = botDirOpen(cr, rr2*2.0, nearP) ? 0.30 : 0;
       // 目標からのずれ。真横は全力が出ない（f>0.25 を満たさない）ので少し嫌う
-      var cost = Math.abs(botNorm(cr - wantRel)) + Math.abs(cr)*0.30 - room;
+      var cost = Math.abs(botNorm(cr - A.rel)) + Math.abs(cr)*0.30 - room;
       if(cost < pickCost){ pickCost = cost; pick = cr; }
     }
   }
   // 目標とかけ離れた向きしか空いていないなら、進まずに向き直る
-  if(pick !== null && Math.abs(botNorm(pick - wantRel)) > 1.9) pick = null;
-  var moving2 = moveFwd && pick !== null;
+  if(pick !== null && Math.abs(botNorm(pick - A.rel)) > 1.9) pick = null;
+  var moving2 = A.fwd && pick !== null;
   input.keys.KeyW = moving2 && Math.abs(pick) < 1.2;
   input.keys.KeyA = moving2 && pick > 0.3;
   input.keys.KeyD = moving2 && pick < -0.3;
@@ -6779,9 +6858,16 @@ function botUpdate(dt){
      だから「12 を切ったら走るのをやめ、45 まで戻ったらまた走る」。 */
   if(player.stamina < 12) BOT.blown = true;
   else if(player.stamina > 45) BOT.blown = false;
-  input.keys.ShiftLeft = !!(run && !BOT.blown && input.keys.KeyW);
+  input.keys.ShiftLeft = !!(A.run && !BOT.blown && input.keys.KeyW);
 
-  /* ランプの管理。ここがこのゲームの肝だった。
+
+  return moving2;
+}
+
+/* --- ランプ ---------------------------------------------------------------- */
+function botLamp(dt, F){
+  var fleeing = F.flee, th = F.th;
+    /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
      最大 5.400 なので、消えていると 4.95 対 5.40 で必ず追いつかれる。
      一方でランプは 1.45%/秒 減り、満タンでも 69 秒しかもたない。電池は
@@ -6821,8 +6907,12 @@ function botUpdate(dt){
     if(needLight && !player.lamp && player.battery > 2){ toggleLamp(); BOT.lampCd = 1.2; }
     else if(!needLight && player.lamp){ toggleLamp(); BOT.lampCd = 1.2; }
   }
+}
 
-  // 拾う・使う
+/* --- 手：拾う・使う -------------------------------------------------------- */
+function botHands(dt, F){
+  var fleeing = F.flee;
+    // 拾う・使う
   BOT.useCd -= dt;
   if(BOT.goal && BOT.goal.x !== null && BOT.useCd <= 0 && !fleeing){
     var dd = Math.sqrt((BOT.goal.x-player.x)*(BOT.goal.x-player.x)+(BOT.goal.z-player.z)*(BOT.goal.z-player.z));
@@ -6842,8 +6932,12 @@ function botUpdate(dt){
       if(nb.type === 'record' && !fleeing) BOT.readT = 0.8;
     }
   }
+}
 
-  // 引っかかり
+/* --- 詰まりの検出 ---------------------------------------------------------- */
+function botUnstick(dt, F, moving){
+  var fleeing = F.flee;
+    // 引っかかり
   var moved = Math.sqrt((player.x-BOT.lastX)*(player.x-BOT.lastX)+(player.z-BOT.lastZ)*(player.z-BOT.lastZ));
   BOT.lastX = player.x; BOT.lastZ = player.z;
   // 壁に押しつけている間は走れない（updatePlayer が blockedT<0.45 を要求する）
@@ -6851,7 +6945,7 @@ function botUpdate(dt){
   /* 入力を出しているのに進めていないなら、経路の方が悪い。
      ここで横へ蹴り出すのはやめた（先読みが向きを選んでいるので、上書きすると
      わざわざ塞がった向きへ押し込むことになる）。経路を引き直すだけにする。 */
-  if(moving2 && moved < 0.6*dt){
+  if(moving && moved < 0.6*dt){
     BOT.stuck += dt;
     if(BOT.stuck > (fleeing ? 0.22 : 0.7)){
       BOT.stuck = 0; BOT.repath = 0; BOT.escT = 0; BOT.escGoalT = 0;
