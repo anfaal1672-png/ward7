@@ -5558,7 +5558,7 @@ var BOT = {
   quietT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
-  glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, readT:0,
+  glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, lookCd:0, readT:0,
   useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0,
   startCell:null
@@ -6482,6 +6482,9 @@ function botFacts(){
     /* 走っている足音が聞こえたら、音量が上がりきる前に動き出す。
      音量だけを見ていると約 13m まで気づけず、相手の視認距離 20m のあいだに
      7m ぶん無償で詰められていた。 */
+  /* 走っている足音は、それだけで危険。音量の条件を外す。
+     追跡の足音が鳴るのは相手が chase 状態のときだけで、
+     そのとき音がまだ小さいのは「遠い」ではなく「壁越し」であることが多い。 */
   F.chaseHeard = (player.time - BOT.ear.stepT) < 0.9 && BOT.ear.stepChase && F.th > 0.06;
   F.danger = F.saw || (F.th > 0.42 && !BOT.ear.muffled) || F.chaseHeard;
   return F;
@@ -6768,14 +6771,28 @@ function botPlanExplore(dt, F){
         BOT.glanceT = 1.0;                  // 次の角までは短い間隔で見直す
       }
     }
-    // 背後で足音が鳴ったら振り返る
-    if((player.time - BOT.ear.stepT) < 0.25 && BOT.ear.stepHot && th > 0.10 && BOT.lookBackT <= 0){
-      BOT.lookBackT = 0.9; botSay('物音');
+    /* 背後で足音が鳴ったら振り返る。
+       ここは実機で「足音が近づくと挙動不審になってその場に留まる」と
+       指摘された箇所。原因は 3 つ重なっていた。
+         ・止まる条件が stepHot（＝視線が通っている）だった。
+           相手がこちらを見ながら走ってくる、いちばん止まってはいけない場面。
+         ・止まる時間が 0.9 秒なのに、追跡中の足音は 0.95m ごと＝
+           約 0.26 秒ごとに鳴る。切れた瞬間に鳴り直して、ほぼ永久に固まる。
+         ・この間 A.fwd=false なので入力が消え、相手が詰めるあいだ棒立ちになる。
+       走ってくる足音・気配が濃いとき・逃走中は振り返らない。
+       振り返るのは「遠くで何か動いた」程度のときだけにして、
+       いちど振り返ったら 4 秒は繰り返さない。 */
+    var stepFresh = (player.time - BOT.ear.stepT) < 0.25;
+    BOT.lookCd -= dt;
+    if(stepFresh && !BOT.ear.stepChase && th > 0.10 && th < 0.22 &&
+       BOT.lookBackT <= 0 && BOT.lookCd <= 0){
+      BOT.lookBackT = 0.5; BOT.lookCd = 4.0; botSay('物音');
     }
     if(BOT.lookBackT > 0){
       BOT.lookBackT -= dt;
       A.rel = botStepRel();
-      A.fwd = false; A.run = false;
+      // 首は向けるが足は止めない。止まってよいのは本当に静かなときだけ
+      if(th < 0.12){ A.fwd = false; A.run = false; }
     }
     // 拾った直後は少し立ち止まる（人はカルテを読む）
     if(BOT.readT > 0){ BOT.readT -= dt; A.fwd = false; A.run = false; A.rel *= 0.3; }
@@ -6843,8 +6860,16 @@ function botFeet(A, F){
       if(cost < pickCost){ pickCost = cost; pick = cr; }
     }
   }
-  // 目標とかけ離れた向きしか空いていないなら、進まずに向き直る
-  if(pick !== null && Math.abs(botNorm(pick - A.rel)) > 1.9) pick = null;
+  /* 目標とかけ離れた向きしか空いていないなら、進まずに向き直る。
+     ただし危ないときは別。棒立ちがいちばん悪い手で、
+     多少見当違いでも動いていたほうがいい。 */
+  var freezeOK = !F.flee && F.th < 0.10;
+  if(pick !== null && freezeOK && Math.abs(botNorm(pick - A.rel)) > 1.9) pick = null;
+  // 危ないのにどの向きも塞がっているなら、体の幅を詰めてでも一歩出す
+  if(pick === null && !freezeOK){
+    for(var ci2=0; ci2<CAND.length && pick === null; ci2++)
+      if(botDirOpen(CAND[ci2], 0.45, nearP)) pick = CAND[ci2];
+  }
   var moving2 = A.fwd && pick !== null;
   input.keys.KeyW = moving2 && Math.abs(pick) < 1.2;
   input.keys.KeyA = moving2 && pick > 0.3;
