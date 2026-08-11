@@ -6930,7 +6930,11 @@ function botLamp(dt, F){
   BOT.pulseT -= dt;
   if(BOT.pulseT <= 0){
     BOT.pulseOn = !BOT.pulseOn;
-    var low = player.battery < 45;
+    /* 通常以上は光の総量が足りない（325 単位 ÷ 1.5/s ＝ 217 秒ぶんしかないのに
+       走破に 400 秒かかる）。実測で逃走時間の 15% がランプ切れによる消灯で、
+       そのあいだ 4.95 m/s まで落ちて追跡者の 5.40 に負ける。
+       光っている物は消灯中でも見えるようにしてあるので、探索の点灯は削れる。 */
+    var low = player.battery < 45 || settings.diff > 0;
     BOT.pulseT = BOT.pulseOn ? (low ? 1.2 : 2.6) : (low ? 3.6 : 2.2);
   }
   /* ランプの光は「相手の方を向いたとき」に居場所を教える。
