@@ -6605,7 +6605,14 @@ function botPlanFlee(dt, F){
         // 直前に入れなかった箱は少しのあいだ候補から外す
         if(BOT.hideSkipT > 0 && BOT.hideSkip === (hs2.ref || hs2)) continue;
         var hdp = Math.sqrt((hs2.x-player.x)*(hs2.x-player.x)+(hs2.z-player.z)*(hs2.z-player.z));
-        if(hdp > 17) continue;
+        /* 難易度で走力差がまるで違う。静穏は追跡者 4.47 に対しこちら 5.755 で
+           余裕 29% あり、走って振り切れる。通常以上は 5.40 対 5.755 で 6% しかなく、
+           走って逃げ切るという前提が成り立たない（実測の振り切り率は
+           静穏 96% に対し通常 70%）。難しいほど箱を頼る。
+           自分が選んだ難易度は人も知っている情報なので、これは読んでよい。
+           「気配が減らないなら箱へ」という自己観測で代用する案も試したが、
+           通常 30.6% / 静穏 79.2% とどちらも悪化した（気配が揺れて当てにならない）。 */
+        if(hdp > (settings.diff > 0 ? 24 : 17)) continue;
         // 相手を挟んだ向こう側の箱へ走るのは、相手に向かって走るのと同じ
         var hdh = hpos ? Math.sqrt((hs2.x-hpos.x)*(hs2.x-hpos.x)+(hs2.z-hpos.z)*(hs2.z-hpos.z)) : 99;
         if(hdh < hdp + 2.5) continue;
@@ -6618,7 +6625,7 @@ function botPlanFlee(dt, F){
        その箱に設定されるので、隠れ場所を教えに行くのと同じになる。
        muffled（音が壁越し＝視線も通っていない）を、向かう条件そのものにする。
        ちらつきで往復しないよう、切れているあいだ 1.2 秒ぶんの猶予を貯めておく。 */
-    if(BOT.ear.muffled && !sawHunter) BOT.hideGoT = 1.2;
+    if(BOT.ear.muffled && !sawHunter) BOT.hideGoT = (settings.diff > 0 ? 2.0 : 1.2);
     else BOT.hideGoT -= dt;
     if(hcut && player.got < player.need && BOT.hideGoT > 0){
       var hcc = worldToCell(hcut.x, hcut.z);
