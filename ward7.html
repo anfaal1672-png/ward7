@@ -3587,24 +3587,51 @@ var ecgData = new Float32Array(220), ecgHead = 0, ecgBeat = 0, ecgT = 0;
 var toastT = 0, noteT = 0;
 
 // カルテの中身。拾った順に出る
+/* カルテの文面。
+   8 枚しか無く、しかも難易度ごとに出る順番が固定だったので、二周目からは
+   同じ紙を同じ順で読むことになっていた。18 枚に増やし、順番はその回の種から
+   引く。最後の 1 枚（閉じの文）だけは必ず最後に来るようにする——
+   全部集めた瞬間に病棟の様子が変わるので、そこに文面を合わせる。
+
+   声は 3 つ。夜勤の看護記録、患者が残した書き置き、院長名義の通達。
+   同じ出来事を別の立場から書いているものを混ぜてある。 */
+var NOTE_LAST = 17;                    // 閉じの文。必ず最後に出す
 var NOTES = [
   ['所見 04-02', '夜間、第七病棟の患者が廊下を歩き回る。制止しても反応がない。翌朝は全員、何も覚えていないと言う。'],
   ['所見 04-09', '同室の四名が同じ夢を訴えた。長い髪の女が枕元に立ち、こちらを覗き込んでいる、と。'],
   ['所見 04-17', '夜勤中、階段の踊り場で足音を聞いた。上でも下でもなく、同じ場所で足踏みをしている音だった。'],
+  ['所見 04-24', '第七病棟の消灯後、非常灯だけが点いている。電源は落としてあるはずだ。配線図を取り寄せた。'],
+  ['配線記録',   '第七病棟の非常回路は本館と切り離されている。図面には無い線が一本、地下へ伸びている。'],
   ['所見 05-01', '七名が同時に発症。共通する所見はない。全員が同じ方向を向いて座っている。'],
+  ['書き置き',   'ここの明かりは、点けると見つかる。消すと歩けない。どちらかを選べということらしい。'],
+  ['所見 05-08', '患者の一人が私の名を呼んだ。名札は外している。声は、私が去年亡くした妹のものだった。'],
   ['所見 05-14', '彼女の病室から鍵を回収した。中には誰もいない。ベッドの窪みはまだ温かかった。'],
+  ['書き置き',   'ロッカーの中は安全だ。ただし入るところを見られてはいけない。見られたら、扉は開けられる。'],
+  ['所見 05-19', '同じ患者を三度収容した。三度とも別の病室から現れた。移動の経路が説明できない。'],
   ['所見 05-23', '同僚が三人辞めた。理由を訊いても誰も口をきかない。私も明日で辞める。'],
+  ['通達 05-28', '第七病棟における記録の持ち出しを禁ずる。カルテは全て院内に留め置くこと。院長'],
+  ['書き置き',   '走れば逃げられる。あれは思ったより遅い。ただし、こちらが息を切らすまでの話だ。'],
   ['所見 06-02', '院長より第七病棟の閉鎖を通達。患者の移送記録は、どこにも残っていない。'],
+  ['通達 06-05', '第七病棟を封鎖する。以後の立ち入りを禁ずる。当該病棟に関する問い合わせには応じない。'],
+  ['書き置き',   '扉には鍵がかかっている。鍵は誰かが持ち出した。持ち出した誰かも、まだこの中にいる。'],
   ['所見 06-11', 'まだここにいる。出口の場所が思い出せない。これを読んでいる人へ——ランプを消しなさい。']
 ];
-// 難易度ごとの出題順。3つの和集合が0〜7すべてを覆うようにしてある
-var NOTE_ORDER = [
-  [0, 2, 4, 7],           // 静穏 4枚
-  [0, 1, 3, 5, 7],        // 通常 5枚
-  [0, 2, 3, 4, 6, 7]      // 絶望 6枚
-];
+
+/* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
+   同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
+function buildNoteOrder(need){
+  var pool = [];
+  for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
+  for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
+    var k = (rnd() * (j+1)) | 0;
+    var tmp = pool[j]; pool[j] = pool[k]; pool[k] = tmp;
+  }
+  var out = pool.slice(0, Math.max(0, need-1));
+  out.push(NOTE_LAST);
+  return out;
+}
 function showNote(i){
-  var order = NOTE_ORDER[settings.diff] || NOTE_ORDER[1];
+  var order = world.noteOrder || buildNoteOrder(player.need || 5);
   var n = NOTES[order[i % order.length] % NOTES.length];
   $('noteHead').textContent = n[0];
   $('noteBody').textContent = n[1];
@@ -4014,6 +4041,7 @@ function startGame(){
   player.pitch = 0;
   player.hp = 100; player.battery = 100; player.stamina = 100; player.sanity = 100;
   player.lamp = true; player.got = 0; player.need = d.records; player.time = 0;
+  world.noteOrder = buildNoteOrder(player.need);   // 読む順はその回ごとに引く
   /* 速度を戻していなかった。タイトルへ戻って遊び直すと、前の周回が
      終わった瞬間の速度で滑り出す（死んだ位置で走っていれば 5.7 m/s）。
      再現検証で「同じ種なのに 1 本目と 2 本目で結果が違う」原因もこれ。 */
@@ -5599,6 +5627,21 @@ function runSelfTest(){
            : (BOT.known === null || !BOT.ready));
   // 自分の足元は必ず見えている（知覚の入口が壊れていないか）
   t('AIの視覚判定が働いている', botCanSee(player.x, player.z) === true);
+
+  /* カルテの出題順。同じ紙が二度出る、枚数が足りない、閉じの文が
+     途中で出る、のどれもゲームの筋が壊れるが、遊んで気づくには周回が要る。 */
+  (function(){
+    var ord = world.noteOrder || [];
+    var uniq = {}, dup = false, range = true;
+    for(var i=0;i<ord.length;i++){
+      if(uniq[ord[i]]) dup = true;
+      uniq[ord[i]] = 1;
+      if(!(ord[i] >= 0 && ord[i] < NOTES.length)) range = false;
+    }
+    t('カルテの出題順が枚数ぶんある', ord.length === player.need);
+    t('カルテが重複していない', !dup && range);
+    t('閉じの文が最後に来る', ord.length > 0 && ord[ord.length-1] === NOTE_LAST);
+  })();
 
   /* 残響のインパルス応答。NaN や発散が混ざると音が丸ごと消えるが、
      静かなゲームなので耳では気づけない。数で押さえる。 */
@@ -7496,7 +7539,7 @@ try{
       }
       return null;
     },
-    noteOrder: function(){ return NOTE_ORDER; }, noteCount: function(){ return NOTES.length; },
+    noteOrder: function(){ return world.noteOrder; }, noteCount: function(){ return NOTES.length; },
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
     forceQC: function(){ QC = qualityCfg(); },
     post: function(){ return { on:postEnabled(), fx:postFX,
