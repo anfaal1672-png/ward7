@@ -3433,6 +3433,18 @@ var stickEl = $('stick'), stickKnob = stickEl.querySelector('i');
 var stickId = null, lookId = null, stickRunning = false, holdBtnDown = false, backBtnDown = false;
 var stickOrigin = {x:0,y:0};
 
+/* スティックの効き。指を倒した割合 v(0..1) を速度の割合に写す。
+   中央の 12% は死に帯（親指を置いただけで歩き出さない）。
+   そこから先は v^1.55 でゆっくり立ち上げ、外側でちょうど 1 に届く。
+   自己診断から呼べるように関数に出してある（端が 1 に届かないと
+   全力疾走が出なくなり、追跡者に必ず捕まる）。 */
+function stickCurve(v){
+  v = clamp(v, 0, 1);
+  var dead = 0.12;
+  if(v <= dead) return 0;
+  return Math.pow((v - dead) / (1 - dead), 1.55);
+}
+
 function setStickVisual(on, ox, oy, dx, dy){
   if(on){
     stickEl.style.left = ox+'px'; stickEl.style.top = oy+'px';
@@ -3473,8 +3485,14 @@ function onPointerMove(e){
     var len = Math.sqrt(dx*dx+dy*dy);
     if(len > max){ dx = dx/len*max; dy = dy/len*max; len = max; }
     setStickVisual(true, stickOrigin.x, stickOrigin.y, dx, dy);
-    input.side = dx/max;
-    input.fwd  = -dy/max;
+    /* 入力の曲線。これまで指の位置をそのまま速度にしていたので、
+       中央付近が効きすぎて「そっと寄る」ができなかった。
+       中央を寝かせ、外側で 1 に届く曲線を通す。向きは変えず大きさだけ。
+       走り出す判定は指の生の位置で見る（曲線を通すと走り出しがずれる）。 */
+    var mag = stickCurve(len / max);
+    var ux = len > 0.0001 ? dx/len : 0, uy = len > 0.0001 ? dy/len : 0;
+    input.side = ux * mag;
+    input.fwd  = -uy * mag;
     stickIn.side = input.side; stickIn.fwd = input.fwd;
     var wantRunNow = (len > max*0.78) && (-dy/max) > 0.25;   // 前方向に大きく倒したときだけ
     if(wantRunNow !== stickRunning){
@@ -5627,6 +5645,17 @@ function runSelfTest(){
            : (BOT.known === null || !BOT.ready));
   // 自分の足元は必ず見えている（知覚の入口が壊れていないか）
   t('AIの視覚判定が働いている', botCanSee(player.x, player.z) === true);
+
+  /* スティックの効き。端で 1 に届かないと全力疾走が出せず、
+     追跡者に必ず捕まる。曲線の性質を数で押さえる。 */
+  t('スティック：置いただけでは動かない', stickCurve(0) === 0 && stickCurve(0.10) === 0);
+  t('スティック：端で全開になる', Math.abs(stickCurve(1) - 1) < 1e-9);
+  t('スティック：単調に増える', (function(){
+      var prev = -1;
+      for(var v=0; v<=1.0001; v+=0.05){ var y = stickCurve(v); if(y < prev) return false; prev = y; }
+      return true;
+    })());
+  t('スティック：中央寄りが寝ている', stickCurve(0.5) < 0.5);
 
   /* カルテの出題順。同じ紙が二度出る、枚数が足りない、閉じの文が
      途中で出る、のどれもゲームの筋が壊れるが、遊んで気づくには周回が要る。 */
