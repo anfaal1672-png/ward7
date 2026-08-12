@@ -1,0 +1,5 @@
+Ward7-Info.plist
+Ward7.xcodeproj/
+build/
+Payload/
+*.ipa

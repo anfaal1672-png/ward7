@@ -29,8 +29,12 @@ targets:
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
         ENABLE_BITCODE: "NO"
+    # Info.plist を Resources/ に置くと、リソースとしてコピーされる分と
+    # Info.plist として処理される分がぶつかる
+    #   error: Multiple commands produce '.../Ward7.app/Info.plist'
+    # 生成先は Resources の外にする。
     info:
-      path: Resources/Info.plist
+      path: Ward7-Info.plist
       properties:
         CFBundleDisplayName: WARD 7
         CFBundleShortVersionString: "1.0"
