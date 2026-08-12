@@ -5260,8 +5260,11 @@ function updateEnv(dt, info){
       Z.lit += (target - Z.lit) * (1 - Math.pow(0.02, dt));
       var pulse = 0.72 + 0.28*Math.sin(t2*3.1 + Z.x*0.7 + Z.z*0.5);
       Z.mat.opacity = Z.lit * pulse * (world.power ? 1 : 0.82);
-      // 消えている間は描画自体を省く（点灯前はこれで27回分のドローコールが浮く）
-      Z.arrow.visible = Z.mat.opacity > 0.012;
+      /* 消えている間は描画自体を省く（点灯前はこれで27回分のドローコールが浮く）。
+         ただし単一の閾値で切ると、明滅（pulse）と 15m の境目が重なったとき
+         毎フレーム on/off して矢印がちらつく。入りと切りをずらす。 */
+      Z.arrow.visible = Z.arrow.visible ? (Z.mat.opacity > 0.008)
+                                        : (Z.mat.opacity > 0.030);
     }
   }
 
@@ -5939,7 +5942,7 @@ var BOT = {
   on:false, ready:false,
   ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false,
         stepWorld:0, worldA:0, err:0, errT:0, conf:0, heardT:-99 },
-  known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null,
+  known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null, signUsed:{},
   goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0, fixT:0, tremT:0,
   quietT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
@@ -5997,7 +6000,7 @@ function botReset(){
   BOT.known = new Int8Array(GW*GH);
   BOT.penalty = new Int16Array(GW*GH);
   BOT.danger = new Int16Array(GW*GH);
-  BOT.seen = []; BOT.seenKey = {}; BOT.trail = [];
+  BOT.seen = []; BOT.seenKey = {}; BOT.trail = []; BOT.signUsed = {};
   BOT.ear.worldA = player.yaw;      // 初期の向きだけは現在の姿勢に合わせる
   BOT.startCell = worldToCell(player.x, player.z);   // 入ってきた場所を覚える
   BOT.ready = true;
@@ -6130,12 +6133,18 @@ function botScan(){
     var hd = world.hides[hi];
     if(botCanSee(hd.x, hd.z)) botRemember('隠れ場所', hd.x, hd.z, hd);
   }
-  // 点いている誘導灯が見えたら覚える（それが標識の役目）
+  /* 点いている誘導灯が見えたら覚える（それが標識の役目）。
+     一度使った板は覚え直さない。板は壁の面に貼ってあって辿り着けないので、
+     見え続けている限り時刻が更新され、25 秒の期限が永久に来なかった。
+     結果、板の前 0.5m まで寄って壁に体を押し付けたまま抜けられなくなる。
+     実測で通常の 60 本中 1 本が、そこに 20 秒以上を費やしていた。 */
   if(world.exit.open){
     for(var zi=0; zi<world.zones.length; zi++){
       var Z = world.zones[zi];
+      var zkey = Z.x.toFixed(1) + ',' + Z.z.toFixed(1);
+      if(BOT.signUsed[zkey]) continue;
       if(Z.mat.opacity > 0.05 && botCanSee(Z.x, Z.z))
-        BOT.signHint = { x:Z.x, z:Z.z, t:player.time };
+        BOT.signHint = { x:Z.x, z:Z.z, t:player.time, key:zkey };
     }
   }
 }
@@ -6571,8 +6580,18 @@ function botChooseGoal(){
     }
   }
   if((t = botNearest('非常口'))) return { kind:'非常口', x:t.x, z:t.z, obj:t.ref };
-  if(BOT.signHint && (player.time - BOT.signHint.t) < 25)
-    return { kind:'誘導灯', x:BOT.signHint.x, z:BOT.signHint.z };
+  if(BOT.signHint && (player.time - BOT.signHint.t) < 25){
+    /* 板そのものは目的地ではない。「そっちだ」と分かれば役目は終わり。
+       近くまで来たら使い切ったことにして、探索に戻す。 */
+    var sgd = Math.sqrt((BOT.signHint.x-player.x)*(BOT.signHint.x-player.x) +
+                        (BOT.signHint.z-player.z)*(BOT.signHint.z-player.z));
+    if(sgd < 4.5){
+      BOT.signUsed[BOT.signHint.key] = 1;
+      BOT.signHint = null;
+    }else{
+      return { kind:'誘導灯', x:BOT.signHint.x, z:BOT.signHint.z };
+    }
+  }
   return { kind:'探索', x:null, z:null };
 }
 
