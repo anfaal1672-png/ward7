@@ -14,9 +14,18 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      # XcodeGen は最新の Xcode 形式（objectVersion 77）で書き出す。
+      # project.yml の objectVersion 指定は効かなかったので、
+      # ランナー側を「入っている中でいちばん新しい Xcode」に合わせる。
+      - name: 新しい Xcode を選ぶ
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || echo /Applications/Xcode.app)"
+          xcodebuild -version
 
       - name: XcodeGen を入れる
         run: brew install xcodegen
