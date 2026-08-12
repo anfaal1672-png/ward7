@@ -31,7 +31,11 @@ jobs:
 
       - name: Xcode プロジェクトを生成する
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          xcodebuild -version
+          xcodegen generate
+          # 生成された形式がこの Xcode で読めるか、ここで落として原因を明確にする
+          grep -m1 objectVersion Ward7.xcodeproj/project.pbxproj
 
       - name: ビルド（署名なし）
         working-directory: ios

@@ -2,6 +2,9 @@
 name: Ward7
 options:
   bundleIdPrefix: dev.ward7
+  # ランナーの Xcode より新しい形式で書かれると読めない。
+  # 56 は Xcode 14 以降が読める形式で、これより新しい必要はない。
+  objectVersion: 56
   deploymentTarget:
     iOS: "14.0"
   createIntermediateGroups: true
