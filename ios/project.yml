@@ -14,6 +14,9 @@ targets:
       - path: Sources
       - path: Resources
         buildPhase: resources
+        # Resources をまるごと入れるので、隠しファイルまで .app に混ざる。
+        # 実際 .gitignore が 28 バイト同梱されていた
+        excludes: [".gitignore", ".DS_Store"]
     settings:
       base:
         PRODUCT_NAME: Ward7
