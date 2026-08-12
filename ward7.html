@@ -720,17 +720,31 @@ var Audio2 = (function(){
     if(droneGain) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
   }
 
-  function step(hard){
+  /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
+     同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
+     その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
+  function step(hard, mat){
     if(!ready) return;
+    mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
     var t = ctx.currentTime;
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
-    n.playbackRate.value = 0.7 + Math.random()*0.5;
+    n.playbackRate.value = 0.6 + mat*0.5 + Math.random()*0.4;
     var f = ctx.createBiquadFilter(); f.type='bandpass';
-    f.frequency.value = 700 + Math.random()*500; f.Q.value = 1.4;
+    f.frequency.value = 520 + mat*900 + Math.random()*380;
+    f.Q.value = 1.0 + mat*1.4;
     var g = ctx.createGain();
     n.connect(f); f.connect(g); g.connect(master);
-    env(g, t, 0.006, hard?0.16:0.10, hard?0.28:0.16);
+    // 硬い床ほど短く切れる
+    env(g, t, 0.005, (hard?0.16:0.10) * (1.25 - mat*0.5), hard?0.28:0.16);
     n.start(t); n.stop(t+0.3);
+    // 硬い床では踵の当たりが上に乗る
+    if(mat > 0.55){
+      var o = ctx.createOscillator(); o.type='triangle';
+      o.frequency.setValueAtTime(2400 + Math.random()*900, t);
+      var g2 = ctx.createGain(); o.connect(g2); g2.connect(master);
+      env(g2, t, 0.001, 0.035, (hard?0.09:0.05) * (mat-0.55)/0.45);
+      o.start(t); o.stop(t+0.08);
+    }
   }
   function heart(intensity){
     if(!ready) return;
@@ -878,6 +892,65 @@ var Audio2 = (function(){
     env(g, t, 0.005, 0.34, 0.34);
     o.start(t); o.stop(t+0.45);
   }
+  /* 環境音の一発物。
+     これまで「きしみ」1 種類しか無く、9〜23 秒ごとに同じ音が鳴っていた。
+     無人の病棟は静かなだけではなく、時々どこかで何かが鳴る。
+     4 種類を手続きで作り、左右の位置と遠さも毎回変える。
+     どれも短く小さい——大きな音は追跡者のための場所を取っておく。 */
+  function ambientOne(kind, pan, far){
+    if(!ready) return;
+    var t = ctx.currentTime;
+    var out = master;
+    if(ctx.createStereoPanner){
+      var sp = ctx.createStereoPanner();
+      sp.pan.value = clamp(pan, -1, 1); sp.connect(master); out = sp;
+    }
+    // 遠いほど高域を落とす。距離感は音量より高域の量で出る
+    var lp = ctx.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.value = 380 + 3200 * (1 - far); lp.Q.value = 0.5;
+    lp.connect(out);
+    var amp = (0.10 + 0.10*(1-far));
+
+    if(kind === 0){
+      // 水滴。細い正弦が一瞬で落ちる
+      var o = ctx.createOscillator(); o.type='sine';
+      o.frequency.setValueAtTime(1900 + Math.random()*700, t);
+      o.frequency.exponentialRampToValueAtTime(620, t+0.09);
+      var g = ctx.createGain(); o.connect(g); g.connect(lp);
+      env(g, t, 0.002, 0.10, amp*0.5);
+      o.start(t); o.stop(t+0.2);
+    }else if(kind === 1){
+      // 遠くの扉。低い衝撃と、そのあとの残り
+      var n = noiseSrc();
+      var f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=260; f.Q.value=1;
+      var g2 = ctx.createGain(); n.connect(f); f.connect(g2); g2.connect(lp);
+      env(g2, t, 0.004, 0.30, amp*0.9);
+      n.start(t); n.stop(t+0.5);
+      var o2 = ctx.createOscillator(); o2.type='sine';
+      o2.frequency.setValueAtTime(58, t); o2.frequency.exponentialRampToValueAtTime(34, t+0.28);
+      var g3 = ctx.createGain(); o2.connect(g3); g3.connect(lp);
+      env(g3, t, 0.006, 0.26, amp*0.7);
+      o2.start(t); o2.stop(t+0.5);
+    }else if(kind === 2){
+      // 配管を叩く音。金属的な倍音を 2 つ重ねる
+      [1.0, 2.71].forEach(function(m, i){
+        var o3 = ctx.createOscillator(); o3.type='triangle';
+        o3.frequency.value = (430 + Math.random()*160) * m;
+        var g4 = ctx.createGain(); o3.connect(g4); g4.connect(lp);
+        env(g4, t, 0.002, 0.5 - i*0.2, amp*(i ? 0.20 : 0.45));
+        o3.start(t); o3.stop(t+0.8);
+      });
+    }else{
+      // 天井が落ち着く音。低い帯域の雑音がゆっくり出て消える
+      var n2 = noiseSrc();
+      var f2 = ctx.createBiquadFilter(); f2.type='bandpass';
+      f2.frequency.value = 150 + Math.random()*120; f2.Q.value = 1.6;
+      var g5 = ctx.createGain(); n2.connect(f2); f2.connect(g5); g5.connect(lp);
+      env(g5, t, 0.18, 0.9, amp*0.5);
+      n2.start(t); n2.stop(t+1.4);
+    }
+  }
+
   function creak(){
     if(!ready) return;
     var t = ctx.currentTime;
@@ -895,6 +968,7 @@ var Audio2 = (function(){
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
+           ambientOne:ambientOne,
            setHunterVoice:setHunterVoice, setLampVoice:setLampVoice, setExitVoice:setExitVoice,
            busCount:busCount, busState:busState,
            isReady:function(){ return ready; } };
@@ -4141,6 +4215,15 @@ function spatial(wx, wz, maxD, blocked, refD){
   if(blocked){ vol *= 0.5; cut = Math.min(cut, 430); } // 壁越しはこもる
   return { d:d, vol:vol, pan:clamp(lat, -1, 1) * 0.85, cut:cut };
 }
+/* 床の硬さ。マスの座標から決まる固定値なので、同じ場所は毎回同じ音になる。
+   「ここは剥がれたリノリウム、ここはタイル」が歩いているうちに分かる。
+   地形の意味は見ていない（部屋か廊下かは音の担当ではない）。 */
+function floorMat(x, z){
+  var c = worldToCell(x, z);
+  var h = Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5453;
+  return (h - Math.floor(h));
+}
+
 var lampFlick = 0, ambientCreakT = 6 + rnd()*8;
 // 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
 var BOOTH = { was:null };
@@ -4320,7 +4403,7 @@ function updatePlayer(dt){
     player.bob += (adv / stride) * Math.PI;      // 1歩でπ進む＝揺れが歩幅に同期する
     player.stepAcc += adv;
     // 余りを繰り越す（0に戻すと1フレーム分だけ歩幅が伸びて不揃いになる）
-    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running); }
+    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z)); }
   }else{
     player.bob += dt*0.8;
     if(player.stepAcc > stride*0.6) player.stepAcc = stride*0.6;
@@ -4463,7 +4546,7 @@ function updatePlayer(dt){
         }
         $('hideView').classList.toggle('on', near.obj.type === 'locker');
         $('bHold').style.display = 'flex';
-        Audio2.step(false);
+        Audio2.step(false, floorMat(player.x, player.z));
         toast(near.obj.type === 'locker' ? 'ロッカーに隠れた' :
               (near.obj.type === 'desk' ? '机の下に潜り込んだ' : 'ベッドの下に潜り込んだ'), 2.4);
       }else if(near.type === 'leave'){
@@ -5188,8 +5271,20 @@ function updateEnv(dt, info){
   }
 
   // 環境音
+  /* 環境音。きしみ 1 種類だけだったのを 5 種類にして、間隔も詰めた。
+     どこかで何かが鳴る頻度が、無人の建物の広さの感じ方を決める。
+     追跡者が近いときは鳴らさない——本物の物音と紛れると、
+     足音を聞き分ける遊びが壊れる。 */
   ambientCreakT -= dt;
-  if(ambientCreakT <= 0){ Audio2.creak(); ambientCreakT = 9 + rnd()*14; }
+  if(ambientCreakT <= 0){
+    var quiet = !(hunter.mode === 'chase') && info.hd > 14;
+    if(quiet){
+      var kind = (rnd()*5)|0;
+      if(kind === 4) Audio2.creak();
+      else Audio2.ambientOne(kind, (rnd()*2-1)*0.8, 0.25 + rnd()*0.7);
+    }
+    ambientCreakT = 6 + rnd()*11;
+  }
 
   // 心音
   var bpm = 62 + (100-player.sanity)*0.85 + (hunter.mode==='chase'?34:0) + (player.running?12:0);
