@@ -999,9 +999,13 @@ function texWall(size){
     g.fillStyle = 'rgb('+r+','+gg+','+b+')';
     g.fillRect(x*tile+1.5, y*tile+1.5, tile-3, tile-3);
   }
-  // 汚れ
-  for(var i=0;i<180;i++){
-    var px = rnd()*size, py = rnd()*size, rr = rnd()*size*0.14;
+  /* 汚れの数は解像度に比例させる。
+     これまで枚数が固定だったので、1024 で焼くと同じ 180 個の染みが
+     引き伸ばされるだけで、高精細にしても「大きくぼやけた壁」になっていた。
+     面積比で増やすと、寄っても離れても密度が変わらない。 */
+  var K = (size/256) * (size/256);
+  for(var i=0;i<Math.round(180*K);i++){
+    var px = rnd()*size, py = rnd()*size, rr = rnd()*size*0.14*(0.5+0.5/Math.sqrt(K));
     var grad = g.createRadialGradient(px,py,0,px,py,rr);
     var a = rnd()*0.16;
     grad.addColorStop(0,'rgba(30,26,20,'+a+')');
@@ -1009,12 +1013,45 @@ function texWall(size){
     g.fillStyle = grad; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
   }
   // 錆の垂れ
-  for(var j=0;j<10;j++){
-    var sx = rnd()*size, w = 1+rnd()*3, h = size*(0.2+rnd()*0.6);
+  for(var j=0;j<Math.round(10*Math.sqrt(K));j++){
+    var sx = rnd()*size, w = (1+rnd()*3)*Math.sqrt(K), h = size*(0.2+rnd()*0.6);
     var lg = g.createLinearGradient(0,0,0,h);
     lg.addColorStop(0,'rgba(96,52,30,0.30)');
     lg.addColorStop(1,'rgba(96,52,30,0)');
     g.fillStyle = lg; g.save(); g.translate(sx, rnd()*size*0.4); g.fillRect(0,0,w,h); g.restore();
+  }
+  /* ひび割れと剥がれ。細い線なので、低解像度で入れると
+     ただのノイズに潰れる。512 以上でだけ描く。 */
+  if(size >= 512){
+    g.lineCap = 'round';
+    for(var ck=0; ck<Math.round(7*Math.sqrt(K)); ck++){
+      var cx = rnd()*size, cy = rnd()*size;
+      var ang = rnd()*TAU, seg = 3 + (rnd()*5|0);
+      g.strokeStyle = 'rgba(22,20,18,' + (0.18 + rnd()*0.22) + ')';
+      g.lineWidth = 0.8 + rnd()*1.6;
+      g.beginPath(); g.moveTo(cx, cy);
+      for(var sgi=0; sgi<seg; sgi++){
+        ang += (rnd()-0.5)*1.1;
+        cx += Math.cos(ang) * size*0.035; cy += Math.sin(ang) * size*0.035;
+        g.lineTo(cx, cy);
+      }
+      g.stroke();
+      // ひびの片側だけ明るい。凹んで影が落ちているように見える
+      g.strokeStyle = 'rgba(150,150,140,0.10)';
+      g.lineWidth = 0.7; g.stroke();
+    }
+    // 塗装の剥がれ。下地の色が覗く不定形の面
+    for(var pl=0; pl<Math.round(5*K); pl++){
+      var ox = rnd()*size, oy = rnd()*size, rad = size*(0.012 + rnd()*0.035);
+      g.fillStyle = 'rgba(96,92,80,' + (0.20 + rnd()*0.25) + ')';
+      g.beginPath();
+      for(var pa=0; pa<8; pa++){
+        var aa = pa/8*TAU, rr2 = rad*(0.6 + rnd()*0.8);
+        var xx = ox + Math.cos(aa)*rr2, yy = oy + Math.sin(aa)*rr2;
+        if(pa === 0) g.moveTo(xx, yy); else g.lineTo(xx, yy);
+      }
+      g.closePath(); g.fill();
+    }
   }
   g.globalAlpha = 0.05; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
@@ -1028,12 +1065,24 @@ function texFloor(size){
     g.fillStyle = 'rgb('+Math.floor(48*sh)+','+Math.floor(52*sh)+','+Math.floor(50*sh)+')';
     g.fillRect(x*tile+2, y*tile+2, tile-4, tile-4);
   }
-  for(var i=0;i<120;i++){
-    var px=rnd()*size, py=rnd()*size, rr=rnd()*size*0.2;
+  var KF = (size/256) * (size/256);
+  for(var i=0;i<Math.round(120*KF);i++){
+    var px=rnd()*size, py=rnd()*size, rr=rnd()*size*0.2*(0.5+0.5/Math.sqrt(KF));
     var grad=g.createRadialGradient(px,py,0,px,py,rr);
     grad.addColorStop(0,'rgba(16,14,12,'+(rnd()*0.25)+')');
     grad.addColorStop(1,'rgba(16,14,12,0)');
     g.fillStyle=grad; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+  }
+  /* 擦り傷。人が何十年も同じ線を歩いた跡。
+     床は視界のいちばん近くにあるので、ここの粗さが解像度の印象を決める。 */
+  if(size >= 512){
+    for(var sc=0; sc<Math.round(26*Math.sqrt(KF)); sc++){
+      var ax = rnd()*size, ay = rnd()*size;
+      var ar = size*(0.06 + rnd()*0.22), a0 = rnd()*TAU;
+      g.strokeStyle = 'rgba(190,190,178,' + (0.03 + rnd()*0.05) + ')';
+      g.lineWidth = 0.6 + rnd()*1.2;
+      g.beginPath(); g.arc(ax, ay, ar, a0, a0 + 0.3 + rnd()*0.9); g.stroke();
+    }
   }
   g.globalAlpha = 0.06; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
@@ -7663,6 +7712,7 @@ try{
       }
       return null;
     },
+    texGen: { wall:texWall, floor:texFloor },
     noteOrder: function(){ return world.noteOrder; }, noteCount: function(){ return NOTES.length; },
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
     forceQC: function(){ QC = qualityCfg(); },
