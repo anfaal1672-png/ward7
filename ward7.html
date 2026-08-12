@@ -528,6 +528,26 @@ var Audio2 = (function(){
   var ctx = null, master = null, noiseBuf = null;
   var drone = null, droneGain = null, droneFilt = null;
   var vol = 0.7, ready = false;
+  var convolver = null, revSend = null, revWet = null;
+
+  /* 残響のインパルス応答を書き込む。
+     雑音に指数減衰を掛け、時間が経つほど高域を落とす（実際の部屋も
+     高域から先に吸われる）。左右で別の雑音を引くので広がりが出る。
+     NaN が 1 つでも混ざると畳み込みの出力が全部無音になり、
+     しかも「静かなゲーム」なので気づけない。自己診断から呼べる形にしておく。 */
+  function makeIR(out, sampleRate){
+    var n = out.length, lp = 0;
+    for(var i=0;i<n;i++){
+      var t = i / n;
+      var pre = Math.min(1, i / (sampleRate*0.012));   // 立ち上がりを少し遅らせる
+      var v = (Math.random()*2 - 1) * Math.pow(1 - t, 2.6) * pre;
+      lp += (v - lp) * (0.30 - 0.24*t);
+      out[i] = lp * 1.7;
+    }
+    return out;
+  }
+  makeIR.len = function(sampleRate){ return Math.floor(sampleRate * 1.9); };
+  var REV_OPEN = 0.34, REV_BOX = 0.06;   // 廊下 / 箱の中
 
   function init(){
     if(ready) return true;
@@ -535,6 +555,29 @@ var Audio2 = (function(){
     if(!AC) return false;
     try{ ctx = new AC(); }catch(e){ return false; }
     master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
+
+    /* --- 残響 -------------------------------------------------------------
+       これまで乾いた音だけが鳴っていた。閉じた病棟の廊下で、足音にも
+       唸り声にも空間の返りが無いのがいちばん嘘くさいところだった。
+
+       音源ファイルは持たない方針なので、インパルス応答もここで作る。
+       雑音に指数減衰を掛け、時間が経つほど高域を落とす（実際の部屋も
+       高域から先に吸われる）。左右で別の雑音を使って広がりを出す。
+
+       畳み込みは安くない処理なので、品質「高精細」以上でだけ通す。
+       低スペック側は今までどおり乾いたまま鳴る。 */
+    if((settings.quality|0) >= 2 && ctx.createConvolver){
+      try{
+        var ir = ctx.createBuffer(2, makeIR.len(ctx.sampleRate), ctx.sampleRate);
+        for(var ch=0; ch<2; ch++) makeIR(ir.getChannelData(ch), ctx.sampleRate);
+        convolver = ctx.createConvolver();
+        convolver.buffer = ir; convolver.normalize = true;
+        revSend = ctx.createGain(); revSend.gain.value = 1.0;
+        revWet  = ctx.createGain(); revWet.gain.value = REV_OPEN;
+        master.connect(revSend); revSend.connect(convolver);
+        convolver.connect(revWet); revWet.connect(ctx.destination);
+      }catch(e){ convolver = null; }
+    }
 
     var len = Math.floor(ctx.sampleRate * 2);
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -549,6 +592,12 @@ var Audio2 = (function(){
   }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
   function setVol(v){ vol = v; if(master) master.gain.value = v; }
+  /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
+     「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
+  function setSpace(inBox){
+    if(!revWet || !ready) return;
+    revWet.gain.setTargetAtTime(inBox ? REV_BOX : REV_OPEN, ctx.currentTime, 0.25);
+  }
 
   function noiseSrc(){
     var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
@@ -842,7 +891,7 @@ var Audio2 = (function(){
     env(g, t, 0.3, 0.7, 0.06);
     o.start(t); o.stop(t+1.2);
   }
-  return { init:init, resume:resume, suspend:suspend, setVol:setVol,
+  return { init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
@@ -3955,6 +4004,8 @@ function spatial(wx, wz, maxD, blocked, refD){
   return { d:d, vol:vol, pan:clamp(lat, -1, 1) * 0.85, cut:cut };
 }
 var lampFlick = 0, ambientCreakT = 6 + rnd()*8;
+// 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
+var BOOTH = { was:null };
 var heartT = 0;
 
 function nearestInteractable(){
@@ -4026,6 +4077,7 @@ function updatePlayer(dt){
   $('bBack').classList.toggle('hot', wantBack);
 
   // 隠れている間は動けない。視界も狭くなる
+  if(player.hiding !== BOOTH.was){ BOOTH.was = player.hiding; Audio2.setSpace(!!player.hiding); }
   if(player.hiding){
     var H = player.hiding;
     var rel2 = ((player.yaw - H.yaw + Math.PI*3) % TAU) - Math.PI;
@@ -5449,6 +5501,26 @@ function runSelfTest(){
            : (BOT.known === null || !BOT.ready));
   // 自分の足元は必ず見えている（知覚の入口が壊れていないか）
   t('AIの視覚判定が働いている', botCanSee(player.x, player.z) === true);
+
+  /* 残響のインパルス応答。NaN や発散が混ざると音が丸ごと消えるが、
+     静かなゲームなので耳では気づけない。数で押さえる。 */
+  (function(){
+    var sr = 48000, n = Audio2.makeIR.len(sr);
+    var buf = new Float32Array(Math.min(n, 24000));
+    Audio2.makeIR(buf, sr);
+    var ok = true, peak = 0;
+    for(var i=0;i<buf.length;i++){
+      if(!isFinite(buf[i])) { ok = false; break; }
+      if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]);
+    }
+    t('残響IRが有限で発散していない', ok && peak > 0.0001 && peak < 4);
+    // 前半より後半が静かであること（減衰しない＝残響ではない）
+    var e1 = 0, e2 = 0, h = buf.length >> 1;
+    for(var j=0;j<h;j++) e1 += buf[j]*buf[j];
+    for(var j2=h;j2<buf.length;j2++) e2 += buf[j2]*buf[j2];
+    t('残響IRが減衰している', e2 < e1 * 0.6);
+    t('残響IRの頭が無音（立ち上がりの遅れ）', Math.abs(buf[0]) < 1e-4);
+  })();
 
   /* 聴覚の前後。旧版は pan だけを見ていて真後ろの音を「前」と答えていた。
      作り直した botHear は世界角を保つので、背後の音は '後ろ' になること。
