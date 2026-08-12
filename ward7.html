@@ -1467,6 +1467,7 @@ function qualityCfg(){
     cssFx:    q > 0,
     post:     q >= 1,          // 画面エフェクト（軽量では負荷を避けて切る）
     shadows:  q >= 3,          // 最高品質のみ：ランプが本物の影を落とす
+    bloom:    q >= 3,          // 最高品質のみ：光が滲む（縮小バッファ＋分離ブラー）
     detail:   q >= 3,          // 追跡者の追加ディテール
     signs:    [2, 3, 3, 3][q]   // 1区画あたりの表示板の枚数
   };
@@ -1519,6 +1520,12 @@ function resize(){
     viewCam.aspect = w/h;
     viewCam.fov = (h > w) ? 60 : 52;
     viewCam.updateProjectionMatrix();
+  }
+  if(bloomA){
+    var bs = new THREE.Vector2(); renderer.getDrawingBufferSize(bs);
+    var bw2 = Math.max(1, Math.floor(bs.x/4)), bh2 = Math.max(1, Math.floor(bs.y/4));
+    bloomA.setSize(bw2, bh2); bloomB.setSize(bw2, bh2);
+    if(blurMat) blurMat.uniforms.uTexel.value.set(1/bw2, 1/bh2);
   }
   if(postRT && postMat){
     var ds = new THREE.Vector2();
@@ -1710,6 +1717,16 @@ function prewarmLights(){
 var postRT = null, postScene = null, postCam = null, postMat = null;
 var postFX = { aberr:0, noise:0, scan:0, warp:0, target:{ aberr:0, noise:0, scan:0, warp:0 } };
 
+/* ブルーム（光の滲み）。
+   この病棟の光源は誘導灯・ランプ・拾い物の発光しかなく、どれも暗闇の中で
+   点にしか見えていなかった。滲みが無いと「光っている」ではなく
+   「明るい点が描いてある」に見える。
+
+   EffectComposer が使えないので、1/4 の大きさのバッファを 2 枚だけ使って
+   明るい所を抜き出す → 横にぼかす → 縦にぼかす、を自前で回す。
+   縮小してあるので 9 タップでも十分に広がる。最高品質でのみ通す。 */
+var bloomA = null, bloomB = null, brightMat = null, blurMat = null, bloomQuad = null;
+
 function buildPost(){
   var size = new THREE.Vector2();
   renderer.getDrawingBufferSize(size);
@@ -1729,7 +1746,9 @@ function buildPost(){
       uAberr: { value: 0 },
       uNoise: { value: 0 },
       uScan:  { value: 0 },
-      uWarp:  { value: 0 }
+      uWarp:  { value: 0 },
+      tBloom: { value: null },
+      uBloom: { value: 0 }
     },
     vertexShader: [
       'varying vec2 vUv;',
@@ -1738,7 +1757,8 @@ function buildPost(){
     fragmentShader: [
       'uniform sampler2D tDiffuse;',
       'uniform vec2 uRes;',
-      'uniform float uTime, uAberr, uNoise, uScan, uWarp;',
+      'uniform float uTime, uAberr, uNoise, uScan, uWarp, uBloom;',
+      'uniform sampler2D tBloom;',
       'varying vec2 vUv;',
       'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
       'void main(){',
@@ -1759,7 +1779,9 @@ function buildPost(){
       '  col *= 1.0 - band * uScan * 0.25;',
       '  float n = hash(uv * uRes * 0.6 + vec2(uTime * 91.0, uTime * 47.0));',
       '  col += (n - 0.5) * uNoise;',                            // 粒子ノイズ
-      '  col *= 1.0 - uWarp * 0.55 * r2;',
+      '  col += texture2D(tBloom, uv).rgb * uBloom;',        // 光の滲み
+      // 周辺減光。四隅を落とすと視線が中央に集まり、暗さの中で奥行きが出る
+      '  col *= 1.0 - (0.34 + uWarp * 0.55) * r2;',
       '  gl_FragColor = vec4(max(col, 0.0), 1.0);',
       '}'
     ].join('\n'),
@@ -1768,6 +1790,76 @@ function buildPost(){
   var quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat);
   quad.frustumCulled = false;
   postScene.add(quad);
+
+  if(QC.bloom) buildBloom(size);
+}
+
+// 品質が落ちたら滲みのバッファも返す（VRAM を握ったままにしない）
+function dropBloom(){
+  if(bloomA){ bloomA.dispose(); bloomA = null; }
+  if(bloomB){ bloomB.dispose(); bloomB = null; }
+}
+
+function buildBloom(size){
+  var bw = Math.max(1, Math.floor(size.x/4)), bh = Math.max(1, Math.floor(size.y/4));
+  var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
+              format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false };
+  bloomA = new THREE.WebGLRenderTarget(bw, bh, opt);
+  bloomB = new THREE.WebGLRenderTarget(bw, bh, opt);
+  var VS = ['varying vec2 vUv;',
+            'void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }'].join('\n');
+  // 明るい所だけを抜く。閾値より下は捨て、上は滑らかに立ち上げる
+  brightMat = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse:{ value:null }, uThresh:{ value:0.62 } },
+    vertexShader: VS,
+    fragmentShader: ['uniform sampler2D tDiffuse; uniform float uThresh; varying vec2 vUv;',
+      'void main(){',
+      '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
+      '  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));',
+      '  float k = smoothstep(uThresh, uThresh + 0.35, l);',
+      '  gl_FragColor = vec4(c * k, 1.0);',
+      '}'].join('\n'),
+    depthTest:false, depthWrite:false });
+  // 分離ブラー。横と縦で 2 回通す（2次元で回すより格段に安い）
+  blurMat = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse:{ value:null }, uDir:{ value:new THREE.Vector2(1,0) },
+                uTexel:{ value:new THREE.Vector2(1/bw, 1/bh) } },
+    vertexShader: VS,
+    fragmentShader: ['uniform sampler2D tDiffuse; uniform vec2 uDir, uTexel; varying vec2 vUv;',
+      'void main(){',
+      '  vec2 o = uDir * uTexel;',
+      '  vec3 c = texture2D(tDiffuse, vUv).rgb * 0.227027;',
+      '  c += texture2D(tDiffuse, vUv + o*1.3846).rgb * 0.316216;',
+      '  c += texture2D(tDiffuse, vUv - o*1.3846).rgb * 0.316216;',
+      '  c += texture2D(tDiffuse, vUv + o*3.2308).rgb * 0.070270;',
+      '  c += texture2D(tDiffuse, vUv - o*3.2308).rgb * 0.070270;',
+      '  gl_FragColor = vec4(c, 1.0);',
+      '}'].join('\n'),
+    depthTest:false, depthWrite:false });
+  bloomQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), brightMat);
+  bloomQuad.frustumCulled = false;
+}
+
+/* 明るい所を抜いて 2 回ぼかす。戻り値を最終合成が読む */
+function renderBloom(){
+  if(!postRT) return null;
+  // 品質は遊んでいる途中でも変わる（設定・自動降格）。要るときに作る
+  if(!bloomA){
+    var bsz = new THREE.Vector2(); renderer.getDrawingBufferSize(bsz);
+    buildBloom(bsz);
+  }
+  var sc = new THREE.Scene(); sc.add(bloomQuad);
+  bloomQuad.material = brightMat;
+  brightMat.uniforms.tDiffuse.value = postRT.texture;
+  renderer.setRenderTarget(bloomA); renderer.render(sc, postCam);
+  bloomQuad.material = blurMat;
+  blurMat.uniforms.tDiffuse.value = bloomA.texture;
+  blurMat.uniforms.uDir.value.set(1, 0);
+  renderer.setRenderTarget(bloomB); renderer.render(sc, postCam);
+  blurMat.uniforms.tDiffuse.value = bloomB.texture;
+  blurMat.uniforms.uDir.value.set(0, 1);
+  renderer.setRenderTarget(bloomA); renderer.render(sc, postCam);
+  return bloomA.texture;
 }
 
 function postEnabled(){ return !!(postRT && QC.post); }
@@ -5233,6 +5325,11 @@ function loop(now){
         renderer.autoClear = true;
       }
       if(usePost){
+        /* 滲みは本編を描いたあと、合成の前に作る。
+           uBloom は正気度で少し強くする（視界が滲むのは不安の表現でもある） */
+        var bt = QC.bloom ? renderBloom() : null;
+        postMat.uniforms.tBloom.value = bt;
+        postMat.uniforms.uBloom.value = bt ? (0.55 + (1 - player.sanity/100) * 0.45) : 0;
         renderer.setRenderTarget(null);
         updatePost(dt);
         renderer.render(postScene, postCam);
@@ -5258,6 +5355,7 @@ function loop(now){
         scene.fog.density = QC.fogD;
         $('grain').style.display = QC.cssFx ? 'block' : 'none';
         // 影が不要な品質まで落ちたら、その場で影を切る
+        if(!QC.bloom) dropBloom();
         if(!QC.shadows && renderer.shadowMap.enabled){
           renderer.shadowMap.enabled = false;
           if(flashlight) flashlight.castShadow = false;
