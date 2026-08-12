@@ -5945,7 +5945,7 @@ var BOT = {
   known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null, signUsed:{},
   goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
   aimVel:0, noiseT:0, noise:0, fixT:0, tremT:0,
-  quietT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
+  quietT:0, backT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
   fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
   escGoal:null, escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, lookCd:0, readT:0,
@@ -6702,6 +6702,18 @@ function botFleeStep(hpos){
      そのまま「相手の方へ走る」加点になっていた。実機で「逃げる向きに敵を
      選ぶことがある」と指摘された挙動。相手の方位に近いマスは候補から外す。
      全部落ちたら制限を緩めて選び直す（行き止まりで固まらないため）。 */
+  /* 終盤（カルテを全部集めた後）は、逃げるだけでは何も終わらない。
+     居場所は漏れ続けるので隠れても追跡は切れず、時間だけが減る。
+     出口の場所を知っているなら、逃げ先も出口に近い方を選ぶ。
+     ただし寄せすぎると、決まった一点へ走るぶん回り込まれる。弱めに効かせる。 */
+  var ef = null;
+  if(world.endgame){
+    var exT2 = botNearest('非常口');
+    if(exT2){
+      var exC = worldToCell(exT2.x, exT2.z);
+      ef = field(clamp(exC.x,1,GW-2), clamp(exC.y,1,GH-2));
+    }
+  }
   var hbx = hpos.x - player.x, hbz = hpos.z - player.z;
   var hbl = Math.sqrt(hbx*hbx + hbz*hbz) || 1;
   hbx /= hbl; hbz /= hbl;
@@ -6721,6 +6733,7 @@ function botFleeStep(hpos){
       if(toH > lim2) continue;
       var ahead = (vx/vl)*fx + (vz/vl)*fz;          // いまの向きとの一致（-1..1）
       var sc = dh*1.0 - dp*0.25 + ahead*7 - Math.max(0, toH)*12;
+      if(ef){ var de = ef[k2]; if(de >= 0) sc += (55 - Math.min(de, 55)) * 0.30; }
       if(sc > bs){ bs = sc; best = {x:x, y:y}; }
     }
   }
@@ -7080,7 +7093,7 @@ function botPlanFlee(dt, F){
 
 /* --- 方針：探索する -------------------------------------------------------- */
 function botPlanExplore(dt, F){
-  var A = { rel:0, fwd:true, run:false, hideMove:false };
+  var A = { rel:0, fwd:true, run:false, hideMove:false, backing:false };
   var th = F.th, sawHunter = F.saw;
   BOT.repath -= dt;
       if(!BOT.goal || BOT.repath <= 0 || (BOT.goal.obj && BOT.goal.obj.taken)){
@@ -7144,16 +7157,23 @@ function botPlanExplore(dt, F){
       botSay('隠れる');
       if(hd0 < 1.9 && BOT.useCd <= 0){ input.use = true; BOT.useCd = 0.5; }
     }
-    // 隠れ場所が無いなら距離を取る
-    else if(th > 0.24 && !BOT.ear.muffled){
-      var sr = botHearRel();
+    /* 離れると決めたら離れる。毎フレーム条件を評価し直していたので、
+       離れる → 目標へ戻る → また離れる、を細かく繰り返していた。
+       走ってくる足音を引き金に加え、いちど決めたら 1.2 秒は続ける。 */
+    var stepNear = (player.time - BOT.ear.stepT) < 1.0 && BOT.ear.stepChase;
+    if(BOT.backT <= 0 && (stepNear || (th > 0.24 && !BOT.ear.muffled))) BOT.backT = 1.2;
+    if(BOT.backT > 0 && !A.hideMove){
+      BOT.backT -= dt;
+      var src2 = botAvoidSrc();
+      var sr = src2 ? src2.rel : botHearRel();
       BOT.escT -= dt;
       if(BOT.escT <= 0){
         BOT.escWorld = player.yaw + botPickEscape(botAway(sr), BOT.hpos || botEstHunter(sr, th));
-        BOT.escT = 1.6;
+        BOT.escT = 0.8;
       }
       A.rel = botNorm(BOT.escWorld - player.yaw);
-      A.run = player.stamina > 30;
+      A.run = player.stamina > 22;
+      A.backing = true;
       botSay('近い。離れる');
     }
 
@@ -7162,7 +7182,7 @@ function botPlanExplore(dt, F){
        段階で相手へ真っ直ぐ歩いていく局面が実測で 46% あった。
        進みたい向きが音源の向きに近すぎるなら、外側へ振って迂回する。
        隠れに行く途中（hideMove）は箱が最優先なので触らない。 */
-    if(!sawHunter && !A.hideMove && BOT.lookBackT <= 0) A.rel = botAvoidRel(A.rel);
+    if(!sawHunter && !A.hideMove && !A.backing && BOT.lookBackT <= 0) A.rel = botAvoidRel(A.rel);
 
     /* 角では首を振って左右を確かめる。
        ただし壁しかない一本道でも振っていて、そのたび減速していた（run=false）。
@@ -7225,7 +7245,7 @@ function botAim(dt, F, A){
     /* 寄り道（拾い物）は体の向きを決める前に混ぜる。
      ここが botSteer の後ろにあったので、体は目標を向いたまま足だけが
      拾い物へ寄り、そのうえ探索中の回避補正も後から上書きされていた。 */
-  if(!player.hiding && !F.flee){
+  if(!player.hiding && !F.flee && !A.backing){
     var detRel = botDetour(A.rel);
     if(detRel !== null) A.rel = detRel;
     // 最後にもう一度、相手の側へ向いていないか見る（拾い物に釣られた分を戻す）
