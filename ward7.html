@@ -1644,6 +1644,8 @@ function qualityCfg(){
     post:     q >= 1,          // 画面エフェクト（軽量では負荷を避けて切る）
     shadows:  q >= 3,          // 最高品質のみ：ランプが本物の影を落とす
     bloom:    q >= 3,          // 最高品質のみ：光が滲む（縮小バッファ＋分離ブラー）
+    dust:     q >= 2,          // 高精細以上：ランプの光に舞う埃
+    shaft:    q >= 2,          // 高精細以上：非常口から差す光
     detail:   q >= 3,          // 追跡者の追加ディテール
     signs:    [2, 3, 3, 3][q]   // 1区画あたりの表示板の枚数
   };
@@ -1887,6 +1889,97 @@ function prewarmLights(){
   for(var r=0;r<pool.length;r++) pool[r].visible = saved[r];
 }
 
+/* ---- 空気中の埃 ------------------------------------------------------
+   暗い場所でランプを振ったとき、光の筋が見えるかどうかで空気の有無が決まる。
+   本物の体積光は高いので、光の中を漂う粒を置いて代わりにする。
+   粒はプレイヤーの周り 7m の箱に散らし、動いたら箱の外に出たぶんだけ
+   反対側へ回り込ませる（無限に湧いているように見える）。
+   ランプが消えているときは薄くする——照らされていない埃は見えない。 */
+var dustPts = null, dustPos = null;
+var DUST_BOX = 7.0;
+
+function buildDust(){
+  if(dustPts){ scene.remove(dustPts); dustPts.geometry.dispose(); dustPts = null; }
+  if(!QC.dust) return;
+  var n = (settings.quality >= 3) ? 520 : 260;
+  dustPos = new Float32Array(n*3);
+  for(var i=0;i<n;i++){
+    dustPos[i*3]   = player.x + (Math.random()-0.5)*DUST_BOX*2;
+    dustPos[i*3+1] = Math.random()*2.6;
+    dustPos[i*3+2] = player.z + (Math.random()-0.5)*DUST_BOX*2;
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  var m = new THREE.PointsMaterial({
+    size:0.028, map:TEX.glowW, transparent:true, opacity:0.0,
+    blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true,
+    color:0xffeccf
+  });
+  dustPts = new THREE.Points(g, m);
+  dustPts.frustumCulled = false;
+  scene.add(dustPts);
+}
+
+function updateDust(dt){
+  if(!dustPts) return;
+  var arr = dustPos, n = arr.length/3;
+  var t = performance.now()*0.001;
+  for(var i=0;i<n;i++){
+    var k = i*3;
+    // ゆっくり漂う。上下は正弦、水平はごく弱い流れ
+    arr[k]   += Math.sin(t*0.21 + i)*0.0016 + dt*0.02;
+    arr[k+1] += Math.sin(t*0.33 + i*1.7)*0.0022;
+    arr[k+2] += Math.cos(t*0.19 + i*0.7)*0.0016;
+    /* 粒は世界座標に置いたままにする。
+       箱ごとプレイヤーに追従させると、粒が体に張り付いて一緒に動き、
+       歩いても景色が流れない＝空気があるように見えない。
+       箱から出た粒だけを反対側へ回り込ませる。 */
+    var dx = arr[k] - player.x;
+    if(dx >  DUST_BOX) arr[k] -= DUST_BOX*2; else if(dx < -DUST_BOX) arr[k] += DUST_BOX*2;
+    var dz = arr[k+2] - player.z;
+    if(dz >  DUST_BOX) arr[k+2] -= DUST_BOX*2; else if(dz < -DUST_BOX) arr[k+2] += DUST_BOX*2;
+    if(arr[k+1] > 2.7) arr[k+1] = 0.05; else if(arr[k+1] < 0) arr[k+1] = 2.6;
+  }
+  dustPts.geometry.attributes.position.needsUpdate = true;
+  // 照らされていない埃は見えない。ランプの状態に合わせて濃さを変える
+  var want = player.lamp ? 0.30 : 0.05;
+  var mo = dustPts.material.opacity;
+  dustPts.material.opacity = mo + (want - mo) * (1 - Math.pow(0.05, dt));
+}
+
+/* ---- 非常口から差す光 --------------------------------------------------
+   扉が開いた瞬間、そこが目的地だと一目で分かってほしい。
+   加算合成の円錐を扉から通路側へ寝かせて置く。体積光の代わりだが、
+   暗い廊下ではこれで十分に「光が漏れている」に見える。 */
+var exitShaft = null;
+function buildExitShaft(){
+  if(exitShaft){ scene.remove(exitShaft); exitShaft.geometry.dispose(); exitShaft.material.dispose(); exitShaft = null; }
+  if(!QC.shaft || !world.exit) return;
+  var geo = new THREE.ConeGeometry(1.45, 5.2, 12, 1, true);
+  geo.translate(0, -2.6, 0);            // 頂点を原点に置く
+  var mat = new THREE.MeshBasicMaterial({
+    color:0xff5a4a, transparent:true, opacity:0.0, side:THREE.DoubleSide,
+    blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  exitShaft = new THREE.Mesh(geo, mat);
+  exitShaft.frustumCulled = false;
+  scene.add(exitShaft);
+}
+function updateExitShaft(dt){
+  if(!exitShaft || !world.exit) return;
+  var open = world.exit.open;
+  var want = open ? 0.16 + 0.05*Math.sin(performance.now()*0.0031) : 0;
+  var mo = exitShaft.material.opacity;
+  exitShaft.material.opacity = mo + (want - mo) * (1 - Math.pow(0.1, dt));
+  if(exitShaft.material.opacity < 0.002) return;
+  exitShaft.position.set(world.exit.doorX, 2.15, world.exit.doorZ);
+  // 扉の面から通路側へ倒す
+  var dx = world.exit.x - world.exit.doorX, dz = world.exit.z - world.exit.doorZ;
+  var l = Math.sqrt(dx*dx + dz*dz) || 1;
+  exitShaft.rotation.set(0, Math.atan2(dx/l, dz/l), 0);
+  exitShaft.rotateX(Math.PI/2 - 0.30);
+}
+
 /* ---- ポストプロセス（色収差・ノイズ・走査線・歪み） ----
    EffectComposer は three r128 の配布ファイルに含まれないため、
    レンダーターゲット＋フルスクリーンシェーダで同等の処理を自前で行う */
@@ -1956,6 +2049,10 @@ function buildPost(){
       '  float n = hash(uv * uRes * 0.6 + vec2(uTime * 91.0, uTime * 47.0));',
       '  col += (n - 0.5) * uNoise;',                            // 粒子ノイズ
       '  col += texture2D(tBloom, uv).rgb * uBloom;',        // 光の滲み
+      // 色調整。暗部をわずかに青緑へ持ち上げ、明部の伸びを寝かせる。
+      // 真っ黒が本当に 0 だと、暗い画面が「消えている」ように見える
+      '  col = col / (col + vec3(0.28)) * 1.28;',
+      '  col += vec3(0.004, 0.011, 0.010) * (1.0 - smoothstep(0.0, 0.30, col));',
       // 周辺減光。四隅を落とすと視線が中央に集まり、暗さの中で奥行きが出る
       '  col *= 1.0 - (0.34 + uWarp * 0.55) * r2;',
       '  gl_FragColor = vec4(max(col, 0.0), 1.0);',
@@ -4394,6 +4491,8 @@ function startGame(){
      食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
   ambientCreakT = 6 + rnd()*8;
 
+  buildDust();
+  buildExitShaft();
   if(BOT.on) botReset();
   huntReset();
 
@@ -5487,6 +5586,9 @@ function updateEnv(dt, info){
      どこかで何かが鳴る頻度が、無人の建物の広さの感じ方を決める。
      追跡者が近いときは鳴らさない——本物の物音と紛れると、
      足音を聞き分ける遊びが壊れる。 */
+  updateDust(dt);
+  updateExitShaft(dt);
+
   ambientCreakT -= dt;
   if(ambientCreakT <= 0){
     var quiet = !(hunter.mode === 'chase') && info.hd > 14;
@@ -5997,6 +6099,26 @@ function runSelfTest(){
     t('カルテが重複していない', !dup && range);
     t('閉じの文が最後に来る', ord.length > 0 && ord[ord.length-1] === NOTE_LAST);
   })();
+
+  /* 埃はプレイヤーの周りの箱に留まり続けなければならない。
+     置き去りにすると、歩いた先に空気が無くなる（そして戻ると溜まっている）。
+     逆に箱ごと追従させると粒が体に張り付き、歩いても景色が流れない。
+     どちらも「暗い画面でよく見ないと気づかない」種類の壊れ方なので、数で押さえる。 */
+  if(dustPts){
+    var px0 = player.x, pz0 = player.z;
+    player.x += 40; player.z -= 25;                 // 遠くへ跳ばす
+    for(var du=0; du<40; du++) updateDust(1/60);
+    var da = dustPts.geometry.attributes.position.array, far = 0, moved = 0;
+    for(var di=0; di<da.length; di+=3){
+      var ex = Math.abs(da[di] - player.x), ez = Math.abs(da[di+2] - player.z);
+      if(Math.max(ex, ez) > far) far = Math.max(ex, ez);
+    }
+    t('埃がプレイヤーの周りに留まる', far <= DUST_BOX + 0.5);
+    t('埃が世界座標に置かれている（体に張り付いていない）',
+      Math.abs(dustPts.position.x) < 1e-6 && Math.abs(dustPts.position.z) < 1e-6);
+    player.x = px0; player.z = pz0;
+    for(var du2=0; du2<40; du2++) updateDust(1/60);
+  }
 
   /* 残響のインパルス応答。NaN や発散が混ざると音が丸ごと消えるが、
      静かなゲームなので耳では気づけない。数で押さえる。 */
