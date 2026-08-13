@@ -511,6 +511,7 @@
   <div class="eyebrow">Paused</div>
   <h1 class="title" style="font-size:clamp(28px,9vw,52px)">一時停止</h1>
   <div class="rule"></div>
+  <div id="pauseStats"></div>
   <p class="lede" id="pauseHint"></p>
   <div class="rule"></div>
   <button class="btn primary" id="btnResume" type="button">続ける</button>
@@ -4458,6 +4459,15 @@ $('btnWinTitle').addEventListener('click', function(){ toTitle(); });
 function doPause(){
   if(state !== STATE.PLAY) return;
   state = STATE.PAUSE;
+  /* いまの一回がどうなっているかを、止めた画面でも見せる。
+     操作説明だけを出しても、続けるかやめるかの判断材料にならない。 */
+  $('pauseStats').innerHTML = endTable([
+    ['経過時間', fmtTime(player.time)],
+    ['カルテ', player.got + ' / ' + player.need],
+    ['鍵', player.hasKey ? '所持' : '未所持'],
+    ['被弾', (player.hits||0) + ' 回'],
+    ['難易度', DIFF[settings.diff].key]
+  ]);
   showPanel('pause');
   $('pauseHint').innerHTML = (playAs === 'hunter')
     ? (IS_TOUCH
