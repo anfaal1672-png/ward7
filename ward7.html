@@ -1660,21 +1660,55 @@ function saveSettings(){
   else if(mem >= 8 && cores >= 8) settings.quality = 2;
 })();
 
+/* チート。切り替え式（CHEATS）と、その場で効く一発（CHEAT_ACTS）。
+   使った回は記録に残さない（recordRun が cheatUsed を見ている）。
+   並び順は「体を守る → 見つからない → 速く動く → 相手を弱める →
+   世界を見る → 演出」。多いので節に分けてある。 */
 var CHEATS = [
-  { k:'godmode',   label:'無敵（ダメージ無効）' },
-  { k:'infLamp',   label:'ランプ無限' },
-  { k:'infBreath', label:'スタミナ無限' },
-  { k:'fast',      label:'移動速度 2倍' },
-  { k:'noclip',    label:'壁抜け' },
-  { k:'freeze',    label:'追跡者を停止' },
-  { k:'invisible', label:'追跡者に見つからない' },
-  { k:'reveal',    label:'常に完全探知' }
+  { g:'身',   k:'godmode',   label:'無敵（ダメージ無効）' },
+  { g:'身',   k:'infLamp',   label:'ランプ無限' },
+  { g:'身',   k:'infBreath', label:'スタミナ無限' },
+  { g:'身',   k:'noSanity',  label:'正気度が減らない' },
+  { g:'身',   k:'regen',     label:'体力が自動で回復する' },
+
+  { g:'隠',   k:'invisible', label:'追跡者に見つからない' },
+  { g:'隠',   k:'silent',    label:'足音を立てない' },
+  { g:'隠',   k:'noLampTell',label:'ランプの光で見つからない' },
+  { g:'隠',   k:'ghostHide', label:'どこでも隠れられる（入る所を見られても）' },
+
+  { g:'速',   k:'fast',      label:'移動速度 2倍' },
+  { g:'速',   k:'noclip',    label:'壁抜け' },
+  { g:'速',   k:'quickHands',label:'拾う・使うが即時' },
+
+  { g:'敵',   k:'freeze',    label:'追跡者を停止' },
+  { g:'敵',   k:'slowHunter',label:'追跡者の速度を半分に' },
+  { g:'敵',   k:'shortMem',  label:'追跡者がすぐ見失う' },
+  { g:'敵',   k:'pacifist',  label:'追跡者が攻撃してこない' },
+  { g:'敵',   k:'blindEnd',  label:'終盤でも居場所が漏れない' },
+
+  { g:'眼',   k:'reveal',    label:'常に完全探知' },
+  { g:'眼',   k:'markItems', label:'カルテ・鍵・電池が壁越しに光る' },
+  { g:'眼',   k:'markHides', label:'隠れ場所が壁越しに光る' },
+  { g:'眼',   k:'brightWorld',label:'病棟全体が明るい' },
+  { g:'眼',   k:'wideView',  label:'視野を広げる' },
+
+  { g:'他',   k:'slowmo',    label:'スローモーション' },
+  { g:'他',   k:'noShake',   label:'画面の揺れと歪みを止める' },
+  { g:'他',   k:'showDebug', label:'内部の値を表示' }
 ];
 var CHEAT_ACTS = [
-  { k:'records', label:'カルテを全回収' },
-  { k:'heal',    label:'体力とランプを全回復' },
-  { k:'warp',    label:'非常口へワープ' },
-  { k:'push',    label:'追跡者を引き離す' }
+  { k:'records',  label:'カルテを全回収' },
+  { k:'heal',     label:'体力とランプを全回復' },
+  { k:'warp',     label:'非常口へワープ' },
+  { k:'push',     label:'追跡者を引き離す' },
+  { k:'key',      label:'鍵を手に入れる' },
+  { k:'openDoor', label:'施錠扉を開ける' },
+  { k:'stun',     label:'追跡者を 10 秒止める' },
+  { k:'teleHunter',label:'追跡者を遠くへ飛ばす' },
+  { k:'battery',  label:'電池を全部集める' },
+  { k:'mapAll',   label:'地図を全部知る（AI観戦用）' },
+  { k:'win',      label:'即座に脱出する' },
+  { k:'lose',     label:'即座に力尽きる' }
 ];
 var cheats = {}, cheatUsed = false;
 CHEATS.forEach(function(c){ cheats[c.k] = false; });
@@ -2218,6 +2252,7 @@ function updatePost(dt){
   T.warp  = 0.015 + panic*0.28 + hurt*0.30;
   // ダメージは立ち上がりを速く、収まりをゆっくり
   var k = 1 - Math.pow(hurt > 0.01 ? 0.0005 : 0.02, dt);
+  if(cheats.noShake){ T.aberr = 0; T.noise = 0.01; T.scan = 0; T.warp = 0; player.shake = 0; }
   postFX.aberr = lerp(postFX.aberr, T.aberr, k);
   postFX.noise = lerp(postFX.noise, T.noise, k);
   postFX.scan  = lerp(postFX.scan,  T.scan,  k);
@@ -4382,7 +4417,16 @@ var cheatReturn = 'title';
 function updateCheatBadge(){ $('cheatBadge').hidden = !anyCheat(); }
 function buildCheatUI(){
   var list = $('cheatList'); list.innerHTML = '';
+  var lastG = null;
   CHEATS.forEach(function(c){
+    if(c.g && c.g !== lastG){
+      lastG = c.g;
+      var hd2 = document.createElement('div');
+      hd2.className = 'sect';
+      hd2.textContent = ({身:'自分', 隠:'見つからない', 速:'動き',
+                          敵:'追跡者', 眼:'見え方', 他:'その他'})[c.g] || c.g;
+      list.appendChild(hd2);
+    }
     var row = document.createElement('div'); row.className = 'trow';
     var lab = document.createElement('span'); lab.textContent = c.label;
     var btn = document.createElement('button'); btn.type = 'button';
@@ -4429,6 +4473,54 @@ function doCheatAct(k){
       Audio2.unlock();
     }
     toast('カルテを全回収した', 2);
+  }else if(k === 'key'){
+    if(world.key && !world.key.taken){
+      world.key.taken = true;
+      world.key.grp.visible = false; world.key.spr.visible = false;
+    }
+    player.hasKey = true;
+    toast('鍵を手に入れた', 2);
+  }else if(k === 'openDoor'){
+    if(world.lockDoor && !world.lockDoor.open){
+      world.lockDoor.open = true;
+      if(world.lockDoor.group) world.lockDoor.group.visible = false;
+      toast('施錠扉を開けた', 2);
+    }else toast('開ける扉がない', 2);
+  }else if(k === 'stun'){
+    hunter.stunT = 10; hunter.swingT = 0;
+    toast('追跡者を止めた', 2);
+  }else if(k === 'teleHunter'){
+    // 自分からいちばん遠い到達可能なマスへ飛ばす
+    var far2 = null, fd = -1, reach2 = buildInfo && buildInfo.reach;
+    if(reach2){
+      for(var ti2=0; ti2<reach2.length; ti2++){
+        var w3 = cellToWorld(reach2[ti2].x, reach2[ti2].y);
+        var dd3 = (w3.x-player.x)*(w3.x-player.x) + (w3.z-player.z)*(w3.z-player.z);
+        if(dd3 > fd){ fd = dd3; far2 = w3; }
+      }
+    }
+    if(far2){
+      hunter.x = far2.x; hunter.z = far2.z;
+      hunter.target = null; hunter.lastSeen = null; hunter.memT = 0; hunter.mode = 'patrol';
+      toast('追跡者を飛ばした（' + Math.round(Math.sqrt(fd)) + 'm 先）', 2);
+    }
+  }else if(k === 'battery'){
+    world.batteries.forEach(function(q){
+      if(q.taken) return;
+      q.taken = true; q.mesh.visible = false; q.spr.visible = false;
+    });
+    player.battery = 100;
+    toast('電池を全部集めた', 2);
+  }else if(k === 'mapAll'){
+    if(BOT.known){
+      for(var mi=0; mi<BOT.known.length; mi++)
+        BOT.known[mi] = (world.grid[mi] === 0) ? 1 : 2;
+      toast('地図を全部知った', 2);
+    }else toast('AI観戦モードでのみ使えます', 2);
+  }else if(k === 'win'){
+    toast('脱出した', 1.2); doWin();
+  }else if(k === 'lose'){
+    player.hp = 0; toast('力尽きた', 1.2); doDeath();
   }else if(k === 'heal'){
     player.hp = 100; player.battery = 100; player.stamina = 100; player.sanity = 100;
     toast('全回復した', 2);
@@ -4911,7 +5003,9 @@ function updatePlayer(dt){
   if(visible && hd < 16) drainS += (16-hd)*0.9;
   if(!player.lamp) drainS += 2.4;
   if(hunter.mode === 'chase') drainS += 7;
-  player.sanity = clamp(player.sanity + (drainS>0 ? -drainS*dt : dt*3.2), 0, 100);
+  if(cheats.noSanity) player.sanity = 100;
+  else player.sanity = clamp(player.sanity + (drainS>0 ? -drainS*dt : dt*3.2), 0, 100);
+  if(cheats.regen && player.hp < 100) player.hp = clamp(player.hp + dt*8, 0, 100);
 
   // インタラクト
   var near = nearestInteractable();
@@ -5016,7 +5110,7 @@ function updatePlayer(dt){
           var hdd = Math.sqrt(hdx*hdx + hdz*hdz);
           if(hdd < DIFF[settings.diff].sight &&
              hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
-            player.hideSeen = true;
+            if(!cheats.ghostHide) player.hideSeen = true;
             hunter.lastSeen = { x:near.obj.x, z:near.obj.z };
             if(hunter.mode !== 'chase') hunter.mode = 'hunt';
             toast('見られた', 2.6);
@@ -5056,7 +5150,7 @@ function updatePlayer(dt){
     flashlight.intensity = 0;
     playerLight.intensity = 0;
     if(viewArm) viewArm.visible = false;
-    ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1);
+    ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1) * (cheats.brightWorld ? 4.2 : 1);
     updateAvatar(dt, spd01);
     return { hd:hd, visible:visible, los:losRaw, sight:sightRaw, vmag:vmag };
   }
@@ -5136,14 +5230,14 @@ function updateHunter(dt, info){
     }
     // ランプで照らすと視野の外からでも見つかる。
     // ここは sight の距離ゲートの外に出す（内側だと sight+6 が効かない）
-    if(canSee && player.lamp && hd < d.sight + 6){
+    if(canSee && player.lamp && !cheats.noLampTell && hd < d.sight + 6){
       var pfx = -Math.sin(player.viewYaw), pfz = -Math.cos(player.viewYaw);
       // toX,toZ は「追跡者→プレイヤー」なので、符号を反転して
       // 「プレイヤーが追跡者の方を向いているか」を見る（従来は逆だった）
       var pdot = -((toX/nl)*pfx + (toZ/nl)*pfz);
       if(pdot > 0.86) seen = true;
     }
-    if(hd < (los ? hearOpen : hearWall)) heard = true;
+    if(!cheats.silent && hd < (los ? hearOpen : hearWall)) heard = true;
     if(hd < 3.2) seen = true;
   }
   // 隠れている間：明かりが漏れれば見つかる。息を止めていれば気配を消せる
@@ -5160,7 +5254,7 @@ function updateHunter(dt, info){
   if(cheats.invisible){ seen = false; heard = false; }
 
   // 全て集めた後は、姿が見えていなくても居場所を嗅ぎつけて向かってくる
-  if(world.endgame && hunter.spawnGrace <= 0 && !cheats.invisible && !seen){
+  if(world.endgame && hunter.spawnGrace <= 0 && !cheats.invisible && !cheats.blindEnd && !seen){
     hunter.lastSeen = { x:player.x, z:player.z };
     if(hunter.mode !== 'chase') hunter.mode = 'hunt';
   }
@@ -5172,7 +5266,7 @@ function updateHunter(dt, info){
   if(seen){
     hunter.mode = 'chase';
     hunter.lastSeen = { x:player.x, z:player.z };
-    hunter.memT = d.memory;           // 見失っても数秒は完全に追尾する
+    hunter.memT = cheats.shortMem ? 0.25 : d.memory;   // 見失っても数秒は完全に追尾する
   }else if(hunter.memT > 0 && !(player.hiding && !player.hideSeen)){
     hunter.mode = 'chase';
     hunter.lastSeen = { x:player.x, z:player.z };
@@ -5321,7 +5415,8 @@ function updateHunter(dt, info){
       if(!directChase){ hunter.target = null; hunter.repathT = 0; }
     }else{
       var rage = Math.min(d.rage, hunter.chaseT * 0.09);   // 追跡が続くほど加速する
-      var spd = hunter.speed * (hunter.mode==='chase' ? d.chaseMul : (hunter.mode==='hunt'?1.05:0.82))
+      var spd = (cheats.slowHunter ? 0.5 : 1) *
+                hunter.speed * (hunter.mode==='chase' ? d.chaseMul : (hunter.mode==='hunt'?1.05:0.82))
                 + (hunter.mode==='chase' ? rage : 0);
       var mv = (cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0)
                ? 0 : Math.min(dist, spd*dt);
@@ -5639,7 +5734,7 @@ function updateHunter(dt, info){
   // （攻撃条件が距離だけだったので、徘徊中に前を素通りされただけで殴られていた）
   var noticed = !(player.hiding && !player.hideSeen);
   // 接触した瞬間に判定が出る。モーションは見た目としてあとから再生される
-  if(hd < 1.25 && noticed && hunter.attackCd <= 0 && hunter.stunT <= 0 &&
+  if(!cheats.pacifist && hd < 1.25 && noticed && hunter.attackCd <= 0 && hunter.stunT <= 0 &&
      hunter.swingT <= 0 && hunter.spawnGrace <= 0){
     hunter.attackCd = 1.7;
     hunter.punchArm = (rnd() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
@@ -5768,6 +5863,7 @@ function updateEnv(dt, info){
      どこかで何かが鳴る頻度が、無人の建物の広さの感じ方を決める。
      追跡者が近いときは鳴らさない——本物の物音と紛れると、
      足音を聞き分ける遊びが壊れる。 */
+  updateCheatView(dt);
   updateDust(dt);
   updateExitShaft(dt);
 
@@ -5804,6 +5900,61 @@ function updateEnv(dt, info){
    情報を隠すためではなく、変化に注意を向けるための切り替え。 */
 var HUDW = { t:0, bat:100, sta:100, hp:100, got:-1 };
 function hudWake(sec){ HUDW.t = Math.max(HUDW.t, sec); }
+
+/* 見え方に関わるチートの面倒をまとめて見る。
+   毎フレーム状態を合わせにいく（切り替えた瞬間に効いてほしいし、
+   切ったときに元へ戻らないと「直らないバグ」に見える）。 */
+var CV = { fov:0, marked:false };
+function updateCheatView(dt){
+  // 視野
+  var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0);
+  if(state === STATE.PLAY && Math.abs(camera.fov - wantFov) > 0.01){
+    camera.fov = lerp(camera.fov, wantFov, 1 - Math.pow(0.02, dt));
+    camera.updateProjectionMatrix();
+  }
+  // 壁越しの目印。深度テストを切ると、壁の向こうでも描かれる
+  var wantItems = !!cheats.markItems, wantHides = !!cheats.markHides;
+  if(CV.items !== wantItems){
+    CV.items = wantItems;
+    var mark = function(sp){ if(!sp) return;
+      sp.material.depthTest = !wantItems; sp.renderOrder = wantItems ? 12 : 0;
+      sp.material.opacity = wantItems ? 0.9 : 0.55; sp.material.needsUpdate = true; };
+    world.records.forEach(function(r){ mark(r.spr); });
+    world.batteries.forEach(function(b){ mark(b.spr); });
+    if(world.key) mark(world.key.spr);
+  }
+  if(CV.hides !== wantHides){
+    CV.hides = wantHides;
+    world.hides.forEach(function(h){
+      if(!h.group) return;
+      h.group.traverse(function(o){
+        if(!o.isMesh || !o.material || !o.material.emissive) return;
+        if(wantHides){
+          if(o.userData.emSave === undefined) o.userData.emSave = o.material.emissiveIntensity || 0;
+          o.material.emissive.setHex(0x2fae86);
+          o.material.emissiveIntensity = 0.55;
+        }else if(o.userData.emSave !== undefined){
+          o.material.emissive.setHex(0x000000);
+          o.material.emissiveIntensity = o.userData.emSave;
+        }
+      });
+    });
+  }
+  // 内部の値
+  var dbg = $('dbg');
+  if(dbg){
+    if(cheats.showDebug){
+      dbg.hidden = false;
+      dbg.textContent =
+        'pos ' + player.x.toFixed(1) + ',' + player.z.toFixed(1) +
+        '  hunter ' + hunter.x.toFixed(1) + ',' + hunter.z.toFixed(1) + ' ' + hunter.mode +
+        '  d ' + Math.sqrt((hunter.x-player.x)*(hunter.x-player.x)+(hunter.z-player.z)*(hunter.z-player.z)).toFixed(1) +
+        '  memT ' + hunter.memT.toFixed(1) + '  stun ' + hunter.stunT.toFixed(1) +
+        '  hp ' + Math.round(player.hp) + '  bat ' + Math.round(player.battery) +
+        '  sta ' + Math.round(player.stamina) + '  fps ' + Math.round(fpsShown);
+    }else dbg.hidden = true;
+  }
+}
 
 function updateHUD(dt, bpm, info){
   if(skipUI) return;
@@ -5960,6 +6111,7 @@ function loop(now){
   lastT = now;
   if(!isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, 0.05);
+  if(cheats.slowmo) dt *= 0.4;
 
   if(CTX_LOST) return;
 
