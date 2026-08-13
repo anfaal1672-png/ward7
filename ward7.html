@@ -179,6 +179,19 @@
   .trow button[aria-pressed="true"]{background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.55);
     color:#ffd79a}
   .trow button:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+  .endrows{width:min(420px,86vw);font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+    color:var(--dim);margin:2px 0 6px}
+  .endrows .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+    padding:9px 2px;border-bottom:1px solid rgba(232,226,212,.09);overflow:hidden}
+  .endrows .row:last-child{border-bottom:none}
+  .endrows .row span{position:relative;padding-right:8px;white-space:nowrap}
+  .endrows .row span::after{content:'';position:absolute;left:100%;bottom:.32em;width:100vw;
+    border-bottom:1px dotted rgba(232,226,212,.14)}
+  .endrows .row b{position:relative;padding-left:8px;z-index:1;color:var(--bone);font-weight:400;
+    background:linear-gradient(180deg,#05090a,#070d0f);text-align:right}
+  .endrows em{font-style:normal;color:var(--amber);font-size:9.5px;letter-spacing:.2em;margin-left:8px}
+  .warnline{width:min(420px,86vw);font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+    color:var(--amber);margin:10px 0 2px;text-align:center}
   .warn{width:min(420px,86vw);font-family:var(--mono);font-size:10.5px;line-height:1.9;
     color:#c9a06a;letter-spacing:.08em;margin:14px 0 4px}
   #objective{
@@ -415,6 +428,7 @@
       <div class="row"><span>逃げ場</span><b>ロッカー・ベッドの下</b></div>
       <div class="row"><span>目的</span><b id="chartGoal">カルテ5枚 → 非常口</b></div>
       <div class="row"><span>警告</span><b style="color:#8c2626">病棟内に別の何かがいる</b></div>
+      <div class="row"><span>記録</span><b id="chartRec">記録なし</b></div>
     </div>
     <div class="seg" role="group" aria-label="難易度">
       <button type="button" data-diff="0" aria-pressed="false">静穏</button>
@@ -1591,6 +1605,47 @@ try{
     if(typeof saved.gamma==='number')   settings.gamma = clamp(saved.gamma,0.6,1.9);
   }
 }catch(e){}
+/* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
+   無傷で脱出したか、を残す。次に何を狙うかが自分で決められるようになる。
+   保存できない環境（プライベートモード等）では黙って諦める——
+   記録が残らないだけで遊べなくなるものではない。 */
+var RECS = [null, null, null];
+function blankRec(){ return { runs:0, wins:0, best:0, noHit:false, most:0 }; }
+try{
+  var rr = JSON.parse(localStorage.getItem('ward7.recs') || 'null');
+  for(var ri2=0; ri2<3; ri2++){
+    var r0 = (rr && rr[ri2]) ? rr[ri2] : blankRec();
+    RECS[ri2] = {
+      runs:  (+r0.runs  || 0), wins: (+r0.wins || 0),
+      best:  (+r0.best  || 0), most: (+r0.most || 0),
+      noHit: !!r0.noHit
+    };
+  }
+}catch(e){ for(var ri3=0; ri3<3; ri3++) RECS[ri3] = blankRec(); }
+function saveRecs(){
+  try{ localStorage.setItem('ward7.recs', JSON.stringify(RECS)); }catch(e){}
+}
+/* 1 回ぶんを記録する。won=脱出したか、hits=被弾回数 */
+function recordRun(won, hits){
+  if(cheatUsed) return;                       // チートを使った回は残さない
+  var R = RECS[clamp(settings.diff|0,0,2)];
+  R.runs++;
+  if(player.got > R.most) R.most = player.got;
+  if(won){
+    R.wins++;
+    if(!R.best || player.time < R.best) R.best = player.time;
+    if(hits === 0) R.noHit = true;
+  }
+  saveRecs();
+}
+function recLine(d){
+  var R = RECS[d];
+  if(!R || !R.runs) return '記録なし';
+  return '挑戦 ' + R.runs + ' · 脱出 ' + R.wins +
+         (R.best ? ' · 最速 ' + fmtTime(R.best) : '') +
+         (R.noHit ? ' · 無傷あり' : '');
+}
+
 function saveSettings(){
   try{ localStorage.setItem('ward7.settings', JSON.stringify(settings)); }catch(e){}
 }
@@ -4247,6 +4302,8 @@ function syncQualityHint(){
 
 function syncSettingsUI(){
   syncQualityHint();
+  var cr = $('chartRec');
+  if(cr) cr.textContent = recLine(clamp(settings.diff|0,0,2));
   Array.prototype.forEach.call($('segQ').children, function(b){
     b.setAttribute('aria-pressed', (+b.dataset.q === settings.quality) ? 'true':'false');
   });
@@ -4499,7 +4556,7 @@ function startGame(){
   /* 速度を戻していなかった。タイトルへ戻って遊び直すと、前の周回が
      終わった瞬間の速度で滑り出す（死んだ位置で走っていれば 5.7 m/s）。
      再現検証で「同じ種なのに 1 本目と 2 本目で結果が違う」原因もこれ。 */
-  player.vx = 0; player.vz = 0;
+  player.vx = 0; player.vz = 0; player.hits = 0;
   player.hurtT = 0; player.deadT = 0; player.shake = 0; player.bob = 0; player.stepAcc = 0;
   player.exhausted = false; player.blockedT = 0; $('barSta').classList.remove('exh');
   player.hiding = null; player.hideSeen = false; player.holdBreath = false; player.breathBroken = 0;
@@ -5532,6 +5589,7 @@ function updateHunter(dt, info){
     hunter.swingT = SWING_DUR;        // 殴打モーションの長さ
     hunter.stunT = 3.0;               // 振り抜いたあとの硬直。逃げ直す猶予になる
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
+    player.hits = (player.hits || 0) + 1;
     player.shake = 1.4; player.hurtT = 0.5;
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
     Audio2.hurt();
@@ -5748,6 +5806,7 @@ function updateHUD(dt, bpm, info){
 function doDeath(){
   if(state !== STATE.PLAY) return;
   state = STATE.DEAD;
+  recordRun(false, player.hits||0);   // 演出を待たずにこの場で書く
   Audio2.scream();
   if(navigator.vibrate) try{ navigator.vibrate([200,80,300]); }catch(e){}
   // 顔面アップ演出
@@ -5781,12 +5840,13 @@ function doDeath(){
       blackout(true);
       setTimeout(function(){
         Audio2.stopAmbient();
-        $('deadStats').innerHTML =
-          (playAs === 'hunter' ? '<b style="color:#c04040">捕らえた</b><br>' : '') +
-          '経過時間 <b>'+fmtTime(player.time)+'</b><br>' +
-          '回収したカルテ <b>'+player.got+' / '+player.need+'</b><br>' +
-          '難易度 <b>'+DIFF[settings.diff].key+'</b>' +
-          (cheatUsed ? '<br><b style="color:#e8a33d">チート使用</b>' : '');
+        $('deadStats').innerHTML = endTable([
+          ['経過時間', fmtTime(player.time)],
+          ['回収したカルテ', player.got + ' / ' + player.need],
+          ['被弾', (player.hits||0) + ' 回'],
+          ['難易度', DIFF[settings.diff].key],
+          ['これまで', recLine(settings.diff)]
+        ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
         showPanel('dead');
       }, 900);
     }
@@ -5795,19 +5855,36 @@ function doDeath(){
 function doWin(){
   if(state !== STATE.PLAY) return;
   state = STATE.WIN;
+  /* 記録は演出（暗転 1 秒）を待たずに、勝敗が決まったこの場で書く。
+     待っている間に閉じられると記録が消えるし、
+     ヘッドレスの検証でも実時間のタイマーは進まない。 */
+  var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
+  recordRun(true, player.hits||0);
   Audio2.unlock();
   blackout(true);
   setTimeout(function(){
     Audio2.stopAmbient();
     $('winStats').innerHTML =
-      (playAs === 'hunter' ? '<b style="color:#c04040">逃げられた</b><br>' : '') +
-      '脱出タイム <b>'+fmtTime(player.time)+'</b><br>' +
-      '残ランプ <b>'+Math.round(player.battery)+'%</b><br>' +
-      '難易度 <b>'+DIFF[settings.diff].key+'</b>' +
-      (cheatUsed ? '<br><b style="color:#e8a33d">チート使用</b>' : '');
+      (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +
+      endTable([
+        ['脱出タイム', fmtTime(player.time) + (wasBest ? ' <em>最速</em>' : '')],
+        ['被弾', (player.hits||0) + ' 回' + ((player.hits||0) === 0 ? ' <em>無傷</em>' : '')],
+        ['残ランプ', Math.round(player.battery) + '%'],
+        ['難易度', DIFF[settings.diff].key],
+        ['これまで', recLine(settings.diff)]
+      ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
     showPanel('win');
   }, 1000);
 }
+/* 結果は表で出す。カルテの表と同じ作法にして、
+   ゲームの中の書類とつながって見えるようにする。 */
+function endTable(rows){
+  var h = '<div class="endrows">';
+  for(var i=0;i<rows.length;i++)
+    h += '<div class="row"><span>' + rows[i][0] + '</span><b>' + rows[i][1] + '</b></div>';
+  return h + '</div>';
+}
+
 function fmtTime(s){
   var m = Math.floor(s/60), r = Math.floor(s%60);
   return m + ':' + (r<10?'0':'') + r;
