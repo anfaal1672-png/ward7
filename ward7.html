@@ -87,6 +87,15 @@
   .seg button[aria-pressed="true"]{background:rgba(111,191,168,.14);border-color:rgba(111,191,168,.5);color:#d8fff2}
   .seg button:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
   .field{width:min(420px,86vw);margin-top:18px}
+  /* 設定は「何が変わるのか」まで書く。名前だけでは選べない */
+  .field .hint{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;line-height:1.8;
+    color:#6f7b78;margin-top:7px}
+  .field .hint b{color:var(--copper);font-weight:400}
+  /* 節の見出し。設定が一列に並んでいるだけだと目が滑る */
+  .sect{width:min(420px,86vw);margin:30px 0 -4px;display:flex;align-items:center;gap:12px;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.34em;color:var(--dim);text-transform:uppercase}
+  .sect::after{content:'';flex:1;height:1px;
+    background:linear-gradient(90deg,rgba(232,226,212,.20),transparent)}
   .field label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
     letter-spacing:.2em;color:var(--dim);text-transform:uppercase;margin-bottom:8px}
   input[type=range]{width:100%;-webkit-appearance:none;appearance:none;background:transparent;height:28px}
@@ -428,6 +437,7 @@
   <div class="eyebrow">Settings</div>
   <h1 class="title" style="font-size:clamp(28px,9vw,52px)">設定</h1>
   <div class="rule"></div>
+  <div class="sect">画面</div>
   <div class="field">
     <label>描画品質 <span id="valQ">自動</span></label>
     <div class="seg" id="segQ" role="group" aria-label="描画品質">
@@ -436,6 +446,7 @@
       <button type="button" data-q="2" aria-pressed="false">高精細</button>
       <button type="button" data-q="3" aria-pressed="false">最高</button>
     </div>
+    <div class="hint" id="hintQ"></div>
   </div>
   <div class="field">
     <label>探知モード <span id="valD">オフ</span></label>
@@ -449,10 +460,12 @@
     <label for="gam">画面の明るさ <span id="valG">1.00</span></label>
     <input type="range" id="gam" min="0.6" max="1.9" step="0.05" value="1">
   </div>
+  <div class="sect">操作</div>
   <div class="field">
     <label for="sens">視点感度 <span id="valS">1.0</span></label>
     <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1">
   </div>
+  <div class="sect">音</div>
   <div class="field">
     <label for="vol">音量 <span id="valV">70</span></label>
     <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7">
@@ -3614,9 +3627,32 @@ function buildHunter(){
     teethSpecs.push({ w:0.022, h:0.045, d:0.022, x:-0.06+ti*0.03, y:-0.02, z:0.1 });
   jawPivot.add(new THREE.Mesh(mergeBoxes(teethSpecs), bone_));
 
+  /* --- 病衣の裂けた裾 ---
+     骨と皮だけだと、暗がりでは棒に見える。腰から下がった布があると
+     輪郭が出て、歩くたびに遅れて揺れるぶん「重さ」も伝わる。
+     板ではなく細い短冊の集まりにして、裂けた裾に見せる。 */
+  var gownMat = new THREE.MeshStandardMaterial({
+    color:0xb9b3a0, roughness:1, side:THREE.DoubleSide,
+    emissive:0x14160f, emissiveIntensity:0.35
+  });
+  var gown = [];
+  var gn = QC.detail ? 11 : 7;
+  for(var gi=0; gi<gn; gi++){
+    var ga = (gi/gn)*TAU;
+    var gpv = new THREE.Group();
+    gpv.position.set(Math.sin(ga)*0.155, 0.30, Math.cos(ga)*0.115);
+    gpv.rotation.y = ga;
+    spine.add(gpv);
+    var glen = 0.42 + ((gi*7)%5)*0.075;          // 裾の長さを不揃いに
+    var strip = new THREE.Mesh(new THREE.PlaneGeometry(0.115, glen), gownMat);
+    strip.position.set(0, -glen/2, 0.012);
+    gpv.add(strip);
+    gown.push(gpv);
+  }
+
   // --- 肩から垂れる、長すぎる髪の束。動きが本体から遅れる ---
   var strands = [];
-  var sn2 = QC.detail ? 3 : 2;
+  var sn2 = QC.detail ? 5 : 2;
   for(var t=0; t<sn2; t++){
     var pivot = new THREE.Group();
     pivot.position.set((t - (sn2-1)/2)*0.20, 0.92, -0.13);
@@ -3674,7 +3710,7 @@ function buildHunter(){
     spine:spine, neck:neck, head:headPivot, jaw:jawPivot,
     armL:armL, armR:armR, legL:legL, legR:legR,
     pupL:pupL, pupR:pupR, eyeMatL:eyeL_, eyeMatR:eyeR_, glowL:glowL, glowR:glowR,
-    strands:strands, skin:skin, baseY:(0.02 + THIGH + SOLE)
+    strands:strands, gown:gown, skin:skin, baseY:(0.02 + THIGH + SOLE)
   };
   scene.add(g); scene.add(sh);
   g.visible = false; sh.visible = false;
@@ -4195,7 +4231,22 @@ function blackout(on, instant){
   if(instant) b.offsetHeight; // reflow
 }
 
+/* 品質の段ごとに「何が入るか」。名前だけでは何が変わるのか分からないし、
+   端末に合うものを選ぶ手がかりが無い。実際に効く項目をそのまま並べる。 */
+var QDESC = [
+  ['軽量',   'テクスチャ 128 · 什器 24 · 画面効果なし', '古い端末向け。動作を最優先'],
+  ['標準',   'テクスチャ 256 · 什器 44 · 画面効果あり', '既定。多くの端末でなめらか'],
+  ['高精細', 'テクスチャ 512 · 什器 44 · <b>残響 · 埃 · 非常口の光</b>', '音の反響と空気が出る'],
+  ['最高',   'テクスチャ 1024 · 什器 70 · <b>影 · 光の滲み · 追加の造形</b>', '新しい端末向け']
+];
+function syncQualityHint(){
+  var q = clamp(settings.quality|0, 0, 3), d = QDESC[q];
+  var el = $('hintQ');
+  if(el) el.innerHTML = d[1] + '<br>' + d[2];
+}
+
 function syncSettingsUI(){
+  syncQualityHint();
   Array.prototype.forEach.call($('segQ').children, function(b){
     b.setAttribute('aria-pressed', (+b.dataset.q === settings.quality) ? 'true':'false');
   });
@@ -5317,6 +5368,17 @@ function updateHunter(dt, info){
   P.legR.thigh.rotation.x = -sw*0.92;
   P.legL.shin.rotation.x = -Math.max(0, sw)*1.05 - 0.12;
   P.legR.shin.rotation.x = -Math.max(0, -sw)*1.05 - 0.12;
+
+  /* 病衣の裾は髪より重い。遅れを大きく、戻りを鈍くする。
+     歩幅（sw）に合わせて前後へ振れ、走ると後ろへ流れる。 */
+  if(P.gown){
+    var gsw = sw*0.34 + (chasing ? 0.22 : 0);
+    for(var gj=0; gj<P.gown.length; gj++){
+      var gp = P.gown[gj];
+      var want = gsw*Math.cos(gp.rotation.y) + Math.sin(now*0.8 + gj*1.7)*0.09;
+      gp.rotation.x = lerp(gp.rotation.x, want, 1 - Math.pow(0.55, dt));
+    }
+  }
 
   // 髪束は本体より遅れて揺れる
   for(var ti=0; ti<P.strands.length; ti++){
