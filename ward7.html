@@ -1531,6 +1531,49 @@ function texMeanLinear(img){
   return v;
 }
 
+/* 目地と地の艶の差を作る粗さマップ。
+   釉薬をかけた病院のタイルは鏡に近く（粗さ 0.4 前後）、目地のモルタルと
+   その上に乗った汚れは完全に拡散する（0.9 前後）。壁も床も全面を
+   0.92 の一枚岩にしていたので、どこにも艶が乗らず、光を当てても
+   「印刷された紙」にしか見えなかった。艶の有無は、寸法や模様よりも
+   材質を伝える。n はタイルの分割数（地の絵と同じ数にする）。
+   three は粗さを緑チャンネルから読むので緑だけ書く。
+   色ではないので sRGB 変換を通してはいけない。 */
+function texGloss(size, n, lo, hi, grid){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  var LO = Math.round(clamp(lo,0,1)*255), HI = Math.round(clamp(hi,0,1)*255);
+  g.fillStyle = 'rgb(0,'+LO+',0)'; g.fillRect(0,0,size,size);
+  var t = size/n;
+  /* 目地。タイルの縁は釉薬が切れているので必ず鈍い。
+     床には引かない。長尺シートの継ぎ目は目地ではなく溶接線で、
+     ここに鈍い線を引くと、斜めから見たとき溶接線だけが明るく浮いて
+     床じゅうに格子が乗った（粗い面ほど浅い角度では明るく返る）。 */
+  if(grid){
+    g.strokeStyle = 'rgb(0,'+HI+',0)';
+    g.lineWidth = Math.max(2, t*0.11);
+    for(var i=0;i<=n;i++){
+      g.beginPath(); g.moveTo(i*t,0); g.lineTo(i*t,size); g.stroke();
+      g.beginPath(); g.moveTo(0,i*t); g.lineTo(size,i*t); g.stroke();
+    }
+  }
+  // 汚れと水垢。釉薬の上に乗るので艶を殺す
+  for(var b=0;b<44;b++){
+    var bx=rnd()*size, by=rnd()*size, br=size*(0.02+rnd()*0.10);
+    var gr=g.createRadialGradient(bx,by,0,bx,by,br);
+    gr.addColorStop(0,'rgba(0,'+HI+',0,'+(0.35+rnd()*0.50).toFixed(2)+')');
+    gr.addColorStop(1,'rgba(0,'+HI+',0,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(bx,by,br,0,TAU); g.fill();
+  }
+  // 何枚かはまだ艶が強く残っている。一様さを崩す
+  var LO2 = Math.round(clamp(lo*0.70,0,1)*255);
+  for(var k=0;k<Math.round(n*n/4);k++){
+    var tx=Math.floor(rnd()*n), ty=Math.floor(rnd()*n);
+    g.fillStyle = 'rgba(0,'+LO2+',0,0.55)';
+    g.fillRect(tx*t+t*0.09, ty*t+t*0.09, t*0.82, t*0.82);
+  }
+  return c;
+}
+
 /* 明暗をそのまま粗さに読み替える。金属の擦れや刻みは「削れた所ほど
    細かい傷が付いて鈍く光る」ので、明るい所を粗く・暗い所を滑らかに
    するのが実物に近い（lo が明部の粗さ、hi が暗部の粗さ）。
@@ -2227,6 +2270,11 @@ function qualityCfg(){
     fogD:     [0.072, 0.060, 0.060, 0.050][q],
     lamps:    [2, 3, 3, 4][q],
     normalMaps: q > 0,
+    /* 艶のむら（粗さマップ）。壁と床という画面の大半に 1 枚ずつ
+       テクスチャ参照が増える。最低品質はポスト処理が無いぶん
+       画素の計算が全体に占める割合が大きく、実測でフレーム時間が
+       61.8 → 66.5ms（+7.6%）になったので、そこだけ切る。 */
+    gloss:    q > 0,
     props:    [24, 44, 44, 70][q],
     cssFx:    q > 0,
     post:     q >= 1,          // 画面エフェクト（軽量では負荷を避けて切る）
@@ -2274,10 +2322,10 @@ var EXP_BASE = 1.34;
 
    直したうえで四段階を実測すると 51.9 / 66.1 / 62.2 / 57.6 と割れた。
    最終合成の持ち上げの有無・影・霧の濃さが品質で違うためで、同じ露出で
-   揃うものではない。実測から逆算した係数を品質ごとに掛け、
-   60.2 / 63.7 / 63.4 / 61.9 に揃えた（最低品質だけは周辺減光が無いので
-   分布の形が違い、平均を合わせても白飛びは出ていない）。 */
-var EXP_Q = [1.54, 0.97, 1.03, 1.11];
+   揃うものではない。実測から逆算した係数を品質ごとに掛けて揃える。
+   その後ビームを 33 度から 26 度へ絞ったぶん照らされる面積が減り、
+   平均が 50 前後まで落ちたので、ここで 1.15 倍して 58 前後へ戻した。 */
+var EXP_Q = [1.77, 1.12, 1.18, 1.28];
 /* 自動露出（明順応）の倍率。何にどれだけ近くで光が当たっているかから
    毎フレーム作り直す。第15章の updateExposure を参照。
    宣言をここに置くのは、露出を読む側と同じ場所に無いと見落とすため。 */
@@ -2513,6 +2561,23 @@ function buildTextures(){
   /* 壁の痕跡。透明度を持つので繰り返さない（1 枚 1 か所に貼る）。 */
   TEX.decal = new THREE.CanvasTexture(texDecals(Math.max(256, s)));
   TEX.decal.encoding = THREE.sRGBEncoding;
+
+  /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
+     繰り返しは地の絵に合わせないと目地とずれる。 */
+  function mkR(canvasEl, rx, ry){
+    var t = new THREE.CanvasTexture(canvasEl);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    return t;                                    // sRGB を付けない（色ではない）
+  }
+  /* 壁は控えめに。0.40 まで下げたら一枚の乳白色の板になって、
+     せっかくのタイルと汚れが specular に飲まれた（実測で試した）。
+     艶そのものより「艶にむらがある」ことが材質を伝える。
+     床は斜めから見るので艶が効く。目地は引かない。 */
+  if(QC.gloss){
+    TEX.wallR  = mkR(texGloss(Math.max(128, s>>1), 4, 0.74, 0.98, 1), 1, 1);
+    TEX.floorR = mkR(texGloss(Math.max(128, s>>1), 6, 0.55, 0.97, 0), GW, GH);
+  }
 }
 
 /* =========================================================================
@@ -2555,8 +2620,11 @@ var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts 
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
-var LAMP_I = 4.0;          // 懐中電灯の強さ（点灯時）
-var AMB_BASE = 0.36;       // 環境光の基準値。毎フレームここから作り直す
+var LAMP_I = 5.0;          // 懐中電灯の強さ（点灯時）。絞ったぶん上げた
+/* 照射角（軸からの半角）。ここを一か所に持たないと、露出の見積もりが
+   使う角度と実際の光の角度がずれる（実際 33 度のまま残っていた）。 */
+var LAMP_ANG = Math.PI/6.8;
+var AMB_BASE = 0.42;       // 環境光の基準値。毎フレームここから作り直す
 function setupLights(){
   /* 環境光を強く入れると、どの面も最低限の明るさを持ってしまい、
      せっかく焼いた遮蔽も懐中電灯の輪も見えなくなる。落とす。
@@ -2575,14 +2643,22 @@ function setupLights(){
      強さを 3.2 → 4.4 に上げて、近くの明るさは保ったまま先だけ暗くする。 */
   /* 強さは毎フレーム更新するので、ここの値は初期値でしかない
      （以前ここだけ変えて効いたつもりになっていた）。LAMP_I を唯一の出所にする。 */
-  flashlight = new THREE.SpotLight(0xffe9c4, LAMP_I, 28, Math.PI/5.4, 0.62, 1.65);
+  /* 照射角と減衰。33 度・penumbra 0.62 は「広くて縁がぼやけた円」で、
+     突き当りの壁が一様に明るい板になっていた。実物の懐中電灯は
+     反射鏡で絞られていて、中心が強く縁が急に落ちる。26 度・0.48 にして
+     そのぶん強さを上げる（露出は自動で追従するので画面全体は暗くならない）。 */
+  flashlight = new THREE.SpotLight(0xffe9c4, LAMP_I, 28, LAMP_ANG, 0.48, 1.65);
   flashlight.position.set(0,0,0);
   flashTarget = new THREE.Object3D();
   scene.add(flashTarget);
   flashlight.target = flashTarget;
   camera.add(flashlight);
 
-  playerLight = new THREE.PointLight(0xffdcae, 0.9, 10, 1.8);
+  /* 足元の補助光。ビームを 33 度から 26 度へ絞ったので、これを
+     0.55 まで落とすと足元まで真っ暗になり、画面の 4 割が最暗部に
+     沈んだ（実測 平均輝度 58.6 → 48.3）。絞りの効果は遠くの側壁に
+     出るもので、手前の床は別問題。範囲だけ詰めて強さは戻す。 */
+  playerLight = new THREE.PointLight(0xffdcae, 0.88, 9, 1.8);
   camera.add(playerLight);
   scene.add(camera);
 
@@ -3950,8 +4026,12 @@ function buildWorld(){
   var fseg = 1;                                   // 1マスあたりの分割数
   var floorGeo = new THREE.PlaneGeometry(GW*CELL, GH*CELL, GW*fseg, GH*fseg);
   floorGeo.rotateX(-Math.PI/2);                   // 頂点をそのまま世界座標として読めるようにする
+  /* 床も同じ。長尺シートは磨かれていて、斜めから見ると光が細長く
+     伸びて映る。ここが艶消し一色だと、床がどこまでも同じ暗い面に
+     なって奥行きが読めない。 */
   var floorMat = new THREE.MeshStandardMaterial({
-    map: TEX.floor, normalMap: TEX.floorN || null, roughness:0.94, metalness:0.02,
+    map: TEX.floor, normalMap: TEX.floorN || null, roughnessMap: TEX.floorR || null,
+    roughness: TEX.floorR ? 1 : 0.94, metalness:0.02,
     color:0xffffff, vertexColors:true
   });
   if(TEX.floorN) floorMat.normalScale = new THREE.Vector2(0.6,0.6);
@@ -4034,8 +4114,12 @@ function buildWorld(){
   wallGeo.setAttribute('color',    new THREE.Float32BufferAttribute(wcol, 3));
   wallGeo.setIndex(widx);
   wallGeo.computeBoundingSphere();
+  /* 粗さはマップで決める（roughness はそれに掛かる係数なので 1）。
+     0.92 の一枚岩だったので、懐中電灯を当てても艶がどこにも乗らず、
+     タイルが紙に印刷された模様に見えていた。 */
   var wm = new THREE.MeshStandardMaterial({
-    map: TEX.wall, normalMap: TEX.wallN || null, roughness:0.92, metalness:0.03,
+    map: TEX.wall, normalMap: TEX.wallN || null, roughnessMap: TEX.wallR || null,
+    roughness: TEX.wallR ? 1 : 0.92, metalness:0.03,
     color:0xdfe4e0, vertexColors:true
   });
   if(TEX.wallN) wm.normalScale = new THREE.Vector2(0.85,0.85);
@@ -7364,10 +7448,13 @@ function updatePlayer(dt){
    自分で決めた値なので、当たる距離さえ分かれば返る光の量は計算できる。
    壁・床・天井・追跡者・什器の 5 つを見て、いちばん近いものを採る。 */
 /* 基準の戻り光。ここに合わせたときだけ倍率 1 になる。
-   値そのものより「ふつうの廊下で今までの明るさが保たれるか」が判定基準。
-   0.59（＝壁 3.5m 相当）だと画面平均が 64.5 → 58.1 まで落ちた。
-   0.80（＝壁 2.9m 相当）で 64 前後に戻る。 */
-var EXP_REF = 0.80;
+   値そのものより「ふつうの廊下で今までの明るさが保たれるか」が判定基準で、
+   実測から 2.9m の壁を照らしている状態に決めた（0.59＝3.5m 相当だと
+   画面平均が 64.5 → 58.1 まで落ちた）。
+   直値で持つとランプの強さを変えるたびに画面全体が明るさごと動くので、
+   LAMP_I から作る。実際、絞ったぶん 4.0 → 5.0 に上げたとき、
+   ここが 0.80 のままで画面平均が 58.6 → 48.3 まで落ちた。 */
+var EXP_REF = 0.10 + LAMP_I/Math.pow(2.9, 1.65);
 var EXP_LO = 0.62, EXP_HI = 1.25;   // 絞りの下限・上限
 function beamHitDist(){
   var cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
@@ -7384,7 +7471,7 @@ function beamHitDist(){
   }
   /* 追跡者と什器。ビームの中にいるものだけを見る。円錐の外にあるものは
      照らされていないので、寄られても露出を変えてはいけない。 */
-  var COSB = Math.cos(Math.PI/5.4);
+  var COSB = Math.cos(LAMP_ANG);
   function consider(px, py, pz, rad){
     var vx = px - player.x, vy = py - eyeY, vz = pz - player.z;
     var L = Math.sqrt(vx*vx + vy*vy + vz*vz);
@@ -8845,6 +8932,11 @@ function runSelfTest(){
   (function(){
     var sx = player.x, sz = player.z, syaw = player.viewYaw,
         spit = player.pitch, sad = expAdapt;
+    /* 露出の見積もりが使う照射角と、実際の光の照射角が一致しているか。
+       別々に書いていたので、ビームを絞ったあとも見積もりだけ 33 度の
+       ままだった。円錐の外の物まで「照らしている」と数えてしまう。 */
+    t('露出の見積もりと実際の照射角が一致している',
+      Math.abs(flashlight.angle - LAMP_ANG) < 1e-9);
     /* 露出が「いまの品質」で書き直されているか。
        ここが抜けていたのが元のバグで、起動時の品質で計算した値が
        ずっと残り、最高品質の画が 25% 明るいまま描かれていた。
