@@ -4814,7 +4814,19 @@ function buildHunter(){
   });
   if(skin.normalMap) skin.normalScale = new THREE.Vector2(0.85, 0.85);
   var stain = new THREE.MeshStandardMaterial({ color:0x5a3f38, roughness:1 });
-  var dark  = new THREE.MeshStandardMaterial({ color:0x0e0b0a, roughness:0.82, vertexColors:true });
+  /* 髪。真っ黒のつもりの 0x0e0b0a が、寄って撮ると白い棒になっていた。
+     理由は 2 つある。
+
+     1. three r128 は色管理をしないので、material.color は sRGB ではなく
+        線形の値としてそのまま使われる。0x0e0b0a は「線形 5.5% グレー」
+        であって、sRGB の 5.5%（＝線形 0.4%）ではない。13 倍明るい。
+        暗いつもりで置いた色が軒並み暗くなかったのはこれが原因。
+     2. MeshStandardMaterial は金属でなくても 4% の鏡面反射が必ず乗る。
+        暗い地色ほどその下駄が支配的になる。
+
+     髪は繊維の束で鏡のような面を持たないので鏡面反射のない Lambert にし、
+     地色も線形で暗い値まで落とす。布（病衣）も同じ理由で変える。 */
+  var dark  = new THREE.MeshLambertMaterial({ color:0x050404, vertexColors:true });
   var maw   = new THREE.MeshBasicMaterial({ color:0x120202 });
   var eyeL_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
@@ -4951,15 +4963,53 @@ function buildHunter(){
   var headPivot = new THREE.Group();
   headPivot.position.y = 0.26; neck.add(headPivot);
 
-  /* 頭蓋は球にする。人の頭で角が立っているところは無い。
-     縦にわずかに伸ばし、後頭部を少し出すと骸骨らしい輪郭になる。
-     眉の張り出しだけは箱で残す（丸めると顔が消える）。 */
-  headPivot.add(new THREE.Mesh(mergeBoxes([
-    { type:'sph', r:0.125, sy:1.06, sz:1.04, y:0.09 },
-    { type:'sph', r:0.095, sy:0.86, y:0.075, z:-0.055 },
-    { type:'sph', r:0.072, sy:0.70, sz:0.85, y:0.015, z:0.075 },
-    { w:0.25,  h:0.048, d:0.045, y:0.135, z:0.100 }
-  ]), skin));
+  /* 頭蓋。
+     球 3 つに眉の箱を 1 つ足していた。丸い塊に板が刺さった見た目で、
+     顔と呼べるものが無かった（暗がりでは「白い卵」）。
+     体と同じ掃引で作り、顎から頭頂まで一続きの面にする。
+     顔を顔にしているのは、眉弓の張り出し・こめかみの窪み・頬骨・
+     鼻梁・落ちくぼんだ眼窩・削げた頬——どれも面の起伏なので、
+     半径の関数として書ける。谷は自動的に陰る。 */
+  var HD = [
+    // y,     rx,    rz     … 顎の下から頭頂へ
+    [-0.090, 0.052, 0.060], [-0.060, 0.072, 0.082], [-0.030, 0.087, 0.096],
+    [ 0.000, 0.098, 0.106], [ 0.030, 0.107, 0.113], [ 0.060, 0.114, 0.119],
+    [ 0.090, 0.119, 0.123], [ 0.120, 0.122, 0.125], [ 0.150, 0.122, 0.124],
+    [ 0.178, 0.117, 0.118], [ 0.202, 0.106, 0.106], [ 0.221, 0.086, 0.086],
+    [ 0.234, 0.058, 0.058]
+  ];
+  var headRows = HD.map(function(r){
+    // 後頭部を少し後ろへ出す（骸骨らしい横顔になる）
+    return { y:r[0], rx:r[1], rz:r[2], cz:-0.012 - 0.020*Math.max(0, (r[0]-0.02))*3 };
+  });
+  var HSEG = QC.detail ? 24 : 13;
+  var headGeo = loftGeo(headRows, HSEG, function(th, v){
+    var m = 1;
+    var front = Math.max(0, Math.sin(th));       // +Z が正面
+    var side  = Math.abs(Math.cos(th));
+    var fr2   = front*front;
+    // 眉弓。目の上に横一文字で張り出す
+    m += fr2 * 0.085 * Math.exp(-Math.pow((v-0.685)/0.045, 2));
+    // 眼窩。眉のすぐ下、正面のやや外寄りを落とす
+    var eye = Math.exp(-Math.pow((v-0.625)/0.050, 2));
+    var offc = Math.exp(-Math.pow((Math.abs(th - Math.PI/2) - 0.52)/0.30, 2));
+    m -= 0.075 * eye * offc;
+    // 鼻梁。正面のまん中だけ前へ出し、下ほど強くする
+    m += 0.070 * Math.exp(-Math.pow((th - Math.PI/2)/0.24, 2))
+              * Math.exp(-Math.pow((v-0.545)/0.130, 2));
+    // 頬骨。目の下の外側を張らせる
+    m += 0.048 * Math.exp(-Math.pow((v-0.520)/0.060, 2)) * offc;
+    // 削げた頬。頬骨の下を大きく落とす
+    m -= 0.070 * Math.exp(-Math.pow((v-0.400)/0.085, 2)) * offc * front;
+    // こめかみの窪み
+    m -= 0.040 * side * Math.exp(-Math.pow((v-0.700)/0.060, 2));
+    // 後頭部のふくらみ
+    m += 0.045 * Math.max(0, -Math.sin(th)) * Math.exp(-Math.pow((v-0.640)/0.170, 2));
+    return m;
+  }, { capA:0.030, capB:0.020 });
+  var headMesh = new THREE.Mesh(headGeo, skin);
+  headMesh.userData.loft = true;
+  headPivot.add(headMesh);
 
   // 落ち窪んだ眼窩 ＋ 顔を覆うもつれた髪
   var darkSpecs = [
@@ -5040,9 +5090,9 @@ function buildHunter(){
      骨と皮だけだと、暗がりでは棒に見える。腰から下がった布があると
      輪郭が出て、歩くたびに遅れて揺れるぶん「重さ」も伝わる。
      板ではなく細い短冊の集まりにして、裂けた裾に見せる。 */
-  var gownMat = new THREE.MeshStandardMaterial({
-    color:0x6e6b5c, roughness:1, side:THREE.DoubleSide,
-    emissive:0x14160f, emissiveIntensity:0.35
+  var gownMat = new THREE.MeshLambertMaterial({
+    color:0x2b2a22, side:THREE.DoubleSide,      // 線形なので見た目より暗い値を入れる
+    emissive:0x0a0b07, emissiveIntensity:0.35
   });
   var gown = [];
   var gn = QC.detail ? 11 : 7;
