@@ -1297,6 +1297,33 @@ function texFlesh(size){
   g.globalAlpha = 0.07; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
 }
+
+/* 皮膚の粗さマップ。
+   全面 roughness:1 だと、どこにもハイライトが乗らないので石膏像に見える。
+   かといって一律に下げると全身がぬめって、汗ではなくビニールになる。
+
+   肌の canvas から作るのが正しい。血の通っている（赤みの強い）所は
+   熱を持って汗ばんでいる＝つやがある、引いている所は乾いて粗い。
+   別々に乱数で撒くと色と照りの位置がずれて、いかにも二枚重ねに見える。
+   three は緑成分を粗さとして読むので、そこにだけ値を入れる。 */
+function texFleshRough(fleshCanvas){
+  var s = fleshCanvas.width;
+  var src = fleshCanvas.getContext('2d').getImageData(0,0,s,s).data;
+  var out = makeCanvas(s), og = out.getContext('2d');
+  var img = og.createImageData(s,s), d = img.data;
+  for(var i=0;i<s*s;i++){
+    var r = src[i*4], gch = src[i*4+1], b = src[i*4+2];
+    // 赤みの強さ。地色（158,163,148）を基準に、赤が緑を上回るほど大きい
+    var warm = clamp((r - gch) / 42 + 0.12, 0, 1);
+    // 青黒い痣も皮が張って光る。青が緑を上回る量を少しだけ足す
+    var bruise = clamp((b - gch) / 60, 0, 1) * 0.5;
+    var rough = 0.97 - 0.50*warm - 0.22*bruise;
+    var v = Math.round(clamp(rough, 0, 1) * 255);
+    d[i*4] = 0; d[i*4+1] = v; d[i*4+2] = 0; d[i*4+3] = 255;
+  }
+  og.putImageData(img,0,0);
+  return out;
+}
 // 区画表示板。病棟の壁に貼られた区画記号のプレート。
 // 迷路は31x31・通路率約0.67で見た目の差が乏しいため、
 // 「今どのあたりにいるか」を地図ではなく風景から読ませるための目印。
@@ -1879,6 +1906,10 @@ function qualityCfg(){
     dust:     q >= 2,          // 高精細以上：ランプの光に舞う埃
     shaft:    q >= 2,          // 高精細以上：非常口から差す光
     detail:   q >= 3,          // 追跡者の追加ディテール
+    /* 追跡者に焼き込む遮蔽の光線本数。0 で焼かない。
+       生成時に一度だけ走る計算なので実行中の負荷はゼロだが、
+       低スペック端末では起動が数十 ms 伸びるので段階的に落とす。 */
+    hao:      [0, 0, 6, 12][q],
     signs:    [2, 3, 3, 3][q]   // 1区画あたりの表示板の枚数
   };
 }
@@ -1997,7 +2028,19 @@ function buildTextures(){
 
   /* 皮膚は体に貼り付いていて壁ほど視界を占めないので、半分の解像度で足りる。
      ただし静脈が消える 128 未満には落とさない。 */
-  TEX.flesh = mk(texFlesh(Math.max(128, s >> 1)), 1, 1);
+  var flc = texFlesh(Math.max(128, s >> 1));
+  TEX.flesh = mk(flc, 1, 1);
+  /* 法線と粗さは色ではないので sRGB 変換を通してはいけない。
+     mk() は sRGB を付けるので、ここは自前で組む（通すと凹凸が反転気味に
+     浅くなり、粗さは全体に光りすぎる）。 */
+  if(QC.normalMaps){
+    var fn2 = new THREE.CanvasTexture(normalFrom(flc, 2.2));
+    fn2.wrapS = fn2.wrapT = THREE.RepeatWrapping;
+    TEX.fleshN = fn2;
+  }
+  var fr2 = new THREE.CanvasTexture(texFleshRough(flc));
+  fr2.wrapS = fr2.wrapT = THREE.RepeatWrapping;
+  TEX.fleshR = fr2;
 }
 
 /* =========================================================================
@@ -3720,14 +3763,23 @@ function buildHunter(){
   if(hunter.shadow){ scene.remove(hunter.shadow); disposeObject(hunter.shadow); hunter.shadow = null; }
   var g = new THREE.Group();
 
-  // テクスチャを貼るときは色を白にしないと二重に暗くなる。
-  // TEX.flesh が無い環境（テクスチャ生成前の呼び出し）では従来の無地に戻す。
+  /* テクスチャを貼るときは色を白にしないと二重に暗くなる。
+     TEX.flesh が無い環境（テクスチャ生成前の呼び出し）では従来の無地に戻す。
+
+     法線マップを足すと、点光源が動くたびに皮膚の凹凸が起き上がる。
+     色だけを貼っていたときは、模様が「描いてある」ようにしか見えず、
+     掴まれる距離まで寄られると平面だと分かってしまっていた。
+     粗さマップは汗の照りと乾いた肌を分ける。全面が roughness:1 だと
+     どこにもハイライトが乗らず、生き物ではなく石膏に見える。 */
   var skin = new THREE.MeshStandardMaterial({
     color:TEX.flesh ? 0xffffff : 0x9ea394, map:TEX.flesh || null,
-    roughness:1, metalness:0, emissive:0x1d2119, emissiveIntensity:0.55
+    normalMap:TEX.fleshN || null, roughnessMap:TEX.fleshR || null,
+    roughness:TEX.fleshR ? 1 : 0.94, metalness:0,
+    emissive:0x1d2119, emissiveIntensity:0.55, vertexColors:true
   });
+  if(skin.normalMap) skin.normalScale = new THREE.Vector2(0.85, 0.85);
   var stain = new THREE.MeshStandardMaterial({ color:0x5a3f38, roughness:1 });
-  var dark  = new THREE.MeshStandardMaterial({ color:0x0e0b0a, roughness:1 });
+  var dark  = new THREE.MeshStandardMaterial({ color:0x0e0b0a, roughness:0.82, vertexColors:true });
   var maw   = new THREE.MeshBasicMaterial({ color:0x120202 });
   var eyeL_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
@@ -3743,8 +3795,140 @@ function buildHunter(){
        type:'sph'     … 球（r、sy で縦につぶす）
      分割数は品質で変える。低い端末では今までどおり粗いまま。 */
   var SEG = QC.detail ? 10 : 6;
+
+  /* --- 隙間の陰りを頂点に焼き込む -------------------------------------
+     部品を重ねて体を作っているので、肋の谷・眼窩の奥・関節の付け根は
+     本来なら光が届かない。ところが実行時のライトは点光源が数個しか
+     無いので、そういう凹みが平らな面と同じ明るさで返ってきて、
+     「粘土の塊に模様を描いた物」に見えていた。
+
+     製品のキャラクタが必ず持っている遮蔽マップの代わりに、生成時に
+     一度だけ半球へ光線を飛ばして、他の部品に当たった割合を頂点色に
+     入れる。実行中の負荷はゼロ。当たり判定は部品を陰関数として持つ
+     ——三角形と交差判定するより桁で速く、部品が凸なので自分自身に
+     誤ヒットしない（法線側へ出た光線は自分の外へ出るだけ）。 */
+  function specSolid(sp){
+    var e = new THREE.Euler(sp.rx||0, sp.ry||0, sp.rz||0);
+    var m = new THREE.Matrix4().makeRotationFromEuler(e);
+    m.setPosition(sp.x||0, sp.y||0, sp.z||0);
+    /* 逆行列は要素配列のまま持つ。Vector3 を経由すると
+       内側のループで 100 万回オブジェクトを触ることになり、
+       これだけで焼き時間の半分を食っていた。
+       回転が無い部品は引き算だけで済むので、そのぶん分ける。 */
+    var s = { e:new THREE.Matrix4().copy(m).invert().elements, type:sp.type||'box',
+              rot:!!(sp.rx || sp.ry || sp.rz) };
+    if(sp.type === 'cyl'){ s.rt = sp.rt; s.rb = sp.rb; s.hh = sp.h/2;
+      s.rmax = Math.sqrt(Math.max(sp.rt, sp.rb)*Math.max(sp.rt, sp.rb) + s.hh*s.hh); }
+    else if(sp.type === 'sph'){
+      s.ax = sp.r*(sp.sx||1); s.ay = sp.r*(sp.sy||1); s.az = sp.r*(sp.sz||1);
+      s.ax2 = s.ax*s.ax; s.ay2 = s.ay*s.ay; s.az2 = s.az*s.az;
+      s.rmax = Math.max(s.ax, s.ay, s.az);
+    }else{
+      s.hx = sp.w/2; s.hy = sp.h/2; s.hz = sp.d/2;
+      s.rmax = Math.sqrt(s.hx*s.hx + s.hy*s.hy + s.hz*s.hz);
+    }
+    s.rr = s.rmax * s.rmax;
+    s.cx = sp.x||0; s.cy = sp.y||0; s.cz = sp.z||0;
+    return s;
+  }
+  function inSolid(s, wx, wy, wz){
+    // 粗い球で弾いてから正確に見る。9 割はここで帰る
+    var dx = wx-s.cx, dy = wy-s.cy, dz = wz-s.cz;
+    if(dx*dx + dy*dy + dz*dz > s.rr) return false;
+    var lx = dx, ly = dy, lz = dz;
+    if(s.rot){
+      var e = s.e;
+      lx = e[0]*wx + e[4]*wy + e[8]*wz  + e[12];
+      ly = e[1]*wx + e[5]*wy + e[9]*wz  + e[13];
+      lz = e[2]*wx + e[6]*wy + e[10]*wz + e[14];
+    }
+    if(s.type === 'sph')
+      return (lx*lx)/s.ax2 + (ly*ly)/s.ay2 + (lz*lz)/s.az2 < 1;
+    if(s.type === 'cyl'){
+      if(ly > s.hh || ly < -s.hh) return false;
+      var f = (ly + s.hh) / (s.hh*2);            // 下端 0 → 上端 1
+      var rc = s.rb + (s.rt - s.rb)*f;
+      return lx*lx + lz*lz < rc*rc;
+    }
+    return lx > -s.hx && lx < s.hx && ly > -s.hy && ly < s.hy && lz > -s.hz && lz < s.hz;
+  }
+  /* 半球の光線方向。乱数で撒くと部品ごとに模様が変わって縞に見えるので、
+     黄金角のらせん（どの本数でも均一に散る）で決め打ちにする。 */
+  var HEMI = (function(){
+    var n = QC.hao || 1, a = [];
+    for(var i=0;i<n;i++){
+      var y = (i + 0.5)/n;                        // 0..1（1 が法線方向）
+      var r = Math.sqrt(1 - y*y), th = i * 2.399963;
+      a.push([Math.cos(th)*r, y, Math.sin(th)*r]);
+    }
+    return a;
+  })();
+  var AO_REACH = 0.13;        // これより遠い部品は陰らせない（体の寸法に対する目安）
+  /* 素直に「畳んだ後の全頂点 × 全部品」で回したら最高品質で +221ms 掛かった。
+     手元では一瞬でも、実機では確実に待たされる長さ。効いたのは 3 つ。
+       ・面をばらす前に焼く。畳んだ後は同じ座標が 6 回ずつ出てくるので、
+         部品ごとのインデックス付き頂点（1/6 の数）で計算して展開する。
+       ・逆行列を Vector3 経由で掛けない（inSolid の項を参照）。
+       ・指も足指も凸で、周りに何も無い。届く範囲に部品が 1 つも無い
+         頂点は、光線を飛ばすまでもなく明るいと決まる。
+     実測 +221ms → +30.6ms（最高品質）／+13.7ms（高精細）。 */
+  function bakeSolids(specs){
+    // 部品が 1 つだけなら陰るところが無い（凸なので自分自身を隠せない）
+    if(!QC.hao || specs.length < 2) return null;
+    var solids = [];
+    for(var i=0;i<specs.length;i++) solids.push(specSolid(specs[i]));
+    return solids;
+  }
+  // bg（変換済み・インデックス付き）の各頂点に対する遮蔽率を返す
+  function bakeAOFor(bg, solids){
+    var pa = bg.attributes.position.array, na = bg.attributes.normal.array;
+    var n = bg.attributes.position.count, ao = new Float32Array(n);
+    if(!solids){ ao.fill(1); return ao; }
+    var ns = solids.length, nr = HEMI.length, cand = [];
+    var tx = new THREE.Vector3(), bx = new THREE.Vector3(), nv = new THREE.Vector3();
+    var up = new THREE.Vector3(0,1,0), up2 = new THREE.Vector3(1,0,0);
+    for(var v=0; v<n; v++){
+      var i3 = v*3, px0 = pa[i3], py0 = pa[i3+1], pz0 = pa[i3+2];
+      // 届く範囲に部品があるか。無ければ光線を飛ばさない
+      cand.length = 0;
+      for(var c2=0; c2<ns; c2++){
+        var S = solids[c2];
+        var ddx = px0-S.cx, ddy = py0-S.cy, ddz = pz0-S.cz;
+        var lim = S.rmax + AO_REACH;
+        if(ddx*ddx + ddy*ddy + ddz*ddz < lim*lim) cand.push(S);
+      }
+      if(!cand.length){ ao[v] = 1; continue; }
+      var nc = cand.length;
+
+      nv.set(na[i3], na[i3+1], na[i3+2]);
+      // 法線まわりの正規直交基底。法線が真上のときだけ別の軸を使う
+      tx.crossVectors(nv, Math.abs(nv.y) > 0.95 ? up2 : up).normalize();
+      bx.crossVectors(nv, tx);
+      var ox = px0 + nv.x*0.002, oy = py0 + nv.y*0.002, oz = pz0 + nv.z*0.002;
+      var hit = 0;
+      for(var r2=0; r2<nr; r2++){
+        var h = HEMI[r2];
+        var dx = tx.x*h[0] + nv.x*h[1] + bx.x*h[2];
+        var dy = tx.y*h[0] + nv.y*h[1] + bx.y*h[2];
+        var dz = tx.z*h[0] + nv.z*h[1] + bx.z*h[2];
+        // 近いところほど効く。3 点で足りる（凹みの幅がこの間隔より狭いことは無い）
+        for(var st=1; st<=3; st++){
+          var t2 = AO_REACH * st/3;
+          var qx = ox + dx*t2, qy = oy + dy*t2, qz = oz + dz*t2;
+          var blocked = false;
+          for(var s2=0; s2<nc; s2++){ if(inSolid(cand[s2], qx, qy, qz)){ blocked = true; break; } }
+          if(blocked){ hit += (4 - st)/3; break; }   // 手前で塞がれるほど暗い
+        }
+      }
+      // 完全に埋まっても真っ黒にはしない。周囲光が回り込む余地を残す
+      ao[v] = 1 - 0.62 * Math.min(1, hit/nr);
+    }
+    return ao;
+  }
+
   function mergeBoxes(specs){
-    var pos = [], nor = [], uvs = [];
+    var pos = [], nor = [], uvs = [], cls = [];
+    var solids = bakeSolids(specs);
     for(var i=0;i<specs.length;i++){
       var sp = specs[i];
       var bg;
@@ -3764,12 +3948,15 @@ function buildHunter(){
           na = bg.attributes.normal.array,
           ua = bg.attributes.uv.array,
           ix = bg.index ? bg.index.array : null;
+      // 遮蔽はここで焼く。畳んだ後だと同じ座標を 6 回計算することになる
+      var aoa = bakeAOFor(bg, solids);
       if(ix){
         for(var k=0;k<ix.length;k++){
           var v = ix[k];
           pos.push(pa[v*3], pa[v*3+1], pa[v*3+2]);
           nor.push(na[v*3], na[v*3+1], na[v*3+2]);
           uvs.push(ua[v*2], ua[v*2+1]);
+          cls.push(aoa[v], aoa[v], aoa[v]);
         }
       }
       bg.dispose();
@@ -3778,6 +3965,9 @@ function buildHunter(){
     out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     out.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
     out.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+    /* 頂点色は遮蔽専用。materialのvertexColorsを常に有効にしている以上、
+       この属性が無いメッシュは真っ黒になる。焼かない品質でも 1 を入れる。 */
+    out.setAttribute('color', new THREE.Float32BufferAttribute(cls, 3));
     out.computeBoundingSphere();
     return out;
   }
@@ -3790,6 +3980,25 @@ function buildHunter(){
       { type:'cyl', rt:r, rb:r*0.74, h:len, y:-len/2 },
       { type:'sph', r:r*1.06, sy:0.92 }
     ]), mat || skin);
+  }
+  /* 任意の向きへ骨を 1 本生やして、次の関節の座標を返す。
+     指と足指は「付け根から少しずつ曲がりながら細くなる鎖」なので、
+     座標を直接書くと角度を変えるたびに全部書き直しになる。
+
+     mergeBoxes の回転は XYZ 順のオイラー角なので、円柱の +Y 軸は
+     (-sinψ, cosψ·cosθ, cosψ·sinθ) へ写る。これを望む向き d と等しいと
+     置いて ψ と θ を逆算する。 */
+  function chain(out, p, dir, len, rBase, rTip){
+    var L = Math.sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]) || 1;
+    var dx = dir[0]/L, dy = dir[1]/L, dz = dir[2]/L;
+    var psi = Math.asin(clamp(-dx, -1, 1));
+    var cp = Math.cos(psi);
+    var th = (Math.abs(cp) < 1e-4) ? 0 : Math.atan2(dz/cp, dy/cp);
+    out.push({ type:'cyl', rt:rTip, rb:rBase, h:len, rx:th, rz:psi,
+               x:p[0] + dx*len/2, y:p[1] + dy*len/2, z:p[2] + dz*len/2 });
+    // 関節の玉。曲げたときに継ぎ目が開かないので、鎖に見えず 1 本の指になる
+    out.push({ type:'sph', r:rBase*1.05, x:p[0], y:p[1], z:p[2] });
+    return [p[0] + dx*len, p[1] + dy*len, p[2] + dz*len];
   }
   function boneUp(w, len, d, mat){
     var r2 = w * 0.5;
@@ -3861,13 +4070,34 @@ function buildHunter(){
   darkSpecs.push({ w:0.25, h:0.05, d:0.26, y:0.215 });
   headPivot.add(new THREE.Mesh(mergeBoxes(darkSpecs), dark));
 
-  // 瞳は左右別。片方だけ勝手に動く
-  // 瞳は球。暗がりで光る点なので、角があると回転したときに明滅して見える
-  var pupGeo = new THREE.SphereGeometry(0.0145, 6, 4);
-  var pupL = new THREE.Mesh(pupGeo, eyeL_);
-  pupL.position.set(-0.055, 0.075, 0.118); headPivot.add(pupL);
-  var pupR = new THREE.Mesh(pupGeo, eyeR_);
-  pupR.position.set(0.055, 0.075, 0.118); headPivot.add(pupR);
+  /* 目。
+     光る点を 1 つ置いただけだったので、近くで見ると「顔に貼った電球」で、
+     どこを見ているのか分からなかった。眼球（濡れて低い粗さ）・虹彩・
+     瞼の三層にすると、視線の向きが読めるようになり、瞬きも作れる。
+     pupL/pupR は入れ物の Group にして、位置を動かす既存の処理はそのまま使う。 */
+  var eyeball = new THREE.MeshStandardMaterial({
+    color:0xbfc4b4, roughness:0.18, metalness:0,
+    emissive:0x141812, emissiveIntensity:0.4
+  });
+  var ebGeo = new THREE.SphereGeometry(0.0215, QC.detail?12:8, QC.detail?8:6);
+  var irisGeo = new THREE.SphereGeometry(0.0125, 8, 6);
+  function eye(sx, irisMat){
+    var grp = new THREE.Group();
+    grp.position.set(sx*0.055, 0.075, 0.118);
+    var eb = new THREE.Mesh(ebGeo, eyeball);
+    eb.position.z = -0.013; grp.add(eb);            // 眼窩に少し沈める
+    var ir = new THREE.Mesh(irisGeo, irisMat);
+    ir.scale.set(1, 1, 0.55); grp.add(ir);          // 虹彩は前へ張り出す
+    headPivot.add(grp);
+    return grp;
+  }
+  var pupL = eye(-1, eyeL_), pupR = eye(1, eyeR_);
+  // 上瞼。落ちくぼんだ眼窩の庇になり、上からの光で目元に影が入る
+  var lidL = new THREE.Mesh(mergeBoxes([
+    { type:'sph', r:0.030, sy:0.42, sz:0.62, y:0.019, z:-0.004, rx:-0.30 }
+  ]), skin);
+  lidL.position.set(-0.055, 0.075, 0.116); headPivot.add(lidL);
+  var lidR = lidL.clone(); lidR.position.x = 0.055; headPivot.add(lidR);
   // 暗がりで滲む光。遠くからでも二つの赤い点として見える
   var glowL = new THREE.Sprite(new THREE.SpriteMaterial({
     map:TEX.glowR, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.9
@@ -3944,12 +4174,47 @@ function buildHunter(){
     fore.position.set(0, -0.58, 0); up.add(fore);
     var hand = boneDown(0.06, 0.16, 0.05);
     hand.position.set(0, -0.66, 0); fore.add(hand);
+
+    /* 手。
+       まっすぐな棒を 4 本ぶら下げていただけだったので、掴みかかって
+       きたときに熊手にしか見えなかった。人の指は 3 節あり、力を抜くと
+       必ず内側へ丸まる。節ごとに角度を足していくと、その丸まりが出る。
+       親指だけは他の指と向かい合うので、横へ開いてから曲げる。 */
     var fg = [];
+    /* 中手骨（手の甲の中の骨）。手首から指の付け根へ広がる。
+       終点はナックルの座標そのものにする。向きと長さを別々に書くと
+       骨の先と関節の玉がずれて、指が浮いて見える。 */
+    var KNU = [];
     for(var f=0; f<4; f++){
-      var fl = 0.24-(f%2)*0.05;
-      fg.push({ type:'cyl', rt:0.011, rb:0.005, h:fl,
-                x:-0.03+f*0.02, y:-0.05-fl/2, z:0.005, rx:0.25 });
-      fg.push({ type:'sph', r:0.012, sy:0.9, x:-0.03+f*0.02, y:-0.05, z:0.005 });
+      var wr = [(-0.014 + f*0.009)*sx, -0.035, 0];
+      var kn = [(-0.036 + f*0.024)*sx, -0.086, 0.004 + Math.abs(f - 1.4)*0.004];
+      var dv = [kn[0]-wr[0], kn[1]-wr[1], kn[2]-wr[2]];
+      chain(fg, wr, dv, Math.sqrt(dv[0]*dv[0] + dv[1]*dv[1] + dv[2]*dv[2]), 0.0125, 0.0115);
+      KNU.push(kn);
+    }
+    for(var f2=0; f2<4; f2++){
+      // 中指・薬指が長い。長さの順序は 中 > 薬 > 示 > 小
+      var scl = [0.90, 1.0, 0.96, 0.80][f2];
+      var seg = [0.070*scl, 0.050*scl, 0.036*scl];
+      var rad = [0.0118, 0.0100, 0.0080, 0.0062];
+      var a = 0.34 + f2*0.03, p = KNU[f2];
+      for(var k=0; k<3; k++){
+        p = chain(fg, p, [0, -Math.cos(a), Math.sin(a)], seg[k], rad[k], rad[k+1]);
+        a += 0.44;                                   // 節ごとに内へ丸める
+      }
+      // 爪。伸びきって尖っている
+      fg.push({ type:'cyl', rt:0.0016, rb:0.0058, h:0.020,
+                x:p[0], y:p[1]-Math.cos(a)*0.010, z:p[2]+Math.sin(a)*0.010,
+                rx:Math.PI - a });
+    }
+    // 親指。体側（内側）へ回り込ませる。外へ張ると手が熊手に戻る
+    var tp = [-0.030*sx, -0.030, 0.004];
+    var ta = 0.95;
+    for(var k2=0; k2<3; k2++){
+      tp = chain(fg, tp, [-0.34*sx, -Math.cos(ta), Math.sin(ta)],
+                 [0.056, 0.044, 0.032][k2], [0.0135, 0.0110, 0.0088][k2],
+                 [0.0110, 0.0088, 0.0070][k2]);
+      ta += 0.40;
     }
     hand.add(new THREE.Mesh(mergeBoxes(fg), skin));
     return { up:up, fore:fore, hand:hand };
@@ -3962,8 +4227,23 @@ function buildHunter(){
     th.position.set(sx*0.12, 0.02, 0); spine.add(th);
     var sn = boneDown(0.085, SHIN, 0.085);
     sn.position.set(0, -THIGH, 0); th.add(sn);
-    var ft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.26), skin);
-    ft.position.set(0, -0.54, 0.06); sn.add(ft);
+    /* 足。
+       箱を 1 つ置いていただけで、しかも頂点色を持たないので遮蔽も
+       焼けていなかった。逆関節の脚なのだから、踵は浮いて指の付け根で
+       体重を受けているはず。踵・甲・指球・4 本の指に分ける。 */
+    var fs = [
+      { type:'sph', r:0.050, sy:0.60, sz:0.92, y:0.004, z:-0.058 },   // 踵
+      { type:'cyl', rt:0.046, rb:0.042, h:0.16, rx:Math.PI/2, y:-0.006, z:0.022 }, // 甲
+      { type:'sph', r:0.054, sy:0.58, sz:0.78, y:-0.012, z:0.098 }    // 指球
+    ];
+    for(var tf=0; tf<4; tf++){
+      var tx2 = -0.037 + tf*0.025, tl2 = 0.058 - Math.abs(tf-1.1)*0.009;
+      var tp2 = chain(fs, [tx2, -0.016, 0.098], [tx2*0.5, -0.16, 1], tl2, 0.0125, 0.0098);
+      fs.push({ type:'cyl', rt:0.0018, rb:0.0062, h:0.017,
+                x:tp2[0], y:tp2[1]-0.002, z:tp2[2]+0.008, rx:Math.PI/2 + 0.2 });
+    }
+    var ft = new THREE.Mesh(mergeBoxes(fs), skin);
+    ft.position.set(0, -0.54, 0.04); sn.add(ft);
     var tip = new THREE.Object3D();
     tip.position.set(0, -SOLE, 0); sn.add(tip);
     return { thigh:th, shin:sn, foot:ft, tip:tip };
@@ -6527,6 +6807,34 @@ function runSelfTest(){
   }
   t('誘導矢印をたどると非常口に着く', leadOK);
   t('誘導矢印は初期状態で消灯', world.zones.every(function(z){ return !z.arrow.visible; }) || world.exit.open);
+
+  /* --- 追跡者のモデル ---
+     頂点色を遮蔽専用に使っている。material 側で vertexColors を立てた以上、
+     色属性を持たないメッシュがひとつでも混ざると、そこだけ真っ黒に描かれる。
+     暗い部屋なので目視では「影かな」で済んでしまい、気づけない。 */
+  (function(){
+    var noCol = 0, meshes = 0, aoMin = 1, aoMax = 0, aoN = 0, aoSum = 0, nan = 0;
+    hunter.group.traverse(function(o){
+      if(!o.isMesh) return;
+      meshes++;
+      var ca = o.geometry.attributes.color;
+      if(o.material.vertexColors && !ca){ noCol++; return; }
+      if(!ca) return;
+      for(var i=0;i<ca.count;i++){
+        var v = ca.getX(i);
+        if(!isFinite(v)) nan++;
+        if(v < aoMin) aoMin = v;
+        if(v > aoMax) aoMax = v;
+        aoSum += v; aoN++;
+      }
+    });
+    t('頂点色を使う材質に色属性が揃っている', noCol === 0);
+    t('追跡者のメッシュが揃っている', meshes >= 12);
+    t('遮蔽の値が数値', nan === 0);
+    // 焼く設定なら陰りが実際に出ていること。焼かない設定なら全て 1
+    if(QC.hao) t('遮蔽が焼けている', aoMin < 0.75 && aoMax > 0.99 && aoSum/aoN > 0.6);
+    else       t('低品質では遮蔽を焼かない', aoMin > 0.999);
+  })();
 
   var hc = worldToCell(hunter.x, hunter.z);
   t('追跡者が通路上にいる', g[idx(hc.x,hc.y)] === 0);
