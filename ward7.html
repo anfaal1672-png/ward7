@@ -3738,7 +3738,10 @@ function loftGeo(rows, R, rad, opts){
     col[o]=col[o+1]=col[o+2]=ao;
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  // 端の蓋。中心を少し外へ出してドームにする
+  /* 端の蓋。中心を少し外へ出してドームにする。
+     capA / capB は「行の y からどれだけ外へ出すか」をメートルで書く。
+     割合ではない。行は y の小さいほうから並べる前提で、capA は
+     最初の行の下へ、capB は最後の行の上へ伸びる。 */
   if(opts.capA || opts.capB){
     var base = g.attributes.position.count;
     var extraP = [], extraU = [], extraC = [];
@@ -3781,6 +3784,71 @@ function loftGeo(rows, R, rad, opts){
      type 省略  … 箱（w,h,d）
      type:'cyl' … 円柱（r=半径, h=長さ, ax:'y'|'x'|'z' で軸）
      c          … 0xRRGGBB。頂点色に焼き込む */
+/* 出来合いのジオメトリをそのまま 1 本に繋ぐ。
+   mergeMeshes は position・normal・uv しか運ばないので、頂点色を持つ
+   ものを通すと色が消えて真っ黒になる（追跡者の足で一度やった）。
+   髪の束のように「掃引で作った・頂点色を持つ・相対運動しない」部品を
+   まとめるためのもの。全て同じ座標系に置いてから渡す。 */
+function mergeGeos(list){
+  var pos = [], nor = [], uvs = [], col = [], ind = [], base = 0;
+  for(var i=0;i<list.length;i++){
+    var g = list[i];
+    var pa = g.attributes.position.array, na = g.attributes.normal.array;
+    var ua = g.attributes.uv ? g.attributes.uv.array : null;
+    var ca = g.attributes.color ? g.attributes.color.array : null;
+    var n = g.attributes.position.count, v, k;
+    for(v=0; v<n; v++){
+      pos.push(pa[v*3], pa[v*3+1], pa[v*3+2]);
+      nor.push(na[v*3], na[v*3+1], na[v*3+2]);
+      uvs.push(ua ? ua[v*2] : 0, ua ? ua[v*2+1] : 0);
+      col.push(ca ? ca[v*3] : 1, ca ? ca[v*3+1] : 1, ca ? ca[v*3+2] : 1);
+    }
+    var ix = g.index;
+    if(ix) for(k=0;k<ix.count;k++) ind.push(base + ix.getX(k));
+    else   for(k=0;k<n;k++) ind.push(base + k);
+    base += n;
+    g.dispose();
+  }
+  var out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+  out.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  out.setIndex(ind);
+  out.computeBoundingSphere();
+  return out;
+}
+
+/* 髪の束ひとつ。上端を原点に、下へ垂らす。
+   断面は扁平（厚みは幅の 3 割）。丸い断面だと太さがそのまま棒に見える
+   ——実際、直径 5.2cm のまっすぐな円柱 10 本で作っていたので、寄ると
+   木の板を並べたようにしか見えなかった。
+   fall は下へ行くほど +Z へ流れる量。頭の丸みから離して落とすのに使う。
+   ph は束ごとの位相。同じ形が並ぶと櫛の歯に見えるのでずらす。 */
+function hairRibbon(len, wide, fall, ph){
+  var N = QC.detail ? 9 : 5, rows = [];
+  /* 行は必ず y の小さいほうから並べる。loftGeo の蓋は
+     「最初の行から下へ capA、最後の行から上へ capB」と決め打ちなので、
+     根元から毛先へ（＝上から下へ）並べると蓋が二つとも束の内側を向き、
+     巻き方向まで裏返る。i=0 を毛先、i=N を根元にする。 */
+  for(var i=0;i<=N;i++){
+    var u = 1 - i/N;                      // u は根元 0・毛先 1
+    // 付け根と毛先を細く、中ほどを太く。毛先は一気に絞る
+    var w = wide * (0.70 + 0.30*Math.sin(u*Math.PI)) * (1 - 0.62*u*u*u);
+    rows.push({ y:-len*u,
+                cx: Math.sin(u*3.3 + ph*1.7)*wide*0.55,
+                cz: fall*u*u + Math.sin(u*4.1 + ph)*wide*0.5,
+                rx: w, rz: w*0.30 });
+  }
+  /* 束の中の縦の筋。毛の集まりに見せる。
+     蓋の大きさはメートルで指定する（割合ではない）。ここを 0.5 と 0.7 で
+     書いたら束の先から 70cm の棘が生え、頭の上に黒い線が何本も突き抜けた。
+     細いので正面からは気づかず、見上げて初めて分かった。 */
+  return loftGeo(rows, QC.detail ? 8 : 5, function(th, v){
+    return 1 + 0.13*Math.sin(th*3.0 + ph*5) * (0.35 + 0.65*(1-v));
+  }, { capA:0.010, capB:0.004 });
+}
+
 function mergeTinted(parts){
   var pos = [], nor = [], uvs = [], col = [];
   var m4 = new THREE.Matrix4(), eu = new THREE.Euler(), cv = new THREE.Color();
@@ -5386,7 +5454,13 @@ function buildHunter(){
   var maw   = new THREE.MeshBasicMaterial({ color:SRGB(0x120202) });
   var eyeL_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
-  var bone_ = new THREE.MeshBasicMaterial({ color:0xb0a087 });
+  /* 歯。MeshBasicMaterial は光をまったく受けないので、どんなに暗い
+     ところでも同じ明るさで出る。口の中にあるものが周りより明るいのは
+     おかしく、平らな白い板が並んでいるようにしか見えなかった。
+     光を受ける材質にし、色も象牙の実際の反射率まで落とす。 */
+  var bone_ = new THREE.MeshStandardMaterial({
+    color:SRGB(0x9c9384), roughness:0.44, metalness:0
+  });
 
   /* 手足の骨。
      円錐台に球を 1 つ載せる作りだったので、関節の玉と幹の境目に必ず
@@ -5606,25 +5680,56 @@ function buildHunter(){
   headMesh.userData.loft = true;
   headPivot.add(headMesh);
 
-  // 落ち窪んだ眼窩 ＋ 顔を覆うもつれた髪
-  var darkSpecs = [
-    { w:0.075, h:0.06, d:0.04, x:-0.055, y:0.075, z:0.113 },
-    { w:0.075, h:0.06, d:0.04, x: 0.055, y:0.075, z:0.113 }
-  ];
-  // 頭頂から生やし、正面（顔の中央）は空けて後ろと側面に流す。
-  // 以前は顔の前・顎の高さから垂れていたので髭に見えていた
-  for(var hi=0; hi<10; hi++){
-    var hl = 0.50 + (hi%3)*0.18;
-    var ang = 0.62 + hi*(TAU - 1.24)/9;        // 正面 ±0.62rad を除いた全周
-    darkSpecs.push({
-      type:'cyl', rt:0.026, rb:0.012, h:hl,
-      x:Math.sin(ang)*0.113, y:0.21-hl/2, z:Math.cos(ang)*0.113,
-      rz:-Math.sin(ang)*0.16
-    });
+  /* 落ち窪んだ眼窩の影。
+     7.5×6×4cm の直方体を 2 つ顔に貼っていた。下から見上げると、
+     顔に黒い立方体が二つ乗っているようにしか見えない（実際そう見えた）。
+     頭蓋には既に眼窩の窪みが彫ってあるので、そこへ収まる潰した回転楕円を
+     置く。眼球はこの奥に沈んだままで、追ってくるときだけ光る。 */
+  var socketGeos = [];
+  for(var ei=0; ei<2; ei++){
+    var sg = new THREE.SphereGeometry(0.040, QC.detail?14:8, QC.detail?10:6);
+    sg.scale(1.02, 0.74, 0.52);
+    sg.translate((ei ? 1 : -1)*0.055, 0.076, 0.107);
+    var sc2 = new Float32Array(sg.attributes.position.count*3); sc2.fill(1);
+    sg.setAttribute('color', new THREE.Float32BufferAttribute(sc2, 3));
+    socketGeos.push(sg);
   }
-  // 頭頂を覆う分け目
-  darkSpecs.push({ w:0.25, h:0.05, d:0.26, y:0.215 });
-  headPivot.add(new THREE.Mesh(mergeBoxes(darkSpecs), dark));
+  var socketMesh = new THREE.Mesh(mergeGeos(socketGeos), dark);
+  headPivot.add(socketMesh);
+
+  /* 髪。頭頂から生やし、正面（顔の中央）は空けて後ろと側面へ流す。
+     以前は直径 5.2cm のまっすぐな円柱 10 本で、寄って撮ると木の板が
+     並んでいるようにしか見えなかった。扁平な束を曲線で垂らす。
+     束ごとに長さ・太さ・うねりの位相を変える。 */
+  var hairGeos = [], HN = QC.detail ? 20 : 9;
+  for(var hi=0; hi<HN; hi++){
+    var ang = 0.62 + hi*(TAU - 1.24)/(HN-1);   // 正面 ±0.62rad を除いた全周
+    var hl = 0.40 + ((hi*7) % 5) * 0.105;
+    var hg = hairRibbon(hl, 0.028 + ((hi*3)%4)*0.005, 0.028, hi*0.83);
+    /* 束の平たい面を頭の接線に合わせる。回さないと、どの束も同じ向きの
+       板になって、頭の側面では厚みだけが見える。 */
+    hg.rotateY(ang);
+    // 生え際は頭皮のドームより下から始める（上へ突き抜けさせない）
+    hg.translate(Math.sin(ang)*0.104, 0.178, Math.cos(ang)*0.104);
+    hairGeos.push(hg);
+  }
+  /* 頭頂の生え際。以前は 25cm 角の板を 1 枚載せていたので、真上から
+     見ると頭に平らな蓋が乗っていた。頭に沿う浅いドームにする。
+     頂点色を使う材質なので、色属性の無いジオメトリを混ぜるとそこだけ
+     真っ黒になる。ONES() は使い回しの配列で長さが合わないため実寸で作る。 */
+  var scalp = new THREE.SphereGeometry(0.126, QC.detail?16:10, QC.detail?7:4,
+                                       0, TAU, 0, Math.PI*0.44);
+  scalp.scale(1, 0.62, 1);
+  scalp.translate(0, 0.150, 0);
+  var scalpC = new Float32Array(scalp.attributes.position.count * 3);
+  scalpC.fill(1);
+  scalp.setAttribute('color', new THREE.Float32BufferAttribute(scalpC, 3));
+  hairGeos.push(scalp);
+  var hairMesh = new THREE.Mesh(mergeGeos(hairGeos), dark);
+  /* 掃引の陰りは半径の起伏から出しているので、光線を飛ばす焼き込み
+     （QC.hao）とは別物。自己診断が両者を混同しないよう印を付ける。 */
+  hairMesh.userData.loft = true;
+  headPivot.add(hairMesh);
 
   /* 目。
      光る点を 1 つ置いただけだったので、近くで見ると「顔に貼った電球」で、
@@ -5664,7 +5769,9 @@ function buildHunter(){
   glowR.material = glowL.material;
   glowR.position.copy(pupR.position); headPivot.add(glowR);
 
-  var mouth = new THREE.Mesh(new THREE.SphereGeometry(0.072, 8, 6), maw);
+  // 口の奥。8x6 分割だと黒い多角形が顔に貼ってあるように見える
+  var mouth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.072, QC.detail?16:9, QC.detail?11:6), maw);
   mouth.position.set(0, -0.035, 0.075); headPivot.add(mouth);
 
   var jawPivot = new THREE.Group();
@@ -5716,12 +5823,20 @@ function buildHunter(){
     var pivot = new THREE.Group();
     pivot.position.set((t - (sn2-1)/2)*0.085, 0.92, -0.135);
     spine.add(pivot);
+    /* 束は 2.2cm 角の直方体だった。断面が正方形なので、揺れてもねじれても
+       同じ幅にしか見えず、木の棒が下がっているようだった。
+       頭の髪と同じ扁平な束にする。 */
     var sp2 = [];
     for(var q=0; q<3; q++){
       var L = 0.42 + ((t+q)%3)*0.17;
-      sp2.push({ w:0.022, h:L, d:0.022, x:(q-1)*0.028, y:-L/2, z:(q%2)*0.018, rz:(q-1)*0.06 });
+      var rg = hairRibbon(L, 0.026, -0.020, (t*3+q)*1.31);
+      rg.rotateY((q-1)*0.42);
+      rg.translate((q-1)*0.026, 0, (q%2)*0.016);
+      sp2.push(rg);
     }
-    pivot.add(new THREE.Mesh(mergeBoxes(sp2), dark));
+    var strandMesh = new THREE.Mesh(mergeGeos(sp2), dark);
+    strandMesh.userData.loft = true;
+    pivot.add(strandMesh);
     strands.push(pivot);
   }
 
@@ -8551,6 +8666,39 @@ function runSelfTest(){
     // 焼く設定なら陰りが実際に出ていること。焼かない設定なら全て 1
     if(QC.hao) t('遮蔽が焼けている', aoMin < 0.75 && aoMax > 0.99 && aoSum/aoN > 0.6);
     else       t('低品質では遮蔽を焼かない', aoMin > 0.999);
+  })();
+
+  /* --- 突き出した頂点（棘）の検出 ---
+     loftGeo の蓋の大きさはメートル指定なのに、割合のつもりで 0.7 を
+     渡していた。髪の束の先から 70cm の棘が伸び、頭の上へ黒い線が
+     何本も突き抜けていた。細いので正面からは気づかず、見上げて初めて
+     分かる類の壊れ方なので、目で見る前に数で捕まえたい。
+
+     外接箱で見ようとして一度失敗した。棘の先が本体の高さの範囲に
+     収まっていると箱が膨らまず、通ってしまう（実際 1.24 で通った）。
+     見るべきは辺の長さ。棘は必ず「まわりより桁違いに長い辺」を作る。
+     実測：正常な追跡者で 2.4〜2.7 倍、棘を戻すと 10.3 倍。6 で切る。 */
+  (function(){
+    var worst = 0, worstN = '';
+    hunter.group.traverse(function(o){
+      if(!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) return;
+      var pa = o.geometry.attributes.position, ix = o.geometry.index;
+      if(pa.count < 120) return;
+      var arr = pa.array, ia = ix.array || ix, m = ia.length;
+      var sum = 0, cnt = 0, mx = 0;
+      for(var q4=0; q4<m; q4+=3){
+        for(var e=0; e<3; e++){
+          var v0 = ia[q4+e]*3, v1 = ia[q4+(e+1)%3]*3;
+          var dx4 = arr[v0]-arr[v1], dy4 = arr[v0+1]-arr[v1+1], dz4 = arr[v0+2]-arr[v1+2];
+          var L4 = Math.sqrt(dx4*dx4 + dy4*dy4 + dz4*dz4);
+          sum += L4; cnt++; if(L4 > mx) mx = L4;
+        }
+      }
+      var rr = mx / Math.max(sum/cnt, 1e-6);
+      if(rr > worst){ worst = rr; worstN = mx.toFixed(2) + 'm/平均' + (sum/cnt).toFixed(3) + 'm'; }
+    });
+    t('追跡者に突き出した頂点が無い（最長辺 ' + worstN + ' = ' + worst.toFixed(1) + '倍）',
+      worst < 6);
   })();
 
   var hc = worldToCell(hunter.x, hunter.z);
