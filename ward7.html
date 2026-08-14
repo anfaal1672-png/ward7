@@ -2656,16 +2656,20 @@ function buildTextures(){
      ただし静脈が消える 128 未満には落とさない。 */
   var flc = texFlesh(Math.max(128, s >> 1));
   TEX.flesh = mk(flc, 1, 1);
+  /* 皮膚は実寸に比例した UV で貼るので、1 を超える。手続き生成の絵は
+     継ぎ目まで面倒を見ていないため、そのまま繰り返すと縦横に線が出る。
+     鏡像で折り返せば、どんな絵でも必ず繋がる。 */
+  TEX.flesh.wrapS = TEX.flesh.wrapT = THREE.MirroredRepeatWrapping;
   /* 法線と粗さは色ではないので sRGB 変換を通してはいけない。
      mk() は sRGB を付けるので、ここは自前で組む（通すと凹凸が反転気味に
      浅くなり、粗さは全体に光りすぎる）。 */
   if(QC.normalMaps){
     var fn2 = new THREE.CanvasTexture(normalFrom(flc, 2.2));
-    fn2.wrapS = fn2.wrapT = THREE.RepeatWrapping;
+    fn2.wrapS = fn2.wrapT = THREE.MirroredRepeatWrapping;
     TEX.fleshN = fn2;
   }
   var fr2 = new THREE.CanvasTexture(texFleshRough(flc));
-  fr2.wrapS = fr2.wrapT = THREE.RepeatWrapping;
+  fr2.wrapS = fr2.wrapT = THREE.MirroredRepeatWrapping;
   TEX.fleshR = fr2;
 
   /* 壁の痕跡。透明度を持つので繰り返さない（1 枚 1 か所に貼る）。 */
@@ -3897,6 +3901,22 @@ function loftGeo(rows, R, rad, opts){
   var pos = new Float32Array(n*W*3), uvs = new Float32Array(n*W*2);
   var mm  = new Float32Array(n*W);
   var i, k, idx2;
+  /* UV を実寸に比例させる。既定は部位ごとに 0..1 で、これだと
+     胴（周長 1.2m）と腿（周長 0.27m）でテクセルの密度が 4 倍違う。
+     同じ皮膚を貼っているのに部位ごとに模様の大きさが変わり、
+     寄られたときに「別の材質を継いだ物」に見える。
+     opts.uvPerM を渡すと 1m あたりその枚数で貼る。
+     周長は行ごとに変わるが、行ごとに変えると texture が斜めに歪むので
+     部品全体の平均で一定にする。テクスチャ側は鏡像で繰り返す
+     （継ぎ目のある絵でも折り返せば必ず繋がる）。 */
+  var uvU = 1, uvV = null;
+  if(opts.uvPerM){
+    var rsum = 0;
+    for(i=0;i<n;i++) rsum += (rows[i].rx + rows[i].rz) * 0.5;
+    uvU = TAU * (rsum/n) * opts.uvPerM;
+    uvV = [0];
+    for(i=1;i<n;i++) uvV.push(uvV[i-1] + Math.abs(rows[i].y - rows[i-1].y) * opts.uvPerM);
+  }
   for(i=0;i<n;i++){
     var rw = rows[i], v = n>1 ? i/(n-1) : 0;
     for(k=0;k<W;k++){
@@ -3907,8 +3927,8 @@ function loftGeo(rows, R, rad, opts){
       pos[idx2*3]   = (rw.cx||0) + Math.cos(th)*rw.rx*m;
       pos[idx2*3+1] = rw.y;
       pos[idx2*3+2] = (rw.cz||0) + Math.sin(th)*rw.rz*m;
-      uvs[idx2*2]   = k/R;
-      uvs[idx2*2+1] = v;
+      uvs[idx2*2]   = (k/R) * uvU;
+      uvs[idx2*2+1] = uvV ? uvV[i] : v;
     }
   }
   var ind = [];
@@ -3960,7 +3980,11 @@ function loftGeo(rows, R, rad, opts){
     function addCap(rowIdx, dir, dome){
       var rw2 = rows[rowIdx];
       extraP.push(rw2.cx||0, rw2.y + dir*dome, rw2.cz||0);
-      extraU.push(0.5, rowIdx ? 1 : 0);
+      /* 蓋の頂点の v も、実寸に比例させた範囲に合わせる。
+         ここだけ 0..1 のままにしていたので、部品ごとの密度を測ると
+         蓋の 1 本が範囲を 1.0 まで押し広げて、揃えたはずの密度が
+         3.5 倍ばらついて見えた（自己診断で気づいた）。 */
+      extraU.push(0.5 * uvU, rowIdx ? (uvV ? uvV[n-1] : 1) : 0);
       extraC.push(1,1,1);
       var c2 = base + (extraP.length/3 - 1);
       for(var kk2=0; kk2<R; kk2++){
@@ -5684,6 +5708,10 @@ function mergeBoxes(specs){
   return out;
 }
 
+/* 追跡者の皮膚のテクセル密度（1m あたりの枚数）。
+   部位ごとに 0..1 で貼っていたので、周長 1.2m の胴と 0.27m の腿で
+   4 倍違っていた。1.5 に揃える。 */
+var SKIN_UV = 1.5;
 function buildHunter(){
   hunterSegs();          // 品質に応じた分割数と光線本数を用意する
   if(hunter.group){ scene.remove(hunter.group); disposeObject(hunter.group); hunter.group = null; }
@@ -5766,7 +5794,7 @@ function buildHunter(){
   function boneDown(w, len, d, mat){
     var r = w * 0.5;
     var m = new THREE.Mesh(loftGeo(boneRows(r, len, QC.detail ? 15 : 9), BSEG, null,
-                                   { capA:r*0.42, capB:r*0.10 }), mat || skin);
+                                   { capA:r*0.42, capB:r*0.10, uvPerM:SKIN_UV }), mat || skin);
     m.userData.loft = true;
     return m;
   }
@@ -5793,7 +5821,7 @@ function buildHunter(){
     var r2 = w * 0.5;
     // 上へ伸びる骨は、下向きの骨を上下ひっくり返して使う
     var g2 = loftGeo(boneRows(r2, len, QC.detail ? 15 : 9), BSEG, null,
-                     { capA:r2*0.42, capB:r2*0.10 });
+                     { capA:r2*0.42, capB:r2*0.10, uvPerM:SKIN_UV });
     g2.scale(1, -1, 1);
     g2.computeVertexNormals();
     var m2 = new THREE.Mesh(g2, mat || skin);
@@ -5850,7 +5878,7 @@ function buildHunter(){
     m += side * 0.050 * Math.exp(-Math.pow((v-0.06)/0.055, 2));
     return m;
   }
-  var torsoGeo = loftGeo(torsoRows, TSEG, torsoRad, { capA:0.06, capB:0.03 });
+  var torsoGeo = loftGeo(torsoRows, TSEG, torsoRad, { capA:0.06, capB:0.03, uvPerM:SKIN_UV });
   var torsoMesh = new THREE.Mesh(torsoGeo, skin);
   /* 掃引の陰りは半径の起伏から直接出しているので、光線を飛ばす焼き込み
      （QC.hao）とは別物。品質に関係なく掛かる。自己診断が両者を混同
@@ -5949,7 +5977,7 @@ function buildHunter(){
     // 後頭部のふくらみ
     m += 0.045 * Math.max(0, -Math.sin(th)) * Math.exp(-Math.pow((v-0.640)/0.170, 2));
     return m;
-  }, { capA:0.030, capB:0.020 });
+  }, { capA:0.030, capB:0.020, uvPerM:SKIN_UV });
   var headMesh = new THREE.Mesh(headGeo, skin);
   headMesh.userData.loft = true;
   headPivot.add(headMesh);
@@ -9031,6 +9059,39 @@ function runSelfTest(){
       });
       t('体に汚れの階調が焼けている（最小 ' + (seen ? worstR.toFixed(2) : '-') + '）',
         seen > 0 && worstR < 0.85);
+    })();
+
+    /* 皮膚のテクセル密度が部位で揃っているか。
+       掃引は部位ごとに UV 0..1 で貼るのが既定で、そのままだと周長 1.2m の
+       胴と 0.27m の腿で 4 倍違う。同じ皮膚のはずが、寄られたときに
+       部位ごとに模様の大きさが変わって「別の材質を継いだ物」に見える。
+       高さ方向の密度（UV の縦幅 ÷ 実寸の高さ）を部位間で比べる。 */
+    (function(){
+      var lo4 = 1e9, hi4 = 0, cnt4 = 0;
+      hunter.group.traverse(function(o){
+        if(!o.isMesh || !o.userData || !o.userData.loft) return;
+        if(o.material !== hunter.parts.skin) return;   // skin は buildHunter の中の名前
+        var ua = o.geometry.attributes.uv, pa4 = o.geometry.attributes.position;
+        if(!ua || !pa4) return;
+        var vmin = 1e9, vmax = -1e9, ymin = 1e9, ymax = -1e9;
+        for(var i4=0; i4<ua.count; i4++){
+          var vv4 = ua.array[i4*2+1];
+          if(vv4 < vmin) vmin = vv4;
+          if(vv4 > vmax) vmax = vv4;
+          var yy4 = pa4.array[i4*3+1];
+          if(yy4 < ymin) ymin = yy4;
+          if(yy4 > ymax) ymax = yy4;
+        }
+        var hgt = ymax - ymin;
+        if(hgt < 0.05) return;                 // 薄い部品は比が暴れる
+        var den = (vmax - vmin) / hgt;
+        if(den < lo4) lo4 = den;
+        if(den > hi4) hi4 = den;
+        cnt4++;
+      });
+      var sp4 = cnt4 ? hi4/Math.max(lo4,1e-6) : 1;
+      t('皮膚のテクセル密度が部位で揃っている（' + sp4.toFixed(2) + '倍・' + cnt4 + '部位）',
+        cnt4 >= 4 && sp4 < 1.6);
     })();
     t('頂点色を使う材質に色属性が揃っている', noCol === 0);
     t('追跡者のメッシュが揃っている', meshes >= 12);
