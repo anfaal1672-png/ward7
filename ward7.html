@@ -1164,14 +1164,25 @@ function valueNoise(ctx2, s, cell, alpha){
 }
 function texWall(size){
   var c = makeCanvas(size), g = c.getContext('2d');
-  g.fillStyle = '#4a5150'; g.fillRect(0,0,size,size);
-  // タイル目地
-  var tile = size/4;
-  for(var y=0;y<4;y++) for(var x=0;x<4;x++){
-    var sh = 0.86 + rnd()*0.28;
-    var r = Math.floor(74*sh), gg = Math.floor(81*sh), b = Math.floor(79*sh);
+  g.fillStyle = '#3a4140'; g.fillRect(0,0,size,size);
+  /* タイルの目地。
+     4×4 で割っていたので、壁 1 面（4.2m×3.6m）に対して 1 マスが約 1m。
+     そこへ ±14% の明暗を振っていたため、壁が「大きな斑の迷彩」に見えて
+     いた。病棟の壁タイルは 15〜30cm なので 12×12（約 35cm）にする。
+     ばらつきも ±6% まで落とし、代わりに数枚だけ大きく汚れた札を混ぜる
+     ——全部が均一に汚いより、たまに極端に汚いほうが古く見える。 */
+  var N = 12, tile = size/N, gap = Math.max(1, size/512*2);
+  for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+    var sh = 0.94 + rnd()*0.12;
+    // 20枚に1枚くらい、目立って汚れた／欠けたタイル
+    if(rnd() < 0.05) sh *= 0.66 + rnd()*0.16;
+    var r = Math.floor(88*sh), gg = Math.floor(95*sh), b = Math.floor(92*sh);
     g.fillStyle = 'rgb('+r+','+gg+','+b+')';
-    g.fillRect(x*tile+1.5, y*tile+1.5, tile-3, tile-3);
+    g.fillRect(x*tile+gap, y*tile+gap, tile-gap*2, tile-gap*2);
+    // 目地側の面取り。上と左を少し明るくすると 1 枚 1 枚が浮き上がる
+    g.fillStyle = 'rgba(196,200,192,0.10)';
+    g.fillRect(x*tile+gap, y*tile+gap, tile-gap*2, Math.max(1, gap*0.8));
+    g.fillRect(x*tile+gap, y*tile+gap, Math.max(1, gap*0.8), tile-gap*2);
   }
   /* 汚れの数は解像度に比例させる。
      これまで枚数が固定だったので、1024 で焼くと同じ 180 個の染みが
@@ -5661,18 +5672,23 @@ function startGame(){
   Audio2.resume();
 
   var d = DIFF[settings.diff];
-  /* 検証で「同じ間取りを両方の版で走らせる」ために種を固定できるようにする。
-     間取りの当たり外れが変更の効果より大きく、毎回別の間取りだと n=16 では
-     被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
-  rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : ((Date.now() ^ (Math.random()*1e9)))) & 0x7fffffff);
 
   QC = qualityCfg();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
   scene.fog.density = QC.fogD;
   $('grain').style.display = (QC.cssFx && !QC.post) ? 'block' : 'none';
-  // 品質が変わっていればテクスチャと映り込みを作り直す
+  /* テクスチャの作り直しは種を決める前に済ませる。
+     手続き生成のテクスチャは rnd() を大量に引くので、種を決めた後に
+     ここを通すと、同じ種でも間取りが変わってしまう。実際、壁の
+     タイル分割を 4×4 から 12×12 にしたら（引く回数が増えたら）
+     種 7 の間取りが別物になって気づいた。 */
   ensureTextures();
+
+  /* 検証で「同じ間取りを両方の版で走らせる」ために種を固定できるようにする。
+     間取りの当たり外れが変更の効果より大きく、毎回別の間取りだと n=16 では
+     被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
+  rnd = mulberry32((forcedSeed !== null ? forcedSeed
+                   : ((Date.now() ^ (Math.random()*1e9)))) & 0x7fffffff);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
