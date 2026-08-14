@@ -3690,15 +3690,36 @@ function buildWorld(){
   if(preCell){
     var lockX = ew.x + preCell.dir[0]*(CELL/2);
     var lockZ = ew.z + preCell.dir[1]*(CELL/2);
+    /* 施錠扉。通路幅いっぱいの無地の板 1 枚だった。しかも metalness 0.55 で
+       映り込みの下駄が拡散反射を上回り、近づくと画面が真っ白な壁で埋まる
+       （小物と同じ罠）。鍵を使いに来る＝必ず正面から見る扉なので、
+       両開きの合わせ目・下の蹴込み板・網入りガラスの小窓・蝶番まで入れる。
+       この扉は焼き固めないので頂点色を使ってよい。 */
     var lockMat = new THREE.MeshStandardMaterial({
-      color:0x6a6f68, roughness:0.55, metalness:0.55, emissive:0x2a1408, emissiveIntensity:0.35
+      color:0xffffff, vertexColors:true,
+      roughness:0.62, metalness:0.14, emissive:0x2a1408, emissiveIntensity:0.30
     });
+    var LW = CELL*0.94, LH = WALL_H*0.92;
+    var leafSpecs = [];
+    for(var lf=0; lf<2; lf++){
+      var cxo = (lf ? 1 : -1) * LW*0.25;
+      leafSpecs.push({ w:LW*0.485, h:LH, d:0.16, x:cxo, y:LH/2, c:0x4b5049 });        // 扉本体
+      leafSpecs.push({ w:LW*0.44, h:0.30, d:0.175, x:cxo, y:0.28, c:0x3a3f39 });      // 蹴込み板
+      leafSpecs.push({ w:LW*0.22, h:0.52, d:0.19, x:cxo, y:LH*0.66, c:0x161c1a });    // 小窓
+      leafSpecs.push({ w:LW*0.235, h:0.545, d:0.17, x:cxo, y:LH*0.66, c:0x565b53 });  // 窓枠
+      for(var hgz=0; hgz<3; hgz++)
+        leafSpecs.push({ w:0.07, h:0.20, d:0.20,
+                         x:cxo + (lf?1:-1)*LW*0.225, y:0.45 + hgz*LH*0.30, c:0x2e332e });
+    }
+    leafSpecs.push({ w:0.05, h:LH, d:0.185, y:LH/2, c:0x1b201d });                    // 中央の合わせ目
+    leafSpecs.push({ w:LW, h:0.10, d:0.19, y:LH, c:0x3a3f39 });                       // 上枠
+    var leafGeo = mergeTinted(leafSpecs);
     var lockGrp = new THREE.Group();
     for(var ldi=0; ldi<lockDirs.length; ldi++){
       var ld = lockDirs[ldi];
       var leaf = new THREE.Group();
-      var lg = new THREE.Mesh(new THREE.BoxGeometry(CELL*0.94, WALL_H*0.92, 0.16), lockMat);
-      lg.position.y = WALL_H*0.46; leaf.add(lg);
+      var lg = new THREE.Mesh(leafGeo, lockMat);
+      leaf.add(lg);
       // 取っ手は手前の面だけに付ける（開けに来る側）
       if(ldi === 0){
         var handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.26),
