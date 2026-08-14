@@ -3260,6 +3260,115 @@ function buildWorld(){
   world.wallFaces = faces;
   world.group.add(walls);
 
+  /* --- 建物の造作 ------------------------------------------------------
+     壁・床・天井が平らな面のまま突き合わさっているので、廊下が
+     「箱の内側」にしか見えなかった。実際の病棟には必ず、
+     壁の足元に幅木が回っていて、天井には配管とケーブルラックが走る。
+     この 2 つを入れるだけで、同じ間取りが「建物」として読めるようになる。
+
+     どちらも壁と同じく 1 つのジオメトリに畳むので、ドローコールは
+     2 回増えるだけ。当たり判定には一切関与しない（歩ける場所は変えない）。 */
+  var trimPos = [], trimNor = [], trimUv = [], trimIdx = [];
+  function quad(px, py, pz, ax, ay, az, bx, by, bz, nx, ny, nz, uu, vv){
+    var base = trimPos.length/3;
+    var pts = [[0,0],[1,0],[1,1],[0,1]];
+    for(var q=0; q<4; q++){
+      var s2 = pts[q][0], t2 = pts[q][1];
+      trimPos.push(px + ax*s2 + bx*t2, py + ay*s2 + by*t2, pz + az*s2 + bz*t2);
+      trimNor.push(nx, ny, nz);
+      trimUv.push(s2*uu, t2*vv);
+    }
+    trimIdx.push(base, base+1, base+2, base, base+2, base+3);
+  }
+  var TRIM_H = 0.24, TRIM_D = 0.055;      // 幅木の高さと壁からの出
+  for(y=0;y<GH;y++) for(x=0;x<GW;x++){
+    if(g[idx(x,y)] !== 1) continue;
+    var wc3 = cellToWorld(x,y), hf3 = CELL/2;
+    for(var d3=0; d3<4; d3++){
+      var nx3 = x + DIRV[d3][0], ny3 = y + DIRV[d3][1];
+      if(solidAt(nx3, ny3)) continue;
+      var dx3 = DIRV[d3][0], dz3 = DIRV[d3][1];
+      var ux3 = DIRV[d3][1], uz3 = -DIRV[d3][0];
+      // 幅木の前面（壁から TRIM_D だけ手前）と、上端の水平な面
+      var ox3 = wc3.x + dx3*(hf3 + TRIM_D) - ux3*hf3;
+      var oz3 = wc3.z + dz3*(hf3 + TRIM_D) - uz3*hf3;
+      quad(ox3, 0, oz3, ux3*CELL, 0, uz3*CELL, 0, TRIM_H, 0, dx3, 0, dz3, 2.2, 0.34);
+      quad(ox3, TRIM_H, oz3, ux3*CELL, 0, uz3*CELL, -dx3*TRIM_D, 0, -dz3*TRIM_D, 0, 1, 0, 2.2, 0.12);
+    }
+  }
+  var trimGeo = new THREE.BufferGeometry();
+  trimGeo.setAttribute('position', new THREE.Float32BufferAttribute(trimPos, 3));
+  trimGeo.setAttribute('normal',   new THREE.Float32BufferAttribute(trimNor, 3));
+  trimGeo.setAttribute('uv',       new THREE.Float32BufferAttribute(trimUv, 2));
+  trimGeo.setIndex(trimIdx);
+  trimGeo.computeBoundingSphere();
+  /* 壁の根元は焼いた遮蔽でいちばん暗い帯になっている。そこに壁と同じ
+     明度の幅木を置いても completely 埋もれるので、少し明るい塗装色にする
+     （病棟の幅木は塩ビの巾木で、壁より艶がある）。 */
+  var trimMat = new THREE.MeshStandardMaterial({
+    map: TEX.wall, color:0x9aa096, roughness:0.46, metalness:0.10
+  });
+  var trim = new THREE.Mesh(trimGeo, trimMat);
+  trim.frustumCulled = false;
+  world.group.add(trim);
+
+  /* 天井の配管。通路が 2 マス以上まっすぐ続くところにだけ通す。
+     曲がり角ごとに切れると、部屋の隅で管が宙に浮いて見える。 */
+  var pipeSpecs = [];
+  /* 金属らしさは映り込みで出す。明度は落とす——0x585c58 に metalness 0.72 だと
+     天井の光を拾って白い梁のように見えた。 */
+  var pipeMat = new THREE.MeshStandardMaterial({
+    color:0x33372f, roughness:0.52, metalness:0.55
+  });
+  var runSeen = {};
+  for(y=1;y<GH-1;y++) for(x=1;x<GW-1;x++){
+    if(g[idx(x,y)] !== 0) continue;
+    for(var ax2=0; ax2<2; ax2++){
+      var stepX = ax2 ? 0 : 1, stepZ = ax2 ? 1 : 0;
+      // この向きの走りの先頭か（手前が壁 or 別の走りの途中でない）
+      if(g[idx(x-stepX, y-stepZ)] === 0) continue;
+      var len = 0, cx3 = x, cy3 = y;
+      while(inBounds(cx3,cy3) && g[idx(cx3,cy3)] === 0){ len++; cx3 += stepX; cy3 += stepZ; }
+      if(len < 3) continue;                       // 短い走りには通さない
+      var key = ax2 + ':' + x + ':' + y;
+      if(runSeen[key]) continue;
+      runSeen[key] = 1;
+      var a3 = cellToWorld(x, y), b3 = cellToWorld(x + stepX*(len-1), y + stepZ*(len-1));
+      var mid = { x:(a3.x+b3.x)/2, z:(a3.z+b3.z)/2 };
+      var L3 = Math.abs(stepX ? (b3.x-a3.x) : (b3.z-a3.z)) + CELL;
+      // 太い管と細い管を少しずらして 2 本。1 本だと配管に見えない
+      /* 通路の真ん中の天井に太い管を通すと、視界のど真ん中を横切って
+         うるさい。実際の配管も壁際に寄せて走る。細い管を 2 本、
+         片側の壁沿いに並べる。 */
+      for(var pk=0; pk<2; pk++){
+        var off = -CELL*0.36 + pk*0.17, rad = pk ? 0.036 : 0.052;
+        pipeSpecs.push({
+          x: mid.x + (stepX ? 0 : off), z: mid.z + (stepX ? off : 0),
+          y: WALL_H - 0.17 - pk*0.02, len:L3, rad:rad, along:stepX ? 0 : 1
+        });
+      }
+    }
+  }
+  if(pipeSpecs.length){
+    var pipeGeo = new THREE.CylinderGeometry(1, 1, 1, QC.detail ? 10 : 6, 1, true);
+    var pipeMesh = new THREE.InstancedMesh(pipeGeo, pipeMat, pipeSpecs.length);
+    var pd = new THREE.Object3D();
+    for(var pi3=0; pi3<pipeSpecs.length; pi3++){
+      var S3 = pipeSpecs[pi3];
+      pd.position.set(S3.x, S3.y, S3.z);
+      pd.rotation.set(S3.along ? Math.PI/2 : 0, 0, S3.along ? 0 : Math.PI/2);
+      pd.scale.set(S3.rad, S3.len, S3.rad);
+      pd.updateMatrix();
+      pipeMesh.setMatrixAt(pi3, pd.matrix);
+    }
+    pipeMesh.instanceMatrix.needsUpdate = true;
+    pipeMesh.frustumCulled = false;
+    world.group.add(pipeMesh);
+    world.pipes = pipeSpecs.length;
+  }else{
+    world.pipes = 0;
+  }
+
   // --- 空きマス一覧 ---
   var open = [];
   for(y=1;y<GH-1;y++) for(x=1;x<GW-1;x++) if(g[idx(x,y)]===0) open.push({x:x,y:y});
