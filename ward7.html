@@ -2004,7 +2004,11 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 /* ポスト処理の持ち上げを弱めた（1.05/1.95）ぶん、それを露出で肩代わり
    していた最低品質も下げないと、そこだけ明るい別のゲームになる。
    実測 q0 40.1 / q3 63.6。周辺減光が無いぶん平均は高めで釣り合う。 */
-var EXP_BASE = 1.18, EXP_NOPOST = 1.25;
+/* 既定の露出。1.18 のままだと画面平均が 53.6 まで落ちて、明るい部屋で
+   スマホを見たときに何も見えない懸念があった。1.34 で 65.4——元の 104 より
+   ずっと締まっているが、暗すぎもしない。足りない人は設定の明るさ
+   （0.6〜1.9 倍）で戻せる。 */
+var EXP_BASE = 1.34, EXP_NOPOST = 1.25;
 function exposureNow(){
   return EXP_BASE * (settings.gamma || 1) * (QC.post ? 1 : EXP_NOPOST);
 }
