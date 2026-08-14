@@ -1244,11 +1244,19 @@ function texWall(size){
 function texFloor(size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#2d3231'; g.fillRect(0,0,size,size);
-  var tile = size/2;
-  for(var y=0;y<2;y++) for(var x=0;x<2;x++){
-    var sh = 0.8 + rnd()*0.4;
-    g.fillStyle = 'rgb('+Math.floor(48*sh)+','+Math.floor(52*sh)+','+Math.floor(50*sh)+')';
-    g.fillRect(x*tile+2, y*tile+2, tile-4, tile-4);
+  /* 床タイル。2×2 で割っていたので 1 枚が 2.1m 角もあり、
+     しかも ±20% 明暗を振っていたので、床が大きな市松模様に見えていた。
+     長尺シートを想定して 6×6（70cm）にする。継ぎ目は目地ではなく
+     溶接線なので、明るい線ではなく細い暗線で入れる。 */
+  var NF = 6, tileF = size/NF;
+  for(var y=0;y<NF;y++) for(var x=0;x<NF;x++){
+    var sh = 0.93 + rnd()*0.14;
+    if(rnd() < 0.06) sh *= 0.78 + rnd()*0.12;      // 何枚かは剥がれて黒ずんでいる
+    g.fillStyle = 'rgb('+Math.floor(52*sh)+','+Math.floor(56*sh)+','+Math.floor(54*sh)+')';
+    g.fillRect(x*tileF, y*tileF, tileF, tileF);
+    g.strokeStyle = 'rgba(14,16,15,0.55)';
+    g.lineWidth = Math.max(1, size/512);
+    g.strokeRect(x*tileF, y*tileF, tileF, tileF);
   }
   var KF = (size/256) * (size/256);
   for(var i=0;i<Math.round(120*KF);i++){
@@ -1492,8 +1500,21 @@ function texArrow(){
 function texCeil(size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#232827'; g.fillRect(0,0,size,size);
-  g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 2;
-  g.strokeRect(1,1,size-2,size-2);
+  /* 天井。目地が外周に 1 本あるだけで、実質のっぺりした板だった。
+     見上げたときに面積の広いところなので、ここが無地だと部屋の高さが
+     読めない。システム天井の格子（約 70cm）を入れ、何枚かは
+     抜け落ちて黒い穴になっているようにする。 */
+  var NC = 12, tileC = size/NC;
+  for(var cy=0; cy<NC; cy++) for(var cx=0; cx<NC; cx++){
+    var missing = rnd() < 0.045;
+    var sh2 = missing ? 0.18 : (0.92 + rnd()*0.16);
+    g.fillStyle = 'rgb('+Math.floor(44*sh2)+','+Math.floor(48*sh2)+','+Math.floor(46*sh2)+')';
+    g.fillRect(cx*tileC, cy*tileC, tileC, tileC);
+    // T バーの骨組み。細い明るい線が格子になる
+    g.strokeStyle = missing ? 'rgba(8,9,8,0.9)' : 'rgba(126,130,122,0.34)';
+    g.lineWidth = Math.max(1, size/340);
+    g.strokeRect(cx*tileC + 0.5, cy*tileC + 0.5, tileC - 1, tileC - 1);
+  }
   for(var i=0;i<60;i++){
     var px=rnd()*size, py=rnd()*size, rr=rnd()*size*0.25;
     var grad=g.createRadialGradient(px,py,0,px,py,rr);
