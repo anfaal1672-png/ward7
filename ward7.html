@@ -1168,6 +1168,52 @@ function texFloor(size){
   g.globalAlpha = 0.06; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
 }
+/* 追跡者の皮膚。
+   ここだけが最後まで無地マテリアルのまま残っていて、他の面がすべて
+   テクスチャ付きになった結果、掴まれる距離まで寄られたときに
+   「のっぺりした人形」に見えて浮いていた。
+   斑（血の通っている所と引いている所）・皮下の静脈・古い痣を重ねる。 */
+function texFlesh(size){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  g.fillStyle = '#9ea394'; g.fillRect(0,0,size,size);
+  var K = (size/256) * (size/256);
+  // 斑。青白い所と鬱血した所を交互に置く
+  for(var i=0;i<Math.round(70*K);i++){
+    var px = rnd()*size, py = rnd()*size, rr = size*(0.03 + rnd()*0.10);
+    var warm = rnd() < 0.45;
+    var col = warm ? '150,120,110' : '178,184,168';
+    var gr = g.createRadialGradient(px,py,0,px,py,rr);
+    gr.addColorStop(0, 'rgba('+col+','+(0.10+rnd()*0.16).toFixed(3)+')');
+    gr.addColorStop(1, 'rgba('+col+',0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+  }
+  // 皮下の静脈と古い痣。細部なので低解像度では焼かない（潰れて汚れに見える）
+  if(size >= 256){
+    g.lineCap = 'round';
+    for(var v=0;v<Math.round(16*K);v++){
+      var vx = rnd()*size, vy = rnd()*size, a = rnd()*TAU;
+      var seg = 3 + Math.floor(rnd()*4), wdt = size*(0.004 + rnd()*0.005);
+      g.strokeStyle = 'rgba(74,86,104,'+(0.10+rnd()*0.10).toFixed(3)+')';
+      for(var s2=0;s2<seg;s2++){
+        var len = size*(0.02 + rnd()*0.05);
+        var nx = vx + Math.cos(a)*len, ny = vy + Math.sin(a)*len;
+        g.lineWidth = wdt*(1 - s2/(seg+1));
+        g.beginPath(); g.moveTo(vx,vy); g.lineTo(nx,ny); g.stroke();
+        vx = nx; vy = ny; a += (rnd()*2-1)*0.7;
+      }
+    }
+    for(var b=0;b<Math.round(9*K);b++){
+      var bx = rnd()*size, by = rnd()*size, br = size*(0.02 + rnd()*0.05);
+      var bg = g.createRadialGradient(bx,by,0,bx,by,br);
+      bg.addColorStop(0, 'rgba(86,66,86,0.22)');
+      bg.addColorStop(0.6, 'rgba(104,92,74,0.12)');
+      bg.addColorStop(1, 'rgba(104,92,74,0)');
+      g.fillStyle = bg; g.beginPath(); g.arc(bx,by,br,0,TAU); g.fill();
+    }
+  }
+  g.globalAlpha = 0.07; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
+  return c;
+}
 // 区画表示板。病棟の壁に貼られた区画記号のプレート。
 // 迷路は31x31・通路率約0.67で見た目の差が乏しいため、
 // 「今どのあたりにいるか」を地図ではなく風景から読ませるための目印。
@@ -1865,6 +1911,10 @@ function buildTextures(){
     TEX.zone.push(zt);
   }
   TEX.arrow = new THREE.CanvasTexture(texArrow());
+
+  /* 皮膚は体に貼り付いていて壁ほど視界を占めないので、半分の解像度で足りる。
+     ただし静脈が消える 128 未満には落とさない。 */
+  TEX.flesh = mk(texFlesh(Math.max(128, s >> 1)), 1, 1);
 }
 
 /* =========================================================================
@@ -3587,8 +3637,11 @@ function buildHunter(){
   if(hunter.shadow){ scene.remove(hunter.shadow); disposeObject(hunter.shadow); hunter.shadow = null; }
   var g = new THREE.Group();
 
+  // テクスチャを貼るときは色を白にしないと二重に暗くなる。
+  // TEX.flesh が無い環境（テクスチャ生成前の呼び出し）では従来の無地に戻す。
   var skin = new THREE.MeshStandardMaterial({
-    color:0x9ea394, roughness:1, metalness:0, emissive:0x1d2119, emissiveIntensity:0.55
+    color:TEX.flesh ? 0xffffff : 0x9ea394, map:TEX.flesh || null,
+    roughness:1, metalness:0, emissive:0x1d2119, emissiveIntensity:0.55
   });
   var stain = new THREE.MeshStandardMaterial({ color:0x5a3f38, roughness:1 });
   var dark  = new THREE.MeshStandardMaterial({ color:0x0e0b0a, roughness:1 });
