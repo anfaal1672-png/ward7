@@ -2919,48 +2919,142 @@ function buildWorld(){
   world.rooms.push(bigHall);
   carveAlcoves(g, 10);
 
+  /* --- 遮蔽の下地 ------------------------------------------------------
+     追跡者に焼いたのと同じ考えを、部屋のほうにも入れる。
+     ここまで壁も床も天井も一様な明るさで返っていたので、壁の根元と
+     部屋の隅がまったく沈まず、書き割りを立てたように見えていた。
+     光源は数個しか置けないのだから、光の届かなさは形から決めるしかない。
+
+     格子ゲームなので光線を飛ばす必要はない。ある点の周りにどれだけ
+     壁マスが詰まっているかを距離で重み付けして数えれば、それがそのまま
+     「どれだけ囲まれているか」になる。実測 3ms。 */
+  function solidAt(cx, cy){ return !inBounds(cx,cy) || g[idx(cx,cy)] === 1; }
+  var AO_R = CELL * 1.55;
+  function gridOcc(wx, wz, skx, sky){
+    var c = worldToCell(wx, wz), occ = 0, wsum = 0;
+    for(var oy=-2; oy<=2; oy++) for(var ox=-2; ox<=2; ox++){
+      var gx = c.x+ox, gy = c.y+oy, wc = cellToWorld(gx, gy);
+      var ddx = wc.x-wx, ddz = wc.z-wz;
+      var w2 = 1 - Math.sqrt(ddx*ddx + ddz*ddz)/AO_R;
+      if(w2 <= 0) continue;
+      w2 *= w2;                                   // 近いマスほど強く効かせる
+      wsum += w2;
+      /* 壁の面を塗るときは、その面が乗っている壁マス自身を数から外す。
+         入れたままだと、開けた廊下の壁でも自分のせいで真っ暗になり、
+         隅と見分けがつかなくなる（実測：壁の平均が 0.565 まで沈んでいた）。 */
+      if(gx === skx && gy === sky) continue;
+      if(solidAt(gx, gy)) occ += w2;
+    }
+    return wsum > 0 ? occ/wsum : 0;
+  }
+  /* 平らな面に遮蔽を焼くには頂点が要る。1 枚板（頂点 4 つ）のままでは
+     どこも同じ明るさにしかならないので、マス目に合わせて割る。 */
+  function bakePlane(geo, k){
+    var pa = geo.attributes.position, n = pa.count, col = new Float32Array(n*3);
+    for(var i=0;i<n;i++){
+      var ao = 1 - k * gridOcc(pa.getX(i), pa.getZ(i));
+      col[i*3] = col[i*3+1] = col[i*3+2] = ao;
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  }
+
   // --- 床 ---
-  var floorGeo = new THREE.PlaneGeometry(GW*CELL, GH*CELL);
+  var fseg = QC.detail ? 2 : 1;                   // 1マスあたりの分割数
+  var floorGeo = new THREE.PlaneGeometry(GW*CELL, GH*CELL, GW*fseg, GH*fseg);
+  floorGeo.rotateX(-Math.PI/2);                   // 頂点をそのまま世界座標として読めるようにする
   var floorMat = new THREE.MeshStandardMaterial({
-    map: TEX.floor, normalMap: TEX.floorN || null, roughness:0.94, metalness:0.02, color:0xffffff
+    map: TEX.floor, normalMap: TEX.floorN || null, roughness:0.94, metalness:0.02,
+    color:0xffffff, vertexColors:true
   });
   if(TEX.floorN) floorMat.normalScale = new THREE.Vector2(0.6,0.6);
+  bakePlane(floorGeo, 0.72);
   var floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI/2; floor.position.y = 0;
+  floor.position.y = 0;
   floor.receiveShadow = !!QC.shadows;
   world.group.add(floor);
 
   // --- 天井 ---
-  var ceilMat = new THREE.MeshStandardMaterial({ map: TEX.ceil, roughness:1, metalness:0 });
-  var ceil = new THREE.Mesh(new THREE.PlaneGeometry(GW*CELL, GH*CELL), ceilMat);
-  ceil.rotation.x = Math.PI/2; ceil.position.y = WALL_H;
+  var ceilMat = new THREE.MeshStandardMaterial({ map: TEX.ceil, roughness:1, metalness:0,
+                                                 vertexColors:true });
+  var ceilGeo = new THREE.PlaneGeometry(GW*CELL, GH*CELL, GW*fseg, GH*fseg);
+  ceilGeo.rotateX(Math.PI/2);
+  // 天井は元から暗い。床と同じ強さで沈めると、見上げたときに真っ黒になる
+  bakePlane(ceilGeo, 0.50);
+  var ceil = new THREE.Mesh(ceilGeo, ceilMat);
+  ceil.position.y = WALL_H;
   world.group.add(ceil);
 
-  // --- 壁（InstancedMesh 1ドローコール） ---
-  var count = 0, x, y;
-  for(y=0;y<GH;y++) for(x=0;x<GW;x++) if(g[idx(x,y)] === 1) count++;
-
-  var wallGeo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
-  var wm = new THREE.MeshStandardMaterial({
-    map: TEX.wall, normalMap: TEX.wallN || null, roughness:0.92, metalness:0.03, color:0xdfe4e0
-  });
-  if(TEX.wallN) wm.normalScale = new THREE.Vector2(0.85,0.85);
-  var walls = new THREE.InstancedMesh(wallGeo, wm, count);
-  var dummy = new THREE.Object3D();
-  var wi = 0;
+  /* --- 壁 --------------------------------------------------------------
+     以前は 1 マス 1 箱の InstancedMesh。ドローコールは 1 回で済むが、
+       ・壁どうしが接する面まで律儀に描いていた（絶対に見えない）
+       ・形が全マス共通なので、頂点ごとの陰りを持てない
+     という二重の無駄があった。露出している面だけを 1 つのジオメトリに
+     畳めば、ドローコールは 1 回のまま三角形が減り、頂点色も持てる。 */
+  var wpos = [], wnor = [], wuv = [], wcol = [], widx = [];
+  var WROW = QC.detail ? 5 : 3, WCOL = 3;         // 面の分割（縦・横）
+  var DIRV = [[1,0],[-1,0],[0,1],[0,-1]];
+  var x, y, faces = 0;
   for(y=0;y<GH;y++) for(x=0;x<GW;x++){
     if(g[idx(x,y)] !== 1) continue;
-    var w = cellToWorld(x,y);
-    dummy.position.set(w.x, WALL_H/2, w.z);
-    dummy.rotation.set(0, ((x*7+y*13)%4)*Math.PI/2, 0);
-    dummy.updateMatrix();
-    walls.setMatrixAt(wi++, dummy.matrix);
+    var wc2 = cellToWorld(x,y), hf = CELL/2;
+    for(var di=0; di<4; di++){
+      var nx2 = x + DIRV[di][0], ny2 = y + DIRV[di][1];
+      if(solidAt(nx2, ny2)) continue;             // 隣も壁なら、この面は永久に見えない
+      faces++;
+      // 面の張る 2 軸。u は面に沿って、v は上へ
+      var ux = DIRV[di][1], uz = -DIRV[di][0];    // 法線を90°回した向き
+      var ox2 = wc2.x + DIRV[di][0]*hf, oz2 = wc2.z + DIRV[di][1]*hf;
+      // 面の両端で「入隅か」を見る。隣のマスの、さらに横が壁なら隅
+      var e0 = solidAt(nx2 - ux, ny2 - uz) ? 1 : 0;
+      var e1 = solidAt(nx2 + ux, ny2 + uz) ? 1 : 0;
+      // 見た目を単調にしないための、マスごとの UV のずらしと反転
+      var hsh = (x*7 + y*13 + di*5) & 3, flip = (hsh & 1) ? 1 : 0;
+      var base = wpos.length/3;
+      for(var r=0; r<WROW; r++) for(var c3=0; c3<WCOL; c3++){
+        var fu = c3/(WCOL-1), fv = r/(WROW-1);    // 0..1
+        var px2 = ox2 + ux*(fu-0.5)*CELL, pz2 = oz2 + uz*(fu-0.5)*CELL;
+        var py2 = fv*WALL_H;
+        wpos.push(px2, py2, pz2);
+        wnor.push(DIRV[di][0], 0, DIRV[di][1]);
+        wuv.push(flip ? 1-fu : fu, fv + hsh*0.25);
+        /* 陰り。床と天井への接地、面の両端の入隅、そして面の手前に
+           どれだけ壁が詰まっているかを足す。指数で落とすと、
+           接地の線が「塗った帯」ではなく「にじんだ影」になる。 */
+        var vy = 0.40*Math.exp(-py2/0.62) + 0.24*Math.exp(-(WALL_H-py2)/0.50);
+        var edge = (fu < 0.5 ? e0*(1-fu*2) : e1*(fu-0.5)*2) * 0.34;
+        // 面の前の空間がどれだけ塞がっているか（自分の乗っている壁は除く）
+        var nc2 = cellToWorld(nx2, ny2);
+        var amb = 0.40 * gridOcc((px2 + nc2.x)/2, (pz2 + nc2.z)/2, x, y);
+        var ao2 = clamp(1 - vy - edge - amb, 0.16, 1);
+        wcol.push(ao2, ao2, ao2);
+      }
+      for(var r2=0; r2<WROW-1; r2++) for(var c4=0; c4<WCOL-1; c4++){
+        var a2 = base + r2*WCOL + c4, b2 = a2+1, c5 = a2+WCOL, d2 = c5+1;
+        /* 面は開いている側を向く。巻き方向を間違えると背面カリングで
+           壁が全部消える——最初この並びが逆で、10976 枚すべてが裏返って
+           いた。暗いゲームなので目視では気づけない。自己診断で押さえる。 */
+        widx.push(a2, b2, c5,  b2, d2, c5);
+      }
+    }
   }
-  walls.instanceMatrix.needsUpdate = true;
+  var wallGeo = new THREE.BufferGeometry();
+  wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+  wallGeo.setAttribute('normal',   new THREE.Float32BufferAttribute(wnor, 3));
+  wallGeo.setAttribute('uv',       new THREE.Float32BufferAttribute(wuv, 2));
+  wallGeo.setAttribute('color',    new THREE.Float32BufferAttribute(wcol, 3));
+  wallGeo.setIndex(widx);
+  wallGeo.computeBoundingSphere();
+  var wm = new THREE.MeshStandardMaterial({
+    map: TEX.wall, normalMap: TEX.wallN || null, roughness:0.92, metalness:0.03,
+    color:0xdfe4e0, vertexColors:true
+  });
+  if(TEX.wallN) wm.normalScale = new THREE.Vector2(0.85,0.85);
+  var walls = new THREE.Mesh(wallGeo, wm);
   walls.frustumCulled = false;
   walls.castShadow = !!QC.shadows;
   walls.receiveShadow = !!QC.shadows;
   world.walls = walls;
+  world.wallFaces = faces;
   world.group.add(walls);
 
   // --- 空きマス一覧 ---
@@ -3533,6 +3627,7 @@ function buildWorld(){
   var propMat = new THREE.MeshStandardMaterial({ color:0x4a3f33, roughness:0.85, metalness:0.25 });
   var pn = QC.props;
   var propMesh = new THREE.InstancedMesh(propGeo, propMat, pn);
+  var dummy = new THREE.Object3D();   // 壁を結合ジオメトリにしたので、置き場をここへ移す
   var pi = 0;
   for(var p=0;p<pn;p++){
     var cp = reach[(rnd()*reach.length)|0];
@@ -6807,6 +6902,45 @@ function runSelfTest(){
   }
   t('誘導矢印をたどると非常口に着く', leadOK);
   t('誘導矢印は初期状態で消灯', world.zones.every(function(z){ return !z.arrow.visible; }) || world.exit.open);
+
+  /* --- 壁と床の形 ---
+     壁を InstancedMesh から結合ジオメトリに変えた。三角形を自前で
+     並べる以上、巻き方向は自分で保証するしかない。実際ここは最初
+     全 10976 枚が裏返っていて、背面カリングで壁が丸ごと消える状態
+     だった。真っ暗なゲームなので目で見ても分からない。 */
+  (function(){
+    var wg = world.walls.geometry, pa = wg.attributes.position,
+        na = wg.attributes.normal, ix = wg.index;
+    var A0 = new THREE.Vector3(), B0 = new THREE.Vector3(), C0 = new THREE.Vector3();
+    var E1 = new THREE.Vector3(), E2 = new THREE.Vector3(),
+        CR = new THREE.Vector3(), NV = new THREE.Vector3();
+    var flipped = 0, tri = ix.count/3;
+    for(var i=0; i<ix.count; i+=3){
+      A0.fromBufferAttribute(pa, ix.getX(i));
+      B0.fromBufferAttribute(pa, ix.getX(i+1));
+      C0.fromBufferAttribute(pa, ix.getX(i+2));
+      E1.subVectors(B0, A0); E2.subVectors(C0, A0);
+      CR.crossVectors(E1, E2).normalize();
+      NV.fromBufferAttribute(na, ix.getX(i));
+      if(CR.dot(NV) < 0.9) flipped++;
+    }
+    t('壁の面が開いている側を向いている', flipped === 0);
+    // 隣も壁なら、その面は永久に見えない。畳むときに落としているはず
+    var solidFaces = 0;
+    for(var wy=0; wy<GH; wy++) for(var wx=0; wx<GW; wx++){
+      if(g[idx(wx,wy)] !== 1) continue;
+      var DD = [[1,0],[-1,0],[0,1],[0,-1]];
+      for(var dq=0; dq<4; dq++){
+        var qx2 = wx+DD[dq][0], qy2 = wy+DD[dq][1];
+        if(inBounds(qx2,qy2) && g[idx(qx2,qy2)] === 0) solidFaces++;
+      }
+    }
+    t('見えない壁面を畳んでいる', world.wallFaces === solidFaces);
+    // 遮蔽は、開けた床が明るく壁の下が暗い、という向きで入っているか
+    var cw = wg.attributes.color, lo = 1, hi = 0;
+    for(var ci=0; ci<cw.count; ci++){ var cv = cw.getX(ci); if(cv<lo) lo=cv; if(cv>hi) hi=cv; }
+    t('壁に遮蔽が焼けている', lo < 0.5 && hi > 0.9);
+  })();
 
   /* --- 追跡者のモデル ---
      頂点色を遮蔽専用に使っている。material 側で vertexColors を立てた以上、
