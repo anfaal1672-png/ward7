@@ -1263,23 +1263,39 @@ function texFlesh(size){
      暗がりで白く光る化け物ではなく、光を当ててやっと形が分かる程度に落とす。 */
   g.fillStyle = '#5c6155'; g.fillRect(0,0,size,size);
   var K = (size/256) * (size/256);
-  // 斑。青白い所と鬱血した所を交互に置く
-  for(var i=0;i<Math.round(70*K);i++){
-    var px = rnd()*size, py = rnd()*size, rr = size*(0.03 + rnd()*0.10);
-    var warm = rnd() < 0.45;
-    var col = warm ? '150,120,110' : '178,184,168';
-    var gr = g.createRadialGradient(px,py,0,px,py,rr);
-    gr.addColorStop(0, 'rgba('+col+','+(0.10+rnd()*0.16).toFixed(3)+')');
-    gr.addColorStop(1, 'rgba('+col+',0)');
-    g.fillStyle = gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+  /* 斑。以前は不透明度 0.10〜0.26 しか無く、変化が地色の ±10% に収まって
+     いた。至近距離で撮ってみると、模様があるはずの体が完全な無地に
+     見える。画面上の差が 170 階調に対して 10 階調しかなければ当然で、
+     「テクスチャは貼ってあるのに肌に見えない」状態だった。
+     大きな斑・中くらいの斑・鬱血、と 3 段階に分けて濃さも上げる。 */
+  var blobs = [
+    // 半径の範囲, 個数, 色, 濃さの範囲
+    [0.10, 0.26, 22, '104,110,96',  0.22, 0.34],   // 大きな明暗のうねり（暗い側）
+    [0.08, 0.20, 18, '178,182,164', 0.20, 0.30],   // 血の引いた青白い所
+    [0.03, 0.11, 46, '146,104,92',  0.18, 0.34],   // 鬱血して赤黒い所
+    [0.02, 0.06, 40, '74,78,66',    0.16, 0.30]    // 落ちくぼんだ影
+  ];
+  for(var bi=0; bi<blobs.length; bi++){
+    var B = blobs[bi], cnt = Math.round(B[2]*K);
+    for(var i=0;i<cnt;i++){
+      var px = rnd()*size, py = rnd()*size;
+      var rr = size*(B[0] + rnd()*(B[1]-B[0]));
+      var gr = g.createRadialGradient(px,py,0,px,py,rr);
+      var al = (B[4] + rnd()*(B[5]-B[4])).toFixed(3);
+      gr.addColorStop(0, 'rgba('+B[3]+','+al+')');
+      gr.addColorStop(0.55, 'rgba('+B[3]+','+(al*0.45).toFixed(3)+')');
+      gr.addColorStop(1, 'rgba('+B[3]+',0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+    }
   }
   // 皮下の静脈と古い痣。細部なので低解像度では焼かない（潰れて汚れに見える）
   if(size >= 256){
     g.lineCap = 'round';
-    for(var v=0;v<Math.round(16*K);v++){
+    for(var v=0;v<Math.round(26*K);v++){
       var vx = rnd()*size, vy = rnd()*size, a = rnd()*TAU;
-      var seg = 3 + Math.floor(rnd()*4), wdt = size*(0.004 + rnd()*0.005);
-      g.strokeStyle = 'rgba(74,86,104,'+(0.10+rnd()*0.10).toFixed(3)+')';
+      var seg = 4 + Math.floor(rnd()*5), wdt = size*(0.004 + rnd()*0.006);
+      // 濃さを上げた。0.10〜0.20 では画面上でただの汚れにしか見えない
+      g.strokeStyle = 'rgba(58,70,92,'+(0.22+rnd()*0.20).toFixed(3)+')';
       for(var s2=0;s2<seg;s2++){
         var len = size*(0.02 + rnd()*0.05);
         var nx = vx + Math.cos(a)*len, ny = vy + Math.sin(a)*len;
@@ -1288,16 +1304,25 @@ function texFlesh(size){
         vx = nx; vy = ny; a += (rnd()*2-1)*0.7;
       }
     }
-    for(var b=0;b<Math.round(9*K);b++){
-      var bx = rnd()*size, by = rnd()*size, br = size*(0.02 + rnd()*0.05);
+    for(var b=0;b<Math.round(14*K);b++){
+      var bx = rnd()*size, by = rnd()*size, br = size*(0.02 + rnd()*0.06);
       var bg = g.createRadialGradient(bx,by,0,bx,by,br);
-      bg.addColorStop(0, 'rgba(86,66,86,0.22)');
-      bg.addColorStop(0.6, 'rgba(104,92,74,0.12)');
-      bg.addColorStop(1, 'rgba(104,92,74,0)');
+      bg.addColorStop(0, 'rgba(72,52,74,0.40)');
+      bg.addColorStop(0.6, 'rgba(96,80,62,0.22)');
+      bg.addColorStop(1, 'rgba(96,80,62,0)');
       g.fillStyle = bg; g.beginPath(); g.arc(bx,by,br,0,TAU); g.fill();
     }
+    // 乾いて浮いた皮。細い横線を散らすと、寄ったときに面が生きる
+    for(var fl=0; fl<Math.round(30*K); fl++){
+      var fx = rnd()*size, fy = rnd()*size, fw = size*(0.01 + rnd()*0.03);
+      g.strokeStyle = 'rgba(196,196,178,'+(0.10+rnd()*0.14).toFixed(3)+')';
+      g.lineWidth = Math.max(1, size*0.0022);
+      g.beginPath(); g.moveTo(fx,fy);
+      g.lineTo(fx + fw*(rnd()*0.6+0.7), fy + (rnd()-0.5)*size*0.006);
+      g.stroke();
+    }
   }
-  g.globalAlpha = 0.07; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
+  g.globalAlpha = 0.16; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
 }
 
