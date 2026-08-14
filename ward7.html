@@ -3434,9 +3434,17 @@ function buildWorld(){
       var stepX = ax2 ? 0 : 1, stepZ = ax2 ? 1 : 0;
       // この向きの走りの先頭か（手前が壁 or 別の走りの途中でない）
       if(g[idx(x-stepX, y-stepZ)] === 0) continue;
-      var len = 0, cx3 = x, cy3 = y;
-      while(inBounds(cx3,cy3) && g[idx(cx3,cy3)] === 0){ len++; cx3 += stepX; cy3 += stepZ; }
+      /* 走りの長さと「廊下らしさ」を同時に測る。
+         長さだけで判定していたら、開けた広間では縦にも横にも条件を
+         満たしてしまい、天井に配管の格子が組まれる絵になっていた。
+         両隣が壁のマス（＝1マス幅の廊下）が過半でなければ通さない。 */
+      var len = 0, cx3 = x, cy3 = y, narrow = 0;
+      while(inBounds(cx3,cy3) && g[idx(cx3,cy3)] === 0){
+        if(solidAt(cx3 - stepZ, cy3 - stepX) && solidAt(cx3 + stepZ, cy3 + stepX)) narrow++;
+        len++; cx3 += stepX; cy3 += stepZ;
+      }
       if(len < 3) continue;                       // 短い走りには通さない
+      if(narrow < len * 0.45) continue;            // 広間には通さない
       var key = ax2 + ':' + x + ':' + y;
       if(runSeen[key]) continue;
       runSeen[key] = 1;
