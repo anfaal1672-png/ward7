@@ -3989,6 +3989,20 @@ function mergeGeos(list){
    木の板を並べたようにしか見えなかった。
    fall は下へ行くほど +Z へ流れる量。頭の丸みから離して落とすのに使う。
    ph は束ごとの位相。同じ形が並ぶと櫛の歯に見えるのでずらす。 */
+/* 体の汚れの階調。足元ほど暗く、末端ほど青い。
+   照明ではなく頂点色に焼くので、姿勢が変わっても付いて回る。
+   自己診断が「焼いた遮蔽」と区別できるよう、係数はここだけに置く。
+   out に [r,g,b] の倍率を書き込む。 */
+var BODY_TOP = 1.95;
+function bodyDirt(y, out){
+  var u = clamp(y / BODY_TOP, 0, 1);
+  var f = 0.60 + 0.40*u;                     // 足元 0.60、頭 1.00
+  out[0] = f;
+  out[1] = f * (1 + 0.03*(1-u));             // 末端ほど血の気が引いて
+  out[2] = f * (1 + 0.12*(1-u));             // 青みが差す
+  return out;
+}
+
 function hairRibbon(len, wide, fall, ph){
   var N = QC.detail ? 9 : 5, rows = [];
   /* 行は必ず y の小さいほうから並べる。loftGeo の蓋は
@@ -6110,6 +6124,43 @@ function buildHunter(){
   }
   var legL = leg(-1), legR = leg(1);
 
+  /* --- 体の汚れの階調 ---
+     どの部位も同じ反射率で塗られていたので、暗がりで見ると
+     「石膏の人形」に見えた。実際の体は、床と壁に触れ続ける足先と
+     手先ほど汚れて沈み、心臓から遠いほど血色が引いて青みが差す。
+     頂点色に焼く（照明ではないので、姿勢が変わっても付いて回る）。
+
+     部位ごとに書くのではなく、組み上がった姿勢での「床からの高さ」で
+     決める。手は腕の先で低い位置に来るので、書き分けなくても自然に
+     手先が汚れる。 */
+  (function(){
+    g.updateMatrixWorld(true);
+    var v3 = new THREE.Vector3(), fc = [0,0,0];
+    g.traverse(function(o){
+      if(!o.isMesh || o.material !== skin) return;
+      var ca = o.geometry.attributes.color, pa = o.geometry.attributes.position;
+      if(!ca || !pa) return;
+      /* 汚れを掛ける前の値を控える。姿勢が変わったあとに割り戻そうとして
+         一度失敗した——焼いたのは静止姿勢の高さなので、動いたあとの
+         行列で割ると別の値になる。自己診断はここに控えた範囲を見る。 */
+      var lo3 = 1, hi3 = 0, sum3 = 0;
+      for(var q5=0; q5<ca.count; q5++){
+        var v5 = ca.getX(q5);
+        if(v5 < lo3) lo3 = v5;
+        if(v5 > hi3) hi3 = v5;
+        sum3 += v5;
+      }
+      o.userData.ao = { min:lo3, max:hi3, sum:sum3, n:ca.count };
+      var ar = ca.array, pr = pa.array;
+      for(var i=0;i<pa.count;i++){
+        v3.set(pr[i*3], pr[i*3+1], pr[i*3+2]).applyMatrix4(o.matrixWorld);
+        bodyDirt(v3.y, fc);
+        ar[i*3] *= fc[0]; ar[i*3+1] *= fc[1]; ar[i*3+2] *= fc[2];
+      }
+      ca.needsUpdate = true;
+    });
+  })();
+
   if(QC.shadows){ g.traverse(function(o){ if(o.isMesh) o.castShadow = true; }); }
 
   var sh = new THREE.Mesh(
@@ -7590,7 +7641,11 @@ function updateExposure(dt, lampOn){
   var d = Math.max(0.55, beamHitDist());
   // 環境光ぶんの下駄。電源が入っている区画は天井灯があるので底上げする
   var ret = 0.10 * (world.power ? 1.7 : 1) + (LAMP_I*lampOn) / Math.pow(d, 1.65);
-  var k = clamp(Math.pow(EXP_REF/ret, 0.32), EXP_LO, EXP_HI);
+  /* 指数。0.32 では近づいたときの絞りが足りず、追跡者に 2m まで
+     寄られると体が白く飛んだ（実測 平均輝度 120.7・背景の 1.23 倍）。
+     0.44 にすると同じ場面で倍率が 0.78 → 0.71 になる。遠い側は
+     どのみち上限で頭打ちなので、ここを上げても暗い廊下は変わらない。 */
+  var k = clamp(Math.pow(EXP_REF/ret, 0.44), EXP_LO, EXP_HI);
   /* 順応の速さは方向で違う。まぶしくなったときの縮瞳は 0.2 秒ほどで
      終わるが、暗さに慣れるのは何秒もかかる。同じ速さにすると、
      壁からぱっと離れた瞬間に画面全体が持ち上がって不自然に見える。 */
@@ -8841,6 +8896,17 @@ function runSelfTest(){
       if(!ca) return;
       // 掃引の面（胴）は光線を飛ばさない別系統の陰りなので、この判定から外す
       if(o.userData && o.userData.loft) return;
+      /* 体の汚れの階調も同じ頂点色に焼いてある。生の値を見ると
+         「低品質では遮蔽を焼かない」が必ず落ちる。汚れを掛ける前に
+         控えた範囲があるならそれを使う。 */
+      var rec = o.userData && o.userData.ao;
+      if(rec){
+        if(!isFinite(rec.min) || !isFinite(rec.max)) nan++;
+        if(rec.min < aoMin) aoMin = rec.min;
+        if(rec.max > aoMax) aoMax = rec.max;
+        aoSum += rec.sum; aoN += rec.n;
+        return;
+      }
       for(var i=0;i<ca.count;i++){
         var v = ca.getX(i);
         if(!isFinite(v)) nan++;
@@ -8849,6 +8915,22 @@ function runSelfTest(){
         aoSum += v; aoN++;
       }
     });
+    /* 汚れの階調が実際に掛かっているか。掛ける前の平均を控えてあるので、
+       いまの平均と比べれば掛かったかどうかが分かる。掛け忘れると
+       体が一様な明るさに戻り、暗がりで石膏の人形に見える。 */
+    (function(){
+      var worstR = 9, seen = 0;
+      hunter.group.traverse(function(o){
+        if(!o.isMesh || !o.userData || !o.userData.ao) return;
+        var ca2 = o.geometry.attributes.color, sm = 0;
+        for(var i2=0;i2<ca2.count;i2++) sm += ca2.getX(i2);
+        var r2 = (sm/ca2.count) / Math.max(o.userData.ao.sum/o.userData.ao.n, 1e-6);
+        if(r2 < worstR) worstR = r2;
+        seen++;
+      });
+      t('体に汚れの階調が焼けている（最小 ' + (seen ? worstR.toFixed(2) : '-') + '）',
+        seen > 0 && worstR < 0.85);
+    })();
     t('頂点色を使う材質に色属性が揃っている', noCol === 0);
     t('追跡者のメッシュが揃っている', meshes >= 12);
     t('遮蔽の値が数値', nan === 0);
