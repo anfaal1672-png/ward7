@@ -4769,16 +4769,19 @@ function buildHunter(){
   }
 
   // --- 肩から垂れる、長すぎる髪の束。動きが本体から遅れる ---
+  /* 束の付け根が背骨から左右 ±0.40m も離れていて、肩幅（0.235m）の外側の
+     何も無い空中から生えていた。実際に撮ると蜘蛛の脚が生えたように見える。
+     肩に載る幅まで詰める。 */
   var strands = [];
   var sn2 = QC.detail ? 5 : 2;
   for(var t=0; t<sn2; t++){
     var pivot = new THREE.Group();
-    pivot.position.set((t - (sn2-1)/2)*0.20, 0.92, -0.13);
+    pivot.position.set((t - (sn2-1)/2)*0.085, 0.92, -0.135);
     spine.add(pivot);
     var sp2 = [];
     for(var q=0; q<3; q++){
-      var L = 0.55 + ((t+q)%3)*0.22;
-      sp2.push({ w:0.026, h:L, d:0.026, x:(q-1)*0.045, y:-L/2, z:(q%2)*0.02, rz:(q-1)*0.09 });
+      var L = 0.42 + ((t+q)%3)*0.17;
+      sp2.push({ w:0.022, h:L, d:0.022, x:(q-1)*0.028, y:-L/2, z:(q%2)*0.018, rz:(q-1)*0.06 });
     }
     pivot.add(new THREE.Mesh(mergeBoxes(sp2), dark));
     strands.push(pivot);
