@@ -3900,11 +3900,27 @@ function buildWorld(){
     top.position.y = 0.74; dgrp.add(top);
     var apron = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.18, 0.55), deskTop);
     apron.position.y = 0.62; dgrp.add(apron);
-    for(var dl=0; dl<4; dl++){
+    /* 引き出しの箱。天板と脚だけだと「板を4本の棒で支えた物」にしか
+       見えない。事務机の見た目を決めているのは、片側に寄った引き出しの
+       塊と、その面に並ぶ取っ手。左右どちらに付くかは机ごとに変える
+       （乱数は引かない。引くと同じ種でも間取りが変わる）。 */
+    var dside = (dk % 2) ? 1 : -1;
+    var ped = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.60, 0.60), deskTop);
+    ped.position.set(dside*0.38, 0.40, 0); dgrp.add(ped);
+    for(var dr=0; dr<3; dr++){
+      var face = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.165, 0.02), deskLeg);
+      face.position.set(dside*0.38, 0.19 + dr*0.195, 0.305); dgrp.add(face);
+      var pull = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.028, 0.028), deskLeg);
+      pull.position.set(dside*0.38, 0.19 + dr*0.195, 0.325); dgrp.add(pull);
+    }
+    // 反対側の脚と、背面の幕板
+    for(var dl=0; dl<2; dl++){
       var lgm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.72, 0.07), deskLeg);
-      lgm.position.set((dl%2?1:-1)*0.55, 0.36, (dl<2?1:-1)*0.27);
+      lgm.position.set(-dside*0.55, 0.36, (dl<1?1:-1)*0.27);
       dgrp.add(lgm);
     }
+    var back = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.42, 0.03), deskTop);
+    back.position.set(0, 0.40, -0.30); dgrp.add(back);
     if(rnd() < 0.6){
       var stack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.22),
         new THREE.MeshStandardMaterial({ color:0xd6d0be, roughness:0.9 }));
