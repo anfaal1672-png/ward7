@@ -4564,8 +4564,11 @@ function buildWorld(){
      台紙・はみ出た用紙の束・金具・背の帯・角の折れ、の 5 要素。 */
   var recGeo = mergeTinted([
     { w:0.42, h:0.022, d:0.58, y:0,      c:0x8d7f5e },            // 台紙（マニラ紙）
-    { w:0.39, h:0.020, d:0.55, y:0.021, x:0.008, z:-0.006, c:0xe6e2d4 }, // 中の用紙
-    { w:0.40, h:0.014, d:0.54, y:0.036, x:-0.006, z:0.010, c:0xd9d3c2 }, // ずれた1枚
+    /* 用紙の反射率。0xe6e2d4 は線形で 0.79——白い塗料（0.7）より白く、
+       新雪に近い。40 年放置された病棟のカルテがそれでは光りすぎる。
+       黄ばんだ紙の実測に近い 0.55 前後まで落とす。 */
+    { w:0.39, h:0.020, d:0.55, y:0.021, x:0.008, z:-0.006, c:0xc9c4b4 }, // 中の用紙
+    { w:0.40, h:0.014, d:0.54, y:0.036, x:-0.006, z:0.010, c:0xbdb7a6 }, // ずれた1枚
     { w:0.030,h:0.016, d:0.58, x:-0.196, y:0.016, c:0x6b6047 },   // 背の帯
     { w:0.13, h:0.012, d:0.045, y:0.046, z:-0.245, c:0x9aa0a2 },  // 綴じ金具
     { type:'cyl', ax:'z', r:0.010, h:0.10, y:0.046, z:-0.268, c:0x9aa0a2 }
@@ -4578,8 +4581,14 @@ function buildWorld(){
        材質の色より発光が勝って、どの拾得物も同じ白い塊になっていた
        （紺色の電池胴ですら白く出ていた）。遠距離の視認は加算スプライトが
        受け持っているので、ここは形が沈まない程度まで落とす。 */
+    /* 汚れを貼る。頂点色で色分けしただけの面は、寄って拾うときに
+       「無地の板を重ねた物」に見える。古い紙の斑としても効く。 */
     var mat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true,
-      emissive:0x6fbfa8, emissiveIntensity:0.13, roughness:0.72, metalness:0.04 });
+      map:TEX.grunge || null,
+      /* 発光を 0.13 も入れると、暗がりでは拡散反射より発光が勝って、
+         マニラ紙の色が消えて一様な青緑の板になる。0.09 まで落とす
+         （遠くからの視認は加算スプライトが受け持っている）。 */
+      emissive:0x6fbfa8, emissiveIntensity:0.09, roughness:0.72, metalness:0.04 });
     var m = new THREE.Mesh(recGeo, mat);
     m.position.set(w.x, 0.9, w.z);
     var spr = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -4606,6 +4615,7 @@ function buildWorld(){
     if(!cb) break;
     var wb = cellToWorld(cb.x,cb.y);
     var bmat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true,
+      map:TEX.grunge || null,
       emissive:0xe8a33d, emissiveIntensity:0.10, roughness:0.46, metalness:0.45 });
     var bm = new THREE.Mesh(batGeo, bmat);
     bm.position.set(wb.x, 0.62, wb.z);
@@ -4621,8 +4631,14 @@ function buildWorld(){
   var keyCell = take(4);
   if(keyCell){
     var kw = cellToWorld(keyCell.x, keyCell.y);
+    /* 自己発光 0.18 は、線形で (0.13, 0.11, 0.03) を全画素に足すことになる。
+       暗い廊下では金属の映り込み（真鍮の反射率 0.6 前後 × 環境の明るさ）を
+       上回ってしまい、鏡のはずの鍵が「一様なクリーム色の板」になっていた。
+       遠くからの視認は加算スプライトが受け持っているので、ここは
+       形が沈まない程度まで落とす。 */
     var keyMat = regEnvMat(new THREE.MeshStandardMaterial({
-      color:SRGB(0xd8c77a), emissive:0xb89b2e, emissiveIntensity:0.18, roughness:0.4, metalness:0.8
+      color:SRGB(0xd8c77a), emissive:0xb89b2e, emissiveIntensity:0.05,
+      roughness:0.34, metalness:0.85, envMapIntensity:2.0
     }));
     /* 鍵。3 つの部品を別メッシュで置いていたのを 1 つに畳む。
        ついでに軸を丸棒にし、歯を 2 枚にして、頭にタグを下げる
