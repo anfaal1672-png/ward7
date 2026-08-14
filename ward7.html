@@ -43,6 +43,16 @@
       radial-gradient(120% 80% at 50% 0%,rgba(111,191,168,.07),transparent 60%),
       linear-gradient(180deg,#05090a 0%,#070d0f 60%,#04080a 100%);
   }
+  /* タイトルだけは背後の 3D 廊下を透かす。
+     buildTitleScene は毎回きちんと病棟を1つ作っているのに、パネルの
+     背景が不透明で完全に隠れていた（生成した情景が一度も見えていない）。
+     文字が乗る上下は濃く、消失点のあたりだけ薄くする。 */
+  #title{
+    background:
+      radial-gradient(120% 80% at 50% 0%,rgba(111,191,168,.06),transparent 58%),
+      linear-gradient(180deg,rgba(5,9,10,.90) 0%,rgba(6,11,13,.52) 34%,
+                      rgba(5,9,11,.72) 58%,rgba(4,8,10,.94) 100%);
+  }
   .panel[hidden]{display:none}
   .panel > :first-child{margin-top:auto}
   .panel > :last-child{margin-bottom:auto}
@@ -2210,10 +2220,14 @@ var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
 var LAMP_I = 4.0;          // 懐中電灯の強さ（点灯時）
+var AMB_BASE = 0.36;       // 環境光の基準値。毎フレームここから作り直す
 function setupLights(){
   /* 環境光を強く入れると、どの面も最低限の明るさを持ってしまい、
-     せっかく焼いた遮蔽も懐中電灯の輪も見えなくなる。落とす。 */
-  ambient = new THREE.AmbientLight(0x1a2430, 0.32);
+     せっかく焼いた遮蔽も懐中電灯の輪も見えなくなる。落とす。
+     ただしここの値は初期値でしかなく、遊んでいる間は毎フレーム
+     AMB_BASE から作り直される。前にここだけ 0.46→0.32 に変えて
+     効いたつもりになっていた（懐中電灯の強さと同じ間違い）。 */
+  ambient = new THREE.AmbientLight(0x1a2430, AMB_BASE);
   scene.add(ambient);
   hemi = new THREE.HemisphereLight(0x243244, 0x090b0d, 0.28);
   scene.add(hemi);
@@ -6141,7 +6155,7 @@ function updatePlayer(dt){
     flashlight.intensity = 0;
     playerLight.intensity = 0;
     if(viewArm) viewArm.visible = false;
-    ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1) * (cheats.brightWorld ? 4.2 : 1);
+    ambient.intensity = (AMB_BASE - panic*0.14) * (world.power ? 1.7 : 1) * (cheats.brightWorld ? 4.2 : 1);
     updateAvatar(dt, spd01);
     return { hd:hd, visible:visible, los:losRaw, sight:sightRaw, vmag:vmag };
   }
@@ -6194,7 +6208,7 @@ function updatePlayer(dt){
   }
   flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
   playerLight.intensity = player.lamp ? 0.9*flickAmt : 0.14;
-  ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1);
+  ambient.intensity = (AMB_BASE - panic*0.14) * (world.power ? 1.7 : 1);
 
   return { hd:hd, visible:visible, los:losRaw, sight:sightRaw, vmag:vmag };
 }
@@ -9589,10 +9603,14 @@ function updateTitleScene(dt){
   var sway = Math.sin(titleCam.t*0.53)*0.05 + Math.sin(titleCam.t*0.21)*0.03;
   camera.position.set(titleCam.x, 1.62 + Math.sin(titleCam.t*0.8)*0.02, titleCam.z);
   camera.rotation.set(Math.sin(titleCam.t*0.31)*0.03, titleCam.yaw + sway, Math.sin(titleCam.t*0.43)*0.012);
-  // タイトルでは手元のランプを持っていない。環境光だけで見せる
+  /* タイトルでは手元のランプを持っていない設定だが、環境光だけに任せると
+     実測で画面の平均輝度が 5.3（最大 58）しか無く、3D の廊下が置いてある
+     ことすら伝わらない真っ黒だった。露出曲線を直線寄りにしたぶん、
+     以前の持ち上げに頼っていた明るさが消えたため。
+     手元の弱い明かりだけを足して、奥は闇に落としたまま輪郭を見せる。 */
   if(flashlight) flashlight.intensity = 0;
-  if(playerLight) playerLight.intensity = 0.22;
-  ambient.intensity = 0.30;
+  if(playerLight) playerLight.intensity = 1.9;
+  ambient.intensity = 0.74;
   updateDust(dt);
 }
 
