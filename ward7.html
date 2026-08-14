@@ -4820,15 +4820,39 @@ function buildHunter(){
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var bone_ = new THREE.MeshBasicMaterial({ color:0xb0a087 });
 
-  /* 手足の骨。角柱ではなく、上が太く下が細い筒にする。
-     付け根に球を置くと、曲げたときに関節の穴が開かない——
-     箱を並べていたときは、肘や膝を深く曲げるたびに隙間が見えていた。 */
+  /* 手足の骨。
+     円錐台に球を 1 つ載せる作りだったので、関節の玉と幹の境目に必ず
+     縁が出て、寄ると「棒に玉を刺した物」に見えた。胴と同じく掃引にして、
+     関節の玉から幹、先の細りまでを一続きの面にする。
+
+     ついでに筋腹（付け根寄りのふくらみ）を入れる。まっすぐ細るだけの
+     筒は骨であって腕ではない。痩せた体なので膨らみは控えめにし、
+     代わりに先端側をよく絞る。 */
+  var BSEG = QC.detail ? 16 : 9;
+  function boneRows(r, len, n){
+    var rows = [], i;
+    for(i=0;i<n;i++){
+      var u = i/(n-1);                      // 0 が下端、1 が上端
+      var y = -len + u*(len + r*1.05);
+      var rr;
+      if(y > 0){
+        // 関節の玉。上へドームで閉じる
+        var q = y/(r*1.05);
+        rr = r*1.06 * Math.sqrt(Math.max(0, 1 - q*q));
+      }else{
+        var sdn = -y/len;                   // 0（付け根）〜1（先端）
+        rr = r * (1.02 - 0.30*sdn) * (1 + 0.085*Math.sin(Math.PI*Math.min(1, sdn*1.7)));
+      }
+      rows.push({ y:y, rx:Math.max(rr, r*0.06), rz:Math.max(rr*0.94, r*0.06) });
+    }
+    return rows;
+  }
   function boneDown(w, len, d, mat){
     var r = w * 0.5;
-    return new THREE.Mesh(mergeBoxes([
-      { type:'cyl', rt:r, rb:r*0.74, h:len, y:-len/2 },
-      { type:'sph', r:r*1.06, sy:0.92 }
-    ]), mat || skin);
+    var m = new THREE.Mesh(loftGeo(boneRows(r, len, QC.detail ? 15 : 9), BSEG, null,
+                                   { capA:r*0.42, capB:r*0.10 }), mat || skin);
+    m.userData.loft = true;
+    return m;
   }
   /* 任意の向きへ骨を 1 本生やして、次の関節の座標を返す。
      指と足指は「付け根から少しずつ曲がりながら細くなる鎖」なので、
@@ -4851,10 +4875,14 @@ function buildHunter(){
   }
   function boneUp(w, len, d, mat){
     var r2 = w * 0.5;
-    return new THREE.Mesh(mergeBoxes([
-      { type:'cyl', rt:r2*0.74, rb:r2, h:len, y:len/2 },
-      { type:'sph', r:r2*1.06, sy:0.92 }
-    ]), mat || skin);
+    // 上へ伸びる骨は、下向きの骨を上下ひっくり返して使う
+    var g2 = loftGeo(boneRows(r2, len, QC.detail ? 15 : 9), BSEG, null,
+                     { capA:r2*0.42, capB:r2*0.10 });
+    g2.scale(1, -1, 1);
+    g2.computeVertexNormals();
+    var m2 = new THREE.Mesh(g2, mat || skin);
+    m2.userData.loft = true;
+    return m2;
   }
 
   var THIGH = 0.50, SHIN = 0.52, SOLE = 0.57;
