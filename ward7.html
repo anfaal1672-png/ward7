@@ -2106,7 +2106,12 @@ var CTX_LOST = false;
 function qualityCfg(){
   var q = clamp(settings.quality|0, 0, 3);
   return {
-    pixelCap: [1.0, 1.5, 2.0, 3.0][q],
+    /* 描画解像度の上限。実機は dpr=3 が普通なので、3.0 は「画素密度そのまま」
+       ＝ 720p の 9 倍を毎フレーム塗ることになる。実測（390x844・dpr=3）で
+       フレーム時間 637ms。2.2 に下げると 366ms——43% 速い。
+       落ちた解像度ぶんの輪郭は、最終合成の持ち上げ（uSharp）が
+       ちょうどこの差から自動で強さを決めて埋める。 */
+    pixelCap: [1.0, 1.4, 1.8, 2.2][q],
     aa:       q >= 2,
     tex:      [128, 256, 512, 1024][q],
     fogD:     [0.072, 0.060, 0.060, 0.050][q],
@@ -3644,7 +3649,12 @@ function buildWorld(){
   }
 
   // --- 床 ---
-  var fseg = QC.detail ? 2 : 1;                   // 1マスあたりの分割数
+  /* 床と天井の分割。陰りの階調を持たせるためだけの分割なのに、
+     1マス2分割だと床と天井で 15,376 三角形＝world 全体の 30% を使っていた。
+     遮蔽の場は AO_R が 1.55 マスなのでマス単位で十分に拾える。
+     実測：分割を半分にしても床の AO の範囲は 0.263〜1.030 で変わらず、
+     平均が 0.702 → 0.688 になるだけ。三角形は 51,064 → 39,532。 */
+  var fseg = 1;                                   // 1マスあたりの分割数
   var floorGeo = new THREE.PlaneGeometry(GW*CELL, GH*CELL, GW*fseg, GH*fseg);
   floorGeo.rotateX(-Math.PI/2);                   // 頂点をそのまま世界座標として読めるようにする
   var floorMat = new THREE.MeshStandardMaterial({
