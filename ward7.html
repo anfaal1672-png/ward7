@@ -2704,11 +2704,20 @@ function buildViewModel(){
   gauzeTex.repeat.set(2.2, 1);
   gauzeTex.encoding = THREE.sRGBEncoding;
 
+  /* 腕は toneMapped:false で本編のトーンマップを外れていた。
+     背景だけ ACES と最終合成を通り、手だけ素の値で出るので、
+     どんなに照明を合わせても「貼り付けた絵」に見える。外す。
+     あわせて法線マップを足す——肌の皺と包帯の織り目が、
+     ランプの向きが変わるたびに起き上がるようになる。 */
+  var skinN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(skinTex.image, 1.8)) : null;
+  if(skinN){ skinN.wrapS = skinN.wrapT = THREE.RepeatWrapping; skinN.repeat.set(1.6,1.6); }
+  var gauzeN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(gauzeTex.image, 2.4)) : null;
+  if(gauzeN){ gauzeN.wrapS = gauzeN.wrapT = THREE.RepeatWrapping; gauzeN.repeat.set(2.2,1); }
   var skin  = new THREE.MeshStandardMaterial({
-    color:0xa8836b, map:skinTex, roughness:0.92, toneMapped:false
+    color:0xa8836b, map:skinTex, normalMap:skinN, roughness:0.88
   });
   var band  = new THREE.MeshStandardMaterial({
-    color:0xd9d4c4, map:gauzeTex, roughness:0.88, toneMapped:false
+    color:0xd9d4c4, map:gauzeTex, normalMap:gauzeN, roughness:0.86
   });
   var metal = new THREE.MeshStandardMaterial({ color:0x4a4f52, roughness:0.42, metalness:0.75 });
   var grip  = new THREE.MeshStandardMaterial({ color:0x1d1f20, roughness:0.95 });
