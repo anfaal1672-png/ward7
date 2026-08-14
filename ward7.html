@@ -2934,6 +2934,13 @@ function updateExitShaft(dt){
   if(!exitShaft || !world.exit) return;
   var open = world.exit.open;
   var want = open ? 0.16 + 0.05*Math.sin(performance.now()*0.0031) : 0;
+  /* 円錐の中に入ると、加算合成の面が視界いっぱいを一様に持ち上げて
+     「白い膜」になる（両面なので 2 枚ぶん重なる）。実際、扉に近づくだけで
+     天井まで真っ白になっていた。近づいたら消す。
+     光の筋は「離れて横から見る」ものなので、消えても不自然ではない。 */
+  var exd = Math.sqrt(Math.pow(camera.position.x - world.exit.doorX, 2) +
+                      Math.pow(camera.position.z - world.exit.doorZ, 2));
+  want *= clamp((exd - 1.1)/2.2, 0, 1);
   var mo = exitShaft.material.opacity;
   exitShaft.material.opacity = mo + (want - mo) * (1 - Math.pow(0.1, dt));
   if(exitShaft.material.opacity < 0.002) return;
@@ -3032,6 +3039,12 @@ function updateLampShafts(dt){
     u.uTime.value += dt;
     var on = pl && pl.intensity > 0.02 && pl.visible;
     var want = on ? clamp(pl.intensity, 0, 2) * 0.115 : 0;
+    // 非常口の光柱と同じ理由。灯の真下に入ったら消す
+    if(on){
+      var lpd = Math.sqrt(Math.pow(camera.position.x - pl.position.x, 2) +
+                          Math.pow(camera.position.z - pl.position.z, 2));
+      want *= clamp((lpd - 0.7)/1.5, 0, 1);
+    }
     u.uAmt.value += (want - u.uAmt.value) * (1 - Math.pow(0.0008, dt));
     m.visible = u.uAmt.value > 0.004;
     // 外側の薄い殻。半影ぶんなので内側の 1/3 の濃さで追従させる
@@ -8717,8 +8730,37 @@ function doWin(){
   var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
   recordRun(true, player.hits||0);
   Audio2.unlock();
-  blackout(true);
-  setTimeout(function(){
+
+  /* --- 脱出の一瞬 ---
+     ここは暗転して結果表を出すだけだった。40 分かけてたどり着いた扉の
+     向こうが、一度も映らないまま終わる。死亡側には顔面アップの演出が
+     あるのに、勝ったときだけ何も起きないのは釣り合っていない。
+
+     扉のほうへ向き直りながら踏み出し、非常口の赤い光を外の白い光へ
+     変えて一気に開ける。露出も上げるので、最後は扉の形だけが残って
+     画面が飛ぶ。暗転（死）に対して白飛び（生還）で対にする。 */
+  var wt0 = performance.now(), wdur = 1500;
+  var ex0 = world.exit ? world.exit.doorX : player.x;
+  var ez0 = world.exit ? world.exit.doorZ : player.z;
+  var wdx = ex0 - player.x, wdz = ez0 - player.z;
+  var wlen = Math.sqrt(wdx*wdx + wdz*wdz) || 1;
+  var yawT = Math.atan2(-wdx, -wdz);
+  var yaw0 = camera.rotation.y;
+  // 最短の回り方を選ぶ（真後ろの扉へ 350 度回らないように）
+  var dyaw = yawT - yaw0;
+  while(dyaw >  Math.PI) dyaw -= TAU;
+  while(dyaw < -Math.PI) dyaw += TAU;
+  var px0 = camera.position.x, pz0 = camera.position.z, py0 = camera.position.y;
+  var eL = world.exitLight, eCol0 = eL ? eL.color.clone() : null, eInt0 = eL ? eL.intensity : 0;
+  var eQ = clamp(settings.quality|0, 0, 3);
+  var winDone = false;
+  function winPanel(){
+    if(winDone) return;
+    winDone = true;
+    // 借りていた光と露出を返す（タイトルの情景も同じシーンを使う）
+    if(eL && eCol0){ eL.color.copy(eCol0); eL.intensity = eInt0; }
+    if(exitShaft) exitShaft.material.color.setHex(0xff5a4a);
+    renderer.toneMappingExposure = exposureNow();
     Audio2.stopAmbient();
     $('winStats').innerHTML =
       (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +
@@ -8730,7 +8772,48 @@ function doWin(){
         ['これまで', recLine(settings.diff)]
       ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
     showPanel('win');
-  }, 1000);
+  }
+  if(playAs === 'hunter' || !world.exit){
+    // 追う側で遊んでいるときは逃げられた側。演出は付けない
+    blackout(true);
+    setTimeout(winPanel, 1000);
+    return;
+  }
+  /* 保険。演出は requestAnimationFrame で進めるので、途中でタブが
+     隠れると止まる。戻れば続きから進むが、戻らないまま結果が出ない
+     のは困る。実時間で見張って、遅れたら結果表へ進める。 */
+  setTimeout(function(){
+    if(winDone) return;
+    blackout(true);
+    setTimeout(winPanel, 500);
+  }, wdur + 2200);
+  (function outro(){
+    if(state !== STATE.WIN || winDone) return;
+    var k = clamp((performance.now() - wt0)/wdur, 0, 1);
+    var e = k*k*(3 - 2*k);                       // 端をなめらかに
+    camera.rotation.set(0.02 + 0.05*e, yaw0 + dyaw*e, 0);
+    camera.position.set(px0 + (wdx/wlen)*1.35*e, py0 + 0.06*Math.sin(e*Math.PI),
+                        pz0 + (wdz/wlen)*1.35*e);
+    /* 立ち上がりは 3 乗にする。2 乗だと 3 割の時点で既に画面が真っ白で、
+       扉も廊下も見えないまま終わっていた（実際そうなった）。
+       前半は普通に見え、最後の 3 分の 1 で一気に飛ぶ形にする。 */
+    var e3 = e*e*e;
+    if(eL){
+      // 赤い誘導灯から、外の白い光へ
+      eL.color.setRGB(0.55 + 0.45*e, 0.15 + 0.85*e, 0.15 + 0.85*e);
+      eL.intensity = eInt0 + 60*e3;
+    }
+    /* 光の筋は加算合成で、しかもカメラが円錐の内側に入る。
+       ここを上げすぎると画面全体が一様に持ち上がって、光ではなく
+       「白い膜」になる。控えめに。 */
+    if(exitShaft){
+      exitShaft.material.color.setRGB(1, 0.72 + 0.28*e, 0.55 + 0.45*e);
+      exitShaft.material.opacity = 0.16 + 0.26*e3;
+    }
+    renderer.toneMappingExposure = exposureNow() * (1 + 1.2*e3);
+    if(k < 1) requestAnimationFrame(outro);
+    else { blackout(true); setTimeout(winPanel, 900); }
+  })();
 }
 /* 結果は表で出す。カルテの表と同じ作法にして、
    ゲームの中の書類とつながって見えるようにする。 */
@@ -8788,7 +8871,7 @@ function loop(now){
   if(state === STATE.TITLE) updateTitleScene(dt);
 
   // 全面パネルが出ている間は裏で描き続けない（死亡時のカメラ演出だけは描く）
-  var needRender = (state === STATE.PLAY || state === STATE.DEAD ||
+  var needRender = (state === STATE.PLAY || state === STATE.DEAD || state === STATE.WIN ||
                     (state === STATE.TITLE && titleCam.ready));
   if(needRender){
     try{
@@ -8796,7 +8879,8 @@ function loop(now){
       if(usePost) renderer.setRenderTarget(postRT);
       renderer.autoClear = true;
       renderer.render(scene, camera);
-      if(viewScene && state === STATE.PLAY && playAs !== 'hunter'){
+      // 脱出の演出中も手は残す。扉へ差し出したランプが最後の 1 枚に入る
+      if(viewScene && (state === STATE.PLAY || state === STATE.WIN) && playAs !== 'hunter'){
         renderer.autoClear = false;
         renderer.clearDepth();
         renderer.render(viewScene, viewCam);
