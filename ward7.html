@@ -65,15 +65,22 @@
   .panel[hidden]{display:none}
   .panel > :first-child{margin-top:auto}
   .panel > :last-child{margin-bottom:auto}
-  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--dim);text-transform:uppercase}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--dim);
+           text-transform:uppercase;text-align:center;line-height:1.9}
+  /* inline-block は前後どちらでも折れる。区切りは inline のまま余白で離す */
+  .eyebrow .sep{opacity:.55;margin-right:.5em}
+  .eyebrow .nb{white-space:nowrap}
   h1.title{
     font-size:clamp(38px,13vw,86px);font-weight:200;letter-spacing:.06em;line-height:.9;
     text-transform:uppercase;margin:10px 0 2px;position:relative;
     text-shadow:0 0 44px rgba(111,191,168,.18);
   }
   /* 題字の上を、消えかけの蛍光灯のように光が横切る */
+  /* 帯の幅が狭いと縁が立って、光ではなく「白い長方形」に見える。
+     止め絵で見ると分かりやすい。両側を大きく広げて中心だけ濃くする。 */
   h1.title::after{content:'';position:absolute;inset:-6% -4%;pointer-events:none;
-    background:linear-gradient(105deg,transparent 42%,rgba(232,226,212,.16) 50%,transparent 58%);
+    background:linear-gradient(105deg,transparent 26%,rgba(232,226,212,.05) 42%,
+               rgba(232,226,212,.15) 50%,rgba(232,226,212,.05) 58%,transparent 74%);
     animation:titleSweep 7.5s linear infinite}
   @keyframes titleSweep{0%{transform:translateX(-120%)}
     55%{transform:translateX(120%)} 100%{transform:translateX(120%)}}
@@ -96,6 +103,11 @@
   .btn.primary:hover{background:rgba(111,191,168,.2)}
   .btn.ghost{padding:13px 20px;min-height:46px;font-size:12px}
   .btn+.btn{margin-top:10px}
+  /* 副次の入口。2 列に畳んで、主たる入口との差を面積で出す */
+  .subgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;
+           width:min(420px,86vw);margin-top:10px}
+  .subgrid .btn{width:auto;min-height:44px;padding:11px 6px;font-size:11px;letter-spacing:.12em}
+  .subgrid .btn+.btn{margin-top:0}
 
   .seg{display:flex;width:min(420px,86vw);gap:8px;margin-top:10px}
   .seg button{
@@ -438,7 +450,10 @@
 
 <div class="panel" id="title" hidden>
   <div id="titleStack">
-    <div class="eyebrow">Kurosawa Memorial Hospital · Closed 1987</div>
+    <!-- 折り返すと行末に「·」だけが取り残される。区切りは後半の頭に付け、
+         前半・後半をそれぞれ折れない塊にする -->
+    <div class="eyebrow"><span class="nb">Kurosawa Memorial Hospital</span>
+      <span class="nb"><span class="sep">·</span>Closed 1987</span></div>
     <h1 class="title">WARD 7<span class="jp">第七病棟</span></h1>
     <div class="rule"></div>
     <div class="chart">
@@ -455,10 +470,14 @@
       <button type="button" data-diff="2" aria-pressed="false">絶望</button>
     </div>
     <button class="btn primary" id="btnStart" type="button" style="margin-top:16px">病棟に入る</button>
-    <button class="btn ghost" id="btnOpt" type="button">設定</button>
-    <button class="btn ghost" id="btnCheat" type="button">チート</button>
-    <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
-    <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
+    <!-- 副次の入口は 2 列に畳む。同じ幅で 5 つ縦に並べると、
+         どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->
+    <div class="subgrid">
+      <button class="btn ghost" id="btnOpt" type="button">設定</button>
+      <button class="btn ghost" id="btnCheat" type="button">チート</button>
+      <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
+      <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
+    </div>
     <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
       音量を上げるとよく聞こえます。ヘッドホン推奨。
     </p>
@@ -11302,6 +11321,12 @@ function updateTitleScene(dt){
   if(flashlight) flashlight.intensity = 0;
   if(playerLight) playerLight.intensity = 1.9;
   ambient.intensity = 0.74;
+  /* 露出。タイトルでは updateExposure が回らないので、直前の 1 回で
+     決まった倍率がそのまま残る。死亡演出の後は 1.18 倍のまま情景が
+     明るく、遊び直して壁際で死ぬと 0.62 倍のまま暗い——同じ画面が
+     毎回違う明るさで出ていた。ここで基準に戻す。 */
+  expAdapt = 1;
+  renderer.toneMappingExposure = exposureNow();
   updateDust(dt);
 }
 
