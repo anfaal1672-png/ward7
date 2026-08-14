@@ -2724,7 +2724,7 @@ function buildViewModel(){
     color:0xd9d4c4, map:gauzeTex, normalMap:gauzeN, roughness:0.86
   });
   var metal = new THREE.MeshStandardMaterial({ color:0x4a4f52, roughness:0.42, metalness:0.75 });
-  var grip  = new THREE.MeshStandardMaterial({ color:0x1d1f20, roughness:0.95 });
+  var grip  = new THREE.MeshStandardMaterial({ color:SRGB(0x1d1f20), roughness:0.95 });
   var lensM = new THREE.MeshStandardMaterial({
     color:0xfff0d0, emissive:0xffdca0, emissiveIntensity:2.2, roughness:0.3
   });
@@ -3192,6 +3192,13 @@ function buildViewModel(){
      R    … 断面の分割数
      rad  … (theta, v, i) → 半径の倍率。省略時は 1
      opts … capA/capB で下端・上端に蓋（ドーム）を付ける */
+/* 色を sRGB として書きたいとき用。
+   three r128 は色管理をしないので material.color は線形の値として
+   そのまま使われる。0x2a322e を「暗い緑」のつもりで置いても
+   線形 16% ＝ かなり明るい灰になる。暗いつもりの物が軒並み暗くならず、
+   髪も配管も羽根板も白っぽく出ていた原因。sRGB で書いて線形へ直す。 */
+function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
+
 function loftGeo(rows, R, rad, opts){
   opts = opts || {};
   var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
@@ -3310,7 +3317,10 @@ function mergeTinted(parts){
     m4.makeRotationFromEuler(eu);
     m4.setPosition(sp.x||0, sp.y||0, sp.z||0);
     bg.applyMatrix4(m4);
-    cv.setHex(sp.c === undefined ? 0xffffff : sp.c);
+    /* 色は sRGB のつもりで書いた値なので、線形へ直してから頂点色に入れる。
+       three r128 は色管理をしないため、直さないと 0x4a3f33 のような
+       暗い色が「線形 29%」として扱われ、暗いつもりの物が全部明るく出る。 */
+    cv.setHex(sp.c === undefined ? 0xffffff : sp.c).convertSRGBToLinear();
     var pa = bg.attributes.position.array, na = bg.attributes.normal.array,
         ua = bg.attributes.uv.array, ix = bg.index ? bg.index.array : null;
     if(ix) for(var k=0;k<ix.length;k++){
@@ -3538,7 +3548,7 @@ function buildWorld(){
   /* 金属らしさは映り込みで出す。明度は落とす——0x585c58 に metalness 0.72 だと
      天井の光を拾って白い梁のように見えた。 */
   var pipeMat = new THREE.MeshStandardMaterial({
-    color:0x33372f, roughness:0.52, metalness:0.55
+    color:SRGB(0x33372f), roughness:0.52, metalness:0.55
   });
   var runSeen = {};
   for(y=1;y<GH-1;y++) for(x=1;x<GW-1;x++){
@@ -3639,7 +3649,7 @@ function buildWorld(){
   var doorX = ew.x + wallDir[0] * (CELL/2 - 0.11); // 壁面にぴたりと付ける
   var doorZ = ew.z + wallDir[1] * (CELL/2 - 0.11);
   var exitGrp = new THREE.Group();
-  var doorMat = new THREE.MeshStandardMaterial({ color:0x1d2a26, emissive:0x8c2626, emissiveIntensity:0.7, roughness:0.6 });
+  var doorMat = new THREE.MeshStandardMaterial({ color:SRGB(0x1d2a26), emissive:0x8c2626, emissiveIntensity:0.7, roughness:0.6 });
   var door = new THREE.Mesh(new THREE.BoxGeometry(CELL*0.72, WALL_H*0.82, 0.22), doorMat);
   door.position.set(0, WALL_H*0.41, 0);
   exitGrp.add(door);
@@ -3879,9 +3889,9 @@ function buildWorld(){
   }
 
   // --- 隠れ場所：通路のロッカーと、部屋のベッドの下 ---
-  var lockerMat = new THREE.MeshStandardMaterial({ color:0x46524d, roughness:0.6, metalness:0.5 });
-  var slatMat   = new THREE.MeshStandardMaterial({ color:0x2a322e, roughness:0.9 });
-  var bedMat    = new THREE.MeshStandardMaterial({ color:0x5c5f58, roughness:0.85 });
+  var lockerMat = new THREE.MeshStandardMaterial({ color:SRGB(0x46524d), roughness:0.6, metalness:0.5 });
+  var slatMat   = new THREE.MeshStandardMaterial({ color:SRGB(0x2a322e), roughness:0.9 });
+  var bedMat    = new THREE.MeshStandardMaterial({ color:SRGB(0x5c5f58), roughness:0.85 });
   var sheetMat  = new THREE.MeshStandardMaterial({ color:0xb9b6a6, roughness:0.95 });
 
   function wallCellNear(){
@@ -4002,8 +4012,8 @@ function buildWorld(){
   }
 
   // --- 机：通路と部屋に置かれた什器。当たり判定あり ---
-  var deskTop = new THREE.MeshStandardMaterial({ color:0x6b5a44, roughness:0.8 });
-  var deskLeg = new THREE.MeshStandardMaterial({ color:0x3a3d3c, roughness:0.7, metalness:0.5 });
+  var deskTop = new THREE.MeshStandardMaterial({ color:SRGB(0x6b5a44), roughness:0.8 });
+  var deskLeg = new THREE.MeshStandardMaterial({ color:SRGB(0x3a3d3c), roughness:0.7, metalness:0.5 });
   for(var dk=0; dk<7; dk++){
     var dspot = wallCellNear();
     if(!dspot) break;
@@ -4289,26 +4299,26 @@ function buildWorld(){
       { type:'cyl', r:0.44, rb:0.46, h:1.05, c:0x4a3f33 },
       { type:'cyl', r:0.475, h:0.055, y:0.30,  c:0x3a3128 },   // 補強のリブ
       { type:'cyl', r:0.475, h:0.055, y:-0.28, c:0x3a3128 },
-      { type:'cyl', r:0.36,  h:0.035, y:0.53,  c:0x3c3529 },   // 天板
-      { type:'cyl', r:0.085, h:0.045, y:0.56, x:0.20, c:0x4a4237 } // 注ぎ口
+      { type:'cyl', r:0.36,  h:0.035, y:0.53,  c:0x59503f },   // 天板
+      { type:'cyl', r:0.085, h:0.045, y:0.56, x:0.20, c:0x6d6252 } // 注ぎ口
     ]),
     // 1: 積み上げた薬品ケース
     mergeTinted([
-      { w:0.78, h:0.36, d:0.60, y:-0.34, c:0x35382f },
-      { w:0.74, h:0.030,d:0.56, y:-0.15, c:0x3f4239 },
-      { w:0.70, h:0.34, d:0.54, y:0.02, ry:0.22, c:0x3b3e33 },
-      { w:0.66, h:0.030,d:0.50, y:0.20, ry:0.22, c:0x45483c },
-      { w:0.54, h:0.28, d:0.44, y:0.36, ry:-0.15, c:0x33362d },
-      { w:0.20, h:0.012,d:0.15, y:0.501,ry:-0.15, c:0x6f6b5f }  // 貼り紙
+      { w:0.78, h:0.36, d:0.60, y:-0.34, c:0x4d5147 },
+      { w:0.74, h:0.030,d:0.56, y:-0.15, c:0x5d6156 },
+      { w:0.70, h:0.34, d:0.54, y:0.02, ry:0.22, c:0x565a4c },
+      { w:0.66, h:0.030,d:0.50, y:0.20, ry:0.22, c:0x666a5a },
+      { w:0.54, h:0.28, d:0.44, y:0.36, ry:-0.15, c:0x4a4e42 },
+      { w:0.20, h:0.012,d:0.15, y:0.501,ry:-0.15, c:0xa8a292 }  // 貼り紙
     ]),
     // 2: 洗濯物のかご（キャスター付き）
     mergeTinted([
-      { w:0.86, h:0.055, d:0.62, y:-0.42, c:0x2a2c31 },          // 台
+      { w:0.86, h:0.055, d:0.62, y:-0.42, c:0x3d4046 },          // 台
       { type:'cyl', ax:'x', r:0.055, h:0.70, y:-0.50, z:0.22, c:0x24262a },
       { type:'cyl', ax:'x', r:0.055, h:0.70, y:-0.50, z:-0.22, c:0x24262a },
-      { w:0.84, h:0.52, d:0.60, y:-0.10, c:0x494739 },           // かご
-      { w:0.88, h:0.045,d:0.64, y:0.17,  c:0x36382f },           // 縁
-      { w:0.72, h:0.22, d:0.48, y:0.28,  ry:0.18, c:0x7d786a }   // はみ出た布
+      { w:0.84, h:0.52, d:0.60, y:-0.10, c:0x6d6a5c },           // かご
+      { w:0.88, h:0.045,d:0.64, y:0.17,  c:0x50524a },           // 縁
+      { w:0.72, h:0.22, d:0.48, y:0.28,  ry:0.18, c:0xbdb7a4 }   // はみ出た布
     ])
   ];
   /* metalness 0.22 ＋ roughness 0.82 だと、鏡面反射の下駄（F0≒0.095）が
@@ -4813,7 +4823,7 @@ function buildHunter(){
     emissive:0x1d2119, emissiveIntensity:0.14, vertexColors:true
   });
   if(skin.normalMap) skin.normalScale = new THREE.Vector2(0.85, 0.85);
-  var stain = new THREE.MeshStandardMaterial({ color:0x5a3f38, roughness:1 });
+  var stain = new THREE.MeshStandardMaterial({ color:SRGB(0x5a3f38), roughness:1 });
   /* 髪。真っ黒のつもりの 0x0e0b0a が、寄って撮ると白い棒になっていた。
      理由は 2 つある。
 
@@ -4826,8 +4836,8 @@ function buildHunter(){
 
      髪は繊維の束で鏡のような面を持たないので鏡面反射のない Lambert にし、
      地色も線形で暗い値まで落とす。布（病衣）も同じ理由で変える。 */
-  var dark  = new THREE.MeshLambertMaterial({ color:0x050404, vertexColors:true });
-  var maw   = new THREE.MeshBasicMaterial({ color:0x120202 });
+  var dark  = new THREE.MeshLambertMaterial({ color:SRGB(0x141110), vertexColors:true });
+  var maw   = new THREE.MeshBasicMaterial({ color:SRGB(0x120202) });
   var eyeL_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var bone_ = new THREE.MeshBasicMaterial({ color:0xb0a087 });
@@ -5091,7 +5101,7 @@ function buildHunter(){
      輪郭が出て、歩くたびに遅れて揺れるぶん「重さ」も伝わる。
      板ではなく細い短冊の集まりにして、裂けた裾に見せる。 */
   var gownMat = new THREE.MeshLambertMaterial({
-    color:0x2b2a22, side:THREE.DoubleSide,      // 線形なので見た目より暗い値を入れる
+    color:SRGB(0x585444), side:THREE.DoubleSide,
     emissive:0x0a0b07, emissiveIntensity:0.35
   });
   var gown = [];
