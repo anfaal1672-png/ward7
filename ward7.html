@@ -901,6 +901,88 @@ var Audio2 = (function(){
     env(og, t, 0.01, 1.1, 0.28);
     o.start(t); o.stop(t+1.3);
   }
+  /* 追跡者の声（一発物）。
+     持続音のバス（唸り）は「そこに居る」ことしか伝えない。見つかった
+     瞬間も、見失った瞬間も、すぐ隣を探っている時も、耳では全部
+     同じに聞こえていた。画面から目を離していると状況が読めない。
+
+     声帯（鋸波）＋ホルマント帯域 3 本＋息の雑音、という組み立てにすると
+     合成音でも「人の喉から出た」ように聞こえる。母音はホルマントの
+     位置で決まるので、その 3 本を動かすだけで声色を撃ち分けられる。
+     外部ファイルを持たない方針のまま、種類を増やせるのはこの形だけ。 */
+  var VOX = [
+    // f0 の始め/終わり, 長さ, ホルマント3本, 息の量, 音量, 喉の震え(Hz, 深さ)
+    { f0: 64, f1: 46, dur:1.05, fm:[380, 860,2100], air:0.30, amp:0.34, wob:5.2, wobA:0.05 }, // 0 唸り
+    { f0:112, f1: 96, dur:0.90, fm:[640,1180,2500], air:0.22, amp:0.30, wob:0,   wobA:0    }, // 1 笑い
+    { f0:148, f1: 72, dur:1.35, fm:[720,1320,2650], air:0.55, amp:0.52, wob:7.0, wobA:0.09 }, // 2 咆哮
+    { f0: 78, f1: 70, dur:1.20, fm:[300, 720,1900], air:0.18, amp:0.16, wob:3.4, wobA:0.04 }, // 3 呟き
+    { f0: 96, f1: 54, dur:0.55, fm:[520,1050,2300], air:0.45, amp:0.36, wob:9.0, wobA:0.07 }  // 4 苛立ち
+  ];
+  function hunterVocal(kind, dist, pan, blocked){
+    if(!ready) return;
+    var V = VOX[kind|0] || VOX[0];
+    var t = ctx.currentTime;
+    var att = stepAtten(dist) * (blocked ? 0.5 : 1);
+    if(att <= 0.0008) return;                       // 遠すぎる声は作らない（ノード代の節約）
+    var n01 = clamp(dist / STEP_MAX, 0, 1);
+
+    var out = master;
+    if(ctx.createStereoPanner){
+      var sp = ctx.createStereoPanner();
+      sp.pan.value = clamp(pan || 0, -1, 1); sp.connect(master); out = sp;
+    }
+    // 壁越しの落ち方は足音と揃える。声だけ抜けが良いと壁の意味が消える
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.value = blocked ? (240 + 300*(1-n01))
+                                 : (420 + 3000*Math.pow(1-n01, 1.8));
+    lp.Q.value = 0.4; lp.connect(out);
+
+    var bus = ctx.createGain(); bus.gain.value = 0.0001; bus.connect(lp);
+
+    // 個体差。同じ波形が繰り返されると、二度目で作り物だと分かる
+    var det = 0.88 + Math.random()*0.26;
+    var dur = V.dur * (0.9 + Math.random()*0.22);
+
+    var o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(V.f0*det, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, V.f1*det), t+dur);
+    if(V.wobA > 0){
+      var lfo = ctx.createOscillator(); lfo.type = 'sine';
+      lfo.frequency.value = V.wob * (0.8 + Math.random()*0.5);
+      var lg = ctx.createGain(); lg.gain.value = V.f0*det*V.wobA;
+      lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t+dur+0.25);
+    }
+    var nz = ctx.createBufferSource(); nz.buffer = noiseBuf;
+    nz.playbackRate.value = 0.7 + Math.random()*0.5;
+    var ng = ctx.createGain(); ng.gain.value = V.air;
+
+    // ホルマントは並列。直列に繋ぐと帯域が積で潰れて蚊の鳴くような音になる
+    var src = ctx.createGain(); src.gain.value = 1;
+    o.connect(src); nz.connect(ng); ng.connect(src);
+    for(var fi=0; fi<3; fi++){
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+      bp.frequency.value = V.fm[fi] * (0.94 + Math.random()*0.12);
+      bp.Q.value = 4 + fi*2;
+      var bg = ctx.createGain(); bg.gain.value = 1 / (1 + fi*0.9);
+      src.connect(bp); bp.connect(bg); bg.connect(bus);
+    }
+
+    if(kind === 1){
+      // 笑いだけは一息ではなく、息を詰めて刻む。刻みの数も毎回変える
+      var g1 = bus.gain, nb = 4 + ((Math.random()*3)|0), sp1 = dur / nb;
+      g1.cancelScheduledValues(t); g1.setValueAtTime(0.0001, t);
+      for(var b2=0; b2<nb; b2++){
+        var bt = t + b2*sp1;
+        g1.exponentialRampToValueAtTime(Math.max(0.0002, V.amp*att*(1 - b2*0.13)), bt + sp1*0.18);
+        g1.exponentialRampToValueAtTime(0.0002, bt + sp1*0.92);
+      }
+    }else{
+      env(bus, t, kind===2 ? 0.03 : 0.10, dur, V.amp*att);
+    }
+    o.start(t);  o.stop(t+dur+0.3);
+    nz.start(t); nz.stop(t+dur+0.3);
+  }
+
   var STEP_MAX = 40;          // ここから徐々に聞こえ始める
   function stepAtten(dist){
     // 逆距離カーブ＋端の滑らかなフェード。急に鳴り出さず連続的に近づく
@@ -1049,6 +1131,7 @@ var Audio2 = (function(){
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
+           hunterVocal:hunterVocal, voxSpec:function(){ return VOX; },
            ambientOne:ambientOne,
            setHunterVoice:setHunterVoice, setLampVoice:setLampVoice, setExitVoice:setExitVoice,
            busCount:busCount, busState:busState,
@@ -4736,6 +4819,7 @@ function startGame(){
     flashlight.shadow.camera.far = 34;
   }
 
+  resetHunterVox();
   buildInfo = buildWorld();
   buildHunter();
   placeHunter(buildInfo.reach, buildInfo.start);
@@ -5811,6 +5895,45 @@ function updateHunter(dt, info){
   Audio2.setTension(tension);
 }
 
+/* 声を鳴らす条件。
+   遷移は「初めてそうなった瞬間」だけ拾う。毎フレーム比べると
+   patrol⇄hunt が細かく往復する場面で連呼になる。
+   遷移が無い間も時々独りごとを鳴らす——完全に黙られると持続音の
+   バスが環境音に溶けて、居ることに気づけなくなる。
+   ゲーム側の乱数（rnd）は絶対に引かない。引くと種が同じでも
+   挙動がずれて、これまでの回帰結果と比べられなくなる。 */
+var VOX_GAP = 1.1;                       // 声どうしが重ならない最短間隔
+var voxPrevMode = 'patrol', voxT = 0, voxIdleT = 5;
+function resetHunterVox(){
+  voxPrevMode = 'patrol'; voxT = 0; voxIdleT = 4 + Math.random()*5;
+}
+function updateHunterVox(dt, info, hs){
+  // 追跡者がまだ出ていない間は、状態だけ追って声は出さない
+  if(!hs){ voxPrevMode = hunter.mode; return; }
+  voxT = Math.max(0, voxT - dt);
+  voxIdleT -= dt;
+  var m = hunter.mode, pm = voxPrevMode;
+  voxPrevMode = m;
+  if(voxT > 0) return;
+
+  var kind = -1;
+  if(m === 'chase' && pm !== 'chase')      kind = 2;   // 見つけた
+  else if(pm === 'chase' && m !== 'chase') kind = 4;   // 見失った
+  else if(m === 'hunt' && pm === 'patrol') kind = 0;   // 何かに気づいた
+  else if(voxIdleT <= 0){
+    // 追っている間は笑い、それ以外は呟きか低い唸り
+    kind = (m === 'chase') ? 1 : (Math.random() < 0.55 ? 3 : 0);
+  }
+  if(kind < 0) return;
+
+  Audio2.hunterVocal(kind, info.hd, hs.pan, !info.los);
+  voxT = VOX_GAP + Math.random()*0.6;
+  // 追跡中は短い間隔で笑い続ける。探索中はたまにでいい
+  /* 追跡中の間隔。最初 2.6〜5.0 秒にしていたが、実測では追跡の大半が
+     それより短く終わっていて笑い声が一度も鳴らなかった。1.9 秒まで詰める。 */
+  voxIdleT = (m === 'chase') ? (1.9 + Math.random()*1.8) : (7 + Math.random()*9);
+}
+
 function updateEnv(dt, info){
   // 非常灯：最寄り n 個だけをライトプールに割り当てる
   var lamps = world.lamps.slice();
@@ -5890,7 +6013,9 @@ function updateEnv(dt, info){
     // 観戦モードの「耳」。ボットはここで鳴っている値しか受け取らない
     if(BOT.on){ BOT.ear.vol = hv; BOT.ear.pan = hs.pan; BOT.ear.cut = hs.cut;
                 BOT.ear.muffled = (hs.cut <= 440); }
+    updateHunterVox(dt, info, hs);
   }else{
+    updateHunterVox(dt, info, null);
     Audio2.setHunterVoice(0, 0, 400);
     if(BOT.on){ BOT.ear.vol = 0; BOT.ear.muffled = true; }
   }
@@ -6296,6 +6421,28 @@ function runSelfTest(){
     player.yaw = sy0; player.viewYaw = svy; player.x = sx0; player.z = sz0;
     t('右の音は pan が正・左は負', pr.pan > 0.15 && pl.pan < -0.15);
     t('左右の表示が音と一致する', panDir(pr.pan) === '右' && panDir(pl.pan) === '左');
+  })();
+
+  /* 追跡者の声。ホルマントは低いほうから並んでいないと母音にならず、
+     ただのバンドパスノイズになる。数字の打ち間違いは耳では気づけない
+     （どれも「唸り」に聞こえてしまう）ので、ここで押さえる。 */
+  (function(){
+    var vs = Audio2.voxSpec(), specOK = true, distinct = {};
+    vs.forEach(function(v){
+      if(!(v.fm[0] < v.fm[1] && v.fm[1] < v.fm[2])) specOK = false;
+      if(!(v.dur > 0 && v.amp > 0 && v.f0 > 0 && v.f1 > 0)) specOK = false;
+      distinct[v.fm.join(',')] = 1;
+    });
+    var dn = 0; for(var dk in distinct) if(distinct.hasOwnProperty(dk)) dn++;
+    t('追跡者の声が5種類ある', vs.length === 5);
+    t('ホルマントが低い順に並んでいる', specOK);
+    t('声ごとに母音が違う', dn === vs.length);
+    // 遠すぎる声はノードを作らずに帰る。鳴らない距離で毎回組み立てると無駄
+    var before = voxT; voxT = 0;
+    t('声の呼び出しが例外を投げない', (function(){
+      try{ Audio2.hunterVocal(2, 999, 0, true); return true; }catch(e){ return false; }
+    })());
+    voxT = before;
   })();
 
   t('斜め入力の速度倍率が 1 を超えない',
