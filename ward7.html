@@ -1564,6 +1564,55 @@ function texMeanLinear(img){
   return v;
 }
 
+/* 什器の汚れ。
+   机・ロッカー・ドラム缶・ストレッチャー・車椅子——通路に置かれた物は
+   どれもテクスチャを 1 枚も貼っていなかった。頂点色で色分けしただけの
+   面は、どんなに形を作り込んでも「無地のプラスチックの箱」に見える。
+   実際、積み上げた薬品ケースが白い立方体の山にしか見えなかった。
+
+   1 枚を全種類で共用する。箱と円柱の UV は面ごとに 0..1 なので、
+   面の実寸によって拡大率が変わるが、模様が絵ではなく汚れなら気にならない。
+   平均が 0.8 前後になるようにして、地の色を暗くしすぎないようにする。 */
+function texGrunge(size){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  g.fillStyle = '#d2d2ce'; g.fillRect(0,0,size,size);
+  var K = (size/256)*(size/256);
+  // 埃と汚れのむら
+  for(var i=0;i<Math.round(70*K);i++){
+    var px=rnd()*size, py=rnd()*size, rr=size*(0.03+rnd()*0.16);
+    var gr=g.createRadialGradient(px,py,0,px,py,rr);
+    gr.addColorStop(0,'rgba(70,66,58,'+(0.04+rnd()*0.16).toFixed(2)+')');
+    gr.addColorStop(1,'rgba(70,66,58,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+  }
+  // 垂れた跡。什器も壁と同じで、汚れは下へ流れる
+  for(var d=0;d<Math.round(14*Math.sqrt(K));d++){
+    var dx=rnd()*size, dw=(1+rnd()*4)*Math.sqrt(K), dh=size*(0.15+rnd()*0.5);
+    var lg=g.createLinearGradient(0,0,0,dh);
+    lg.addColorStop(0,'rgba(72,58,42,0.26)');
+    lg.addColorStop(1,'rgba(72,58,42,0)');
+    g.save(); g.translate(dx, rnd()*size*0.5);
+    g.fillStyle=lg; g.fillRect(0,0,dw,dh); g.restore();
+  }
+  // 擦り傷。塗装が擦れて下地が出た細い線
+  g.lineCap='round';
+  for(var sc=0;sc<Math.round(30*Math.sqrt(K));sc++){
+    var sx=rnd()*size, sy=rnd()*size, sa=rnd()*TAU, sl=size*(0.02+rnd()*0.14);
+    g.strokeStyle='rgba(240,240,236,'+(0.10+rnd()*0.24).toFixed(2)+')';
+    g.lineWidth=Math.max(1,size/420);
+    g.beginPath(); g.moveTo(sx,sy);
+    g.lineTo(sx+Math.cos(sa)*sl, sy+Math.sin(sa)*sl); g.stroke();
+  }
+  // 錆の点。金属の什器に効く
+  for(var rs=0;rs<Math.round(26*K);rs++){
+    var rx=rnd()*size, ry=rnd()*size, rr2=size*(0.004+rnd()*0.016);
+    g.fillStyle='rgba(120,64,32,'+(0.18+rnd()*0.34).toFixed(2)+')';
+    g.beginPath(); g.arc(rx,ry,rr2,0,TAU); g.fill();
+  }
+  valueNoise(g, size, Math.max(1, size/90), 0.06);
+  return c;
+}
+
 /* 目地と地の艶の差を作る粗さマップ。
    釉薬をかけた病院のタイルは鏡に近く（粗さ 0.4 前後）、目地のモルタルと
    その上に乗った汚れは完全に拡散する（0.9 前後）。壁も床も全面を
@@ -2611,6 +2660,12 @@ function buildTextures(){
     TEX.wallR  = mkR(texGloss(Math.max(128, s>>1), 4, 0.74, 0.98, 1), 1, 1);
     TEX.floorR = mkR(texGloss(Math.max(128, s>>1), 6, 0.55, 0.97, 0), GW, GH);
   }
+
+  /* 什器の汚れ。全種類で 1 枚を共用する。面ごとに 0..1 の UV なので
+     繰り返しは掛けない（掛けると小さい面ほど模様が細かくなる）。 */
+  var gc = texGrunge(Math.max(128, s>>1));
+  TEX.grunge = mk(gc, 1, 1);
+  if(QC.gloss) TEX.grungeR = mkR(roughFrom(gc, 0.52, 0.92), 1, 1);
 }
 
 /* =========================================================================
@@ -4915,9 +4970,13 @@ function buildWorld(){
      形の輪郭だけで何か分かるように寸法を実物に寄せてある。
      視線は遮らない高さ（1.05）にしてある——細い支柱や車椅子の向こうが
      見えないのは不自然だし、隠れ場所として機能してしまう。 */
-  var mtlSteel = new THREE.MeshStandardMaterial({ color:0x9aa3a1, roughness:0.42, metalness:0.72 });
-  var mtlPaint = new THREE.MeshStandardMaterial({ color:0x5c6b68, roughness:0.72, metalness:0.18 });
-  var mtlSheet = new THREE.MeshStandardMaterial({ color:0xc8c6b6, roughness:0.94 });
+  var GT = TEX.grunge || null, GR = TEX.grungeR || null;
+  var mtlSteel = new THREE.MeshStandardMaterial({ color:0x9aa3a1, map:GT, roughnessMap:GR,
+                                                  roughness:GR?1:0.42, metalness:0.72 });
+  var mtlPaint = new THREE.MeshStandardMaterial({ color:0x5c6b68, map:GT, roughnessMap:GR,
+                                                  roughness:GR?1:0.72, metalness:0.18 });
+  var mtlSheet = new THREE.MeshStandardMaterial({ color:0xc8c6b6, map:GT, roughnessMap:GR,
+                                                  roughness:GR?1:0.94 });
   var mtlBag   = new THREE.MeshStandardMaterial({ color:0xd7e2cf, roughness:0.35,
                                                   transparent:true, opacity:0.72 });
   var mtlTire  = new THREE.MeshStandardMaterial({ color:0x24282a, roughness:0.95 });
@@ -5059,7 +5118,9 @@ function buildWorld(){
      なっていた。地色を赤にしたときだけ赤く出たのがその証拠。
      塗装された金属は「広く鈍く光る」のではなく「狭く強く光る」。 */
   var propMat = new THREE.MeshStandardMaterial({
-    color:0xffffff, vertexColors:true, roughness:0.66, metalness:0.05
+    color:0xffffff, vertexColors:true, map:TEX.grunge || null,
+    roughnessMap:TEX.grungeR || null,
+    roughness:TEX.grungeR ? 1 : 0.66, metalness:0.05
   });
   var pn = QC.props;
   var propMesh = [], propN = [0,0,0];
