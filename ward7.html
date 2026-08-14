@@ -1258,7 +1258,10 @@ function texFloor(size){
    斑（血の通っている所と引いている所）・皮下の静脈・古い痣を重ねる。 */
 function texFlesh(size){
   var c = makeCanvas(size), g = c.getContext('2d');
-  g.fillStyle = '#9ea394'; g.fillRect(0,0,size,size);
+  /* 地色。以前は #9ea394（62%グレー）で、懐中電灯を当てると壁より明るく
+     返ってきて真っ白な人形に見えていた。実測で 壁の 1.6 倍。
+     暗がりで白く光る化け物ではなく、光を当ててやっと形が分かる程度に落とす。 */
+  g.fillStyle = '#5c6155'; g.fillRect(0,0,size,size);
   var K = (size/256) * (size/256);
   // 斑。青白い所と鬱血した所を交互に置く
   for(var i=0;i<Math.round(70*K);i++){
@@ -2054,6 +2057,37 @@ function buildEnvMap(){
   if(viewScene) viewScene.environment = scene.environment;
 }
 
+/* 品質を変えたときにテクスチャを作り直す。
+   ここが抜けていた。buildTextures は起動時に一度しか走らず、設定で
+   「最高品質」にしても壁も肌も 128px のまま、法線マップも作られない
+   （normalMaps が false の品質で組んだ TEX を持ち回っていた）。
+   実機では気づきにくいが、追跡者を至近距離で撮って
+   map が 128x128・normalMap 無しなのを見て発覚した。
+
+   長生きするマテリアル（追跡者の位置表示スプライトと埃）だけが
+   古いテクスチャを掴んだままになるので、そこは張り替える。 */
+var texBuiltQ = -1;
+function disposeTextures(){
+  for(var k in TEX){
+    if(!TEX.hasOwnProperty(k)) continue;
+    var v = TEX[k];
+    if(!v) continue;
+    if(Array.isArray(v)){ for(var i=0;i<v.length;i++) if(v[i] && v[i].dispose) v[i].dispose(); }
+    else if(v.dispose) v.dispose();
+  }
+  TEX = {};
+}
+function ensureTextures(){
+  var q = settings.quality|0;
+  if(texBuiltQ === q) return;
+  if(texBuiltQ >= 0) disposeTextures();
+  buildTextures();
+  buildEnvMap();
+  texBuiltQ = q;
+  if(hunterMark) hunterMark.material.map = TEX.glowR;
+  if(dustPts){ dustPts.material.map = TEX.glowW; dustPts.material.needsUpdate = true; }
+}
+
 function buildTextures(){
   var s = QC.tex;
   function mk(canvasEl, rx, ry){
@@ -2147,6 +2181,7 @@ var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts 
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
+var LAMP_I = 4.0;          // 懐中電灯の強さ（点灯時）
 function setupLights(){
   /* 環境光を強く入れると、どの面も最低限の明るさを持ってしまい、
      せっかく焼いた遮蔽も懐中電灯の輪も見えなくなる。落とす。 */
@@ -2160,7 +2195,9 @@ function setupLights(){
      携行灯は距離の二乗で落ちる。2.0 では足元しか見えず遊べないので、
      間を取って 1.65。届く距離も 34m → 28m に詰め、代わりに手元の
      強さを 3.2 → 4.4 に上げて、近くの明るさは保ったまま先だけ暗くする。 */
-  flashlight = new THREE.SpotLight(0xffe9c4, 4.4, 28, Math.PI/5.4, 0.62, 1.65);
+  /* 強さは毎フレーム更新するので、ここの値は初期値でしかない
+     （以前ここだけ変えて効いたつもりになっていた）。LAMP_I を唯一の出所にする。 */
+  flashlight = new THREE.SpotLight(0xffe9c4, LAMP_I, 28, Math.PI/5.4, 0.62, 1.65);
   flashlight.position.set(0,0,0);
   flashTarget = new THREE.Object3D();
   scene.add(flashTarget);
@@ -2467,7 +2504,7 @@ function buildBloom(size){
             'void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }'].join('\n');
   // 明るい所だけを抜く。閾値より下は捨て、上は滑らかに立ち上げる
   brightMat = new THREE.ShaderMaterial({
-    uniforms: { tDiffuse:{ value:null }, uThresh:{ value:0.62 } },
+    uniforms: { tDiffuse:{ value:null }, uThresh:{ value:0.74 } },
     vertexShader: VS,
     fragmentShader: ['uniform sampler2D tDiffuse; uniform float uThresh; varying vec2 vUv;',
       'void main(){',
@@ -4011,7 +4048,7 @@ function buildHunter(){
     color:TEX.flesh ? 0xffffff : 0x9ea394, map:TEX.flesh || null,
     normalMap:TEX.fleshN || null, roughnessMap:TEX.fleshR || null,
     roughness:TEX.fleshR ? 1 : 0.94, metalness:0,
-    emissive:0x1d2119, emissiveIntensity:0.55, vertexColors:true
+    emissive:0x1d2119, emissiveIntensity:0.14, vertexColors:true
   });
   if(skin.normalMap) skin.normalScale = new THREE.Vector2(0.85, 0.85);
   var stain = new THREE.MeshStandardMaterial({ color:0x5a3f38, roughness:1 });
@@ -4019,7 +4056,7 @@ function buildHunter(){
   var maw   = new THREE.MeshBasicMaterial({ color:0x120202 });
   var eyeL_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
-  var bone_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
+  var bone_ = new THREE.MeshBasicMaterial({ color:0xb0a087 });
 
   var _m = new THREE.Matrix4(), _e = new THREE.Euler();
   /* 部品を 1 つのジオメトリに畳む。
@@ -4031,6 +4068,9 @@ function buildHunter(){
        type:'sph'     … 球（r、sy で縦につぶす）
      分割数は品質で変える。低い端末では今までどおり粗いまま。 */
   var SEG = QC.detail ? 10 : 6;
+  /* 肌テクスチャの密度。1m あたり何回繰り返すか。
+     3.2 だと 30cm ごとに 1 タイル——斑と静脈がちょうど人体の縮尺に見える。 */
+  var UV_PER_M = 3.2;
 
   /* --- 隙間の陰りを頂点に焼き込む -------------------------------------
      部品を重ねて体を作っているので、肋の谷・眼窩の奥・関節の付け根は
@@ -4179,6 +4219,29 @@ function buildHunter(){
       _e.set(sp.rx||0, sp.ry||0, sp.rz||0);
       _m.makeRotationFromEuler(_e);
       _m.setPosition(sp.x||0, sp.y||0, sp.z||0);
+      /* UV を実寸に合わせる。
+         部品ごとに 0..1 のまま貼っていたので、指の一節にも 512px の
+         肌テクスチャが丸ごと乗り、模様が数十倍に拡大されて無地に見えていた。
+         体じゅうどこも「のっぺりした一色」だった原因はこれ。
+         部品の実際の周長・高さから繰り返し数を出すと、太い胴も細い指も
+         同じ肌理になる。 */
+      if(bg.attributes.uv){
+        var uS = 1, vS = 1;
+        if(sp.type === 'cyl'){
+          uS = TAU * (sp.rt + sp.rb) * 0.5 * UV_PER_M;
+          vS = sp.h * UV_PER_M;
+        }else if(sp.type === 'sph'){
+          var rr2 = sp.r * ((sp.sx||1) + (sp.sz||1)) * 0.5;
+          uS = TAU * rr2 * UV_PER_M;
+          vS = Math.PI * sp.r * (sp.sy||1) * UV_PER_M;
+        }else{
+          uS = sp.w * UV_PER_M; vS = sp.h * UV_PER_M;
+        }
+        // 1 周に満たないほど小さい部品でも、模様が消えない下限を持たせる
+        uS = Math.max(0.35, uS); vS = Math.max(0.35, vS);
+        var ua2 = bg.attributes.uv.array;
+        for(var uq=0; uq<ua2.length; uq+=2){ ua2[uq] *= uS; ua2[uq+1] *= vS; }
+      }
       bg.applyMatrix4(_m);
       var pa = bg.attributes.position.array,
           na = bg.attributes.normal.array,
@@ -4366,7 +4429,7 @@ function buildHunter(){
      輪郭が出て、歩くたびに遅れて揺れるぶん「重さ」も伝わる。
      板ではなく細い短冊の集まりにして、裂けた裾に見せる。 */
   var gownMat = new THREE.MeshStandardMaterial({
-    color:0xb9b3a0, roughness:1, side:THREE.DoubleSide,
+    color:0x6e6b5c, roughness:1, side:THREE.DoubleSide,
     emissive:0x14160f, emissiveIntensity:0.35
   });
   var gown = [];
@@ -5321,8 +5384,8 @@ function startGame(){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
   scene.fog.density = QC.fogD;
   $('grain').style.display = (QC.cssFx && !QC.post) ? 'block' : 'none';
-  // 映り込みは最低品質では持たない。設定変更のたびに作り直す
-  if(!!envRT !== ((settings.quality|0) > 0)) buildEnvMap();
+  // 品質が変わっていればテクスチャと映り込みを作り直す
+  ensureTextures();
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -5856,7 +5919,7 @@ function updatePlayer(dt){
                                                  player.lamp ? 0.22*flickAmt : 0.04, 0.10);
     viewArm.visible = !player.hiding;
   }
-  flashlight.intensity = player.lamp ? 3.3*flickAmt : 0;
+  flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
   playerLight.intensity = player.lamp ? 0.9*flickAmt : 0.14;
   ambient.intensity = (0.46 - panic*0.14) * (world.power ? 1.7 : 1);
 
@@ -6260,8 +6323,10 @@ function updateHunter(dt, info){
   }
 
   // 表面の明るさが定まらない＝光を当てても像が結ばない
-  P.skin.emissiveIntensity = 0.40 + 0.30*Math.abs(Math.sin(now*3.3 + Math.sin(now*8.1)*1.5))
-                             + (chasing ? 0.12 : 0);
+  /* 0.40〜0.70 は自己発光が強すぎて、光を当てなくても白く浮いていた。
+     暗闇でうっすら見える程度（0.10〜0.18）に落とす。 */
+  P.skin.emissiveIntensity = 0.10 + 0.08*Math.abs(Math.sin(now*3.3 + Math.sin(now*8.1)*1.5))
+                             + (chasing ? 0.04 : 0);
 
   // --- 殴打 ---
   // 片腕だけを使う。肘をたたんで引き、腰の回転で肩を送り出し、
@@ -9267,6 +9332,7 @@ try{
   setupLights();
   buildViewModel();
   buildEnvMap();          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
+  texBuiltQ = settings.quality|0;
   buildPost();
   resize();
   syncSettingsUI();
@@ -9290,7 +9356,7 @@ try{
     start: startGame, state: function(){ return state; },
     player: player, hunter: hunter, world: world, test: runSelfTest,
     toTitle: toTitle, setState: function(s){ state = s; },
-    audio: Audio2, spatial: spatial, camera: camera,
+    audio: Audio2, spatial: spatial, camera: camera, cheats: cheats,
     viewArm: function(){ return viewArm; }, viewCam: function(){ return viewCam; },
     viewRigRef: function(){ return viewRig; },
     lensMat: function(){ return viewParts.lens; },
