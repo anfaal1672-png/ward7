@@ -4451,7 +4451,8 @@ function buildWorld(){
   var doorX = ew.x + wallDir[0] * (CELL/2 - 0.11); // 壁面にぴたりと付ける
   var doorZ = ew.z + wallDir[1] * (CELL/2 - 0.11);
   var exitGrp = new THREE.Group();
-  var doorMat = new THREE.MeshStandardMaterial({ color:SRGB(0x1d2a26), emissive:0x8c2626, emissiveIntensity:0.7, roughness:0.6 });
+  var doorMat = new THREE.MeshStandardMaterial({ color:SRGB(0x1d2a26), map:TEX.grunge || null,
+    emissive:0x8c2626, emissiveIntensity:0.7, roughness:0.6 });
   var door = new THREE.Mesh(new THREE.BoxGeometry(CELL*0.72, WALL_H*0.82, 0.22), doorMat);
   door.position.set(0, WALL_H*0.41, 0);
   exitGrp.add(door);
@@ -4620,9 +4621,15 @@ function buildWorld(){
        （小物と同じ罠）。鍵を使いに来る＝必ず正面から見る扉なので、
        両開きの合わせ目・下の蹴込み板・網入りガラスの小窓・蝶番まで入れる。
        この扉は焼き固めないので頂点色を使ってよい。 */
+    /* 扉はビームに正対する唯一の大きな平面で、N·L が 1 になる。
+       壁が斜めで N·L 0.1 前後なのに対して 10 倍の光を受けるので、
+       無地のままだと「明るいクリーム色の板」になる（実際そう見えた。
+       画素で 181〜210）。什器と同じ汚れを貼って、面の中に濃淡を作る。 */
     var lockMat = new THREE.MeshStandardMaterial({
-      color:0xffffff, vertexColors:true,
-      roughness:0.62, metalness:0.14, emissive:0x2a1408, emissiveIntensity:0.30
+      color:0xffffff, vertexColors:true, map:TEX.grunge || null,
+      roughnessMap:TEX.grungeR || null,
+      roughness:TEX.grungeR ? 1 : 0.62, metalness:0.14,
+      emissive:0x2a1408, emissiveIntensity:0.30
     });
     var LW = CELL*0.94, LH = WALL_H*0.92;
     var leafSpecs = [];
