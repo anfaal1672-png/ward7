@@ -5309,6 +5309,45 @@ function buildWorld(){
   }
   world.propKinds = propN;
 
+  /* --- 什器の接地影 ---
+     懐中電灯は頭に付いているので、光軸と視線がほぼ一致する。その配置では
+     物の影は必ずその物自身の裏に隠れ、こちらからは見えない
+     （影の計算自体は動いていて、追跡者の後ろの壁には出ている）。
+     結果、床に置いた箱もドラム缶も接地の手がかりが無く、貼り付けたように
+     浮いて見えていた。真上から見た遮蔽を 1 枚の板で置く。
+     全部まとめて 1 つのメッシュにするのでドローコールは 1 つ。 */
+  if(TEX.shadow && world.props.length){
+    var bp = [], bu = [], bi = [], bn = 0;
+    for(var bs=0; bs<world.props.length; bs++){
+      var op2 = world.props[bs];
+      // 背の高い物ほど影を広く薄く。実際の面光源の下ではそうなる
+      var br = op2.r * (1.5 + Math.min(op2.h, 2.1)*0.22);
+      var b0 = bn*4;
+      var bq = [[-1,-1],[1,-1],[1,1],[-1,1]];
+      for(var bk=0; bk<4; bk++){
+        bp.push(op2.x + bq[bk][0]*br, 0.018, op2.z + bq[bk][1]*br);
+        bu.push((bq[bk][0]+1)*0.5, (bq[bk][1]+1)*0.5);
+      }
+      bi.push(b0, b0+2, b0+1, b0, b0+3, b0+2);
+      bn++;
+    }
+    var bg2 = new THREE.BufferGeometry();
+    bg2.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
+    bg2.setAttribute('uv',       new THREE.Float32BufferAttribute(bu, 2));
+    bg2.setIndex(bi);
+    bg2.computeVertexNormals();
+    /* 乗算合成にすると、透明な縁まで黒を掛けてしまって板の四角が出る
+       （TEX.shadow は「黒の不透明度」で描いてあるので、色ではなく
+       alpha で効かせるのが正しい）。追跡者の影と同じ通常合成にする。 */
+    var blobMesh = new THREE.Mesh(bg2, new THREE.MeshBasicMaterial({
+      map:TEX.shadow, transparent:true, depthWrite:false, opacity:0.85
+    }));
+    blobMesh.frustumCulled = false;
+    blobMesh.renderOrder = 2;
+    world.group.add(blobMesh);
+    world.propShadows = bn;
+  }
+
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
 
