@@ -10951,7 +10951,8 @@ function botPlanFlee(dt, F){
        効かないのではなく「その瞬間に箱が近くにない」のが問題だった
        （逃走 446 秒のうち、壁越し かつ 箱が 7m 以内 は 51 秒しかない）。
        そこで逃走の行き先そのものを箱にして、着く頃には壁の陰にいる状態を作る。 */
-    var hcut = null, hcd = 1e9;
+    var hcut = null, hcd = 1e9, hcutH = null, hcdH = 1e9;
+    var HP2 = (BOT.belAge < 1.5 && BOT.bel) ? BOT.bel : hpos;
     if(player.got < player.need){
       for(var hi=0; hi<BOT.seen.length; hi++){
         var hs2 = BOT.seen[hi];
@@ -10973,8 +10974,17 @@ function botPlanFlee(dt, F){
         /* 「相手の推定位置から視線が通っていない箱」に +16 して点数で選ぶ案は
            60 試行で 10.0% → 6.7% と落ちた。遠回りの損が、角の陰に入れる得を
            上回る。近い箱をそのまま選ぶ。 */
-        if(hdp < hcd){ hcd = hdp; hcut = hs2; }
+        /* 相手から視線の通らない箱を先に選ぶ。
+           箱に着いても入れないのが取りこぼしの正体で、実測（60 本）では
+           追跡 101 回のうち箱で終わったのは 18 回。逆に入れさえすれば
+           ほぼ確実に切れる（入った 104 回のうち見られていたのは 2 回だけ）。
+           見当は足音から立てた新しいほうを使う。 */
+        if(HP2 && !botLOSKnown(HP2.x, HP2.z, hs2.x, hs2.z)){
+          if(hdp < hcdH){ hcdH = hdp; hcutH = hs2; }
+        }else if(hdp < hcd){ hcd = hdp; hcut = hs2; }
       }
+      if(hcutH && hcdH < hcd + 12){ hcut = hcutH; hcd = hcdH; }
+      else if(!hcut && hcutH){ hcut = hcutH; hcd = hcdH; }
     }
     /* 箱へ向かうのは、視線が切れているあいだだけ。
        見られたまま走っても入れないし、そもそも近づいた時点で hunter.lastSeen が
