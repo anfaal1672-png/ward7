@@ -1355,6 +1355,118 @@ function texFlesh(size){
   return c;
 }
 
+/* 壁に残る痕跡。
+   壁が均一に汚れているだけで、「ここで何かがあった」場所が 1 つも無かった。
+   血の跡・手形・爪痕・水染みを 2x2 の 1 枚にまとめて焼き、壁面に貼る。
+   4 種類あれば、同じ模様が並んで見えるほどには繰り返さない。
+
+   透明度を持つので、色は白のまま alpha で抜く（材質側で色を掛ける）。 */
+function texDecals(size){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  var h = size/2;
+  g.clearRect(0,0,size,size);
+
+  // (0,0) 血の飛沫と垂れ
+  g.save(); g.beginPath(); g.rect(0,0,h,h); g.clip();
+  for(var i=0;i<26;i++){
+    var bx = h*0.5 + (rnd()-0.5)*h*0.62, by = h*0.34 + (rnd()-0.5)*h*0.40;
+    var br = h*(0.012 + rnd()*0.055);
+    g.fillStyle = 'rgba(96,14,10,'+(0.42+rnd()*0.45).toFixed(2)+')';
+    g.beginPath(); g.ellipse(bx, by, br, br*(0.7+rnd()*0.7), rnd()*TAU, 0, TAU); g.fill();
+    if(rnd() < 0.45){
+      /* 垂れ。長方形で塗ると上端が四角く残って「貼った跡」に見える。
+         先を絞った形にして、下端は透明へ抜く。 */
+      var dl = h*(0.06 + rnd()*0.30), dw2 = br*0.34;
+      var lg = g.createLinearGradient(0, by, 0, by+dl);
+      lg.addColorStop(0,'rgba(96,14,10,0.75)'); lg.addColorStop(1,'rgba(96,14,10,0)');
+      g.fillStyle = lg;
+      g.beginPath();
+      g.moveTo(bx-dw2, by);
+      g.quadraticCurveTo(bx-dw2*0.5, by+dl*0.7, bx, by+dl);
+      g.quadraticCurveTo(bx+dw2*0.5, by+dl*0.7, bx+dw2, by);
+      g.closePath(); g.fill();
+    }
+  }
+  g.restore();
+
+  // (1,0) 手形。指 4 本＋親指＋手のひら
+  g.save(); g.translate(h,0); g.beginPath(); g.rect(0,0,h,h); g.clip();
+  /* 手のひらは縦長の楕円ではなく横に広い。指は手のひらの中から生やして
+     根元を重ねないと、玉が浮いた「肉球」に見える。 */
+  g.fillStyle = 'rgba(78,16,12,0.60)';
+  g.beginPath(); g.ellipse(h*0.50, h*0.60, h*0.165, h*0.145, 0, 0, TAU); g.fill();
+  for(var f=0; f<4; f++){
+    var fx = h*(0.355 + f*0.097);
+    var flen = h*(0.150 - Math.abs(f-1.35)*0.020);
+    var ftip = h*0.60 - h*0.10 - flen;
+    g.beginPath();
+    g.ellipse(fx, (h*0.60 - h*0.06 + ftip)/2 + h*0.02, h*0.034, (h*0.60 - ftip)*0.42,
+              (f-1.5)*0.10, 0, TAU);
+    g.fill();
+  }
+  // 親指は手のひらの外側やや下から
+  g.save(); g.translate(h*0.30, h*0.66); g.rotate(0.85);
+  g.beginPath(); g.ellipse(0, 0, h*0.042, h*0.105, 0, 0, TAU); g.fill(); g.restore();
+  // 引きずった尾。長方形をやめて手のひらから細く抜く
+  var hg = g.createLinearGradient(h*0.5, h*0.70, h*0.5, h*0.97);
+  hg.addColorStop(0,'rgba(78,16,12,0.40)'); hg.addColorStop(1,'rgba(78,16,12,0)');
+  g.fillStyle = hg;
+  g.beginPath();
+  g.moveTo(h*0.35, h*0.70);
+  g.quadraticCurveTo(h*0.42, h*0.90, h*0.47, h*0.97);
+  g.lineTo(h*0.55, h*0.97);
+  g.quadraticCurveTo(h*0.60, h*0.90, h*0.65, h*0.70);
+  g.closePath(); g.fill();
+  g.restore();
+
+  // (0,1) 爪痕。3〜4 本の平行な引っ掻き
+  g.save(); g.translate(0,h); g.beginPath(); g.rect(0,0,h,h); g.clip();
+  g.lineCap = 'round';
+  var a0 = -0.35 + rnd()*0.7;
+  for(var k=0;k<4;k++){
+    var ox = h*(0.22 + k*0.13), w2 = h*(0.010 + rnd()*0.012);
+    g.strokeStyle = 'rgba(26,18,14,'+(0.44+rnd()*0.30).toFixed(2)+')';
+    g.lineWidth = w2;
+    g.beginPath();
+    g.moveTo(ox, h*0.16);
+    g.quadraticCurveTo(ox + Math.sin(a0)*h*0.10, h*0.50, ox + Math.sin(a0)*h*0.22, h*0.86);
+    g.stroke();
+    // 縁の白い削れ
+    g.strokeStyle = 'rgba(214,210,196,0.20)'; g.lineWidth = w2*0.45;
+    g.beginPath();
+    g.moveTo(ox - w2*0.6, h*0.16);
+    g.quadraticCurveTo(ox - w2*0.6 + Math.sin(a0)*h*0.10, h*0.50, ox - w2*0.6 + Math.sin(a0)*h*0.22, h*0.86);
+    g.stroke();
+  }
+  g.restore();
+
+  // (1,1) 水染み。上から広がって下端がぼやける
+  g.save(); g.translate(h,h); g.beginPath(); g.rect(0,0,h,h); g.clip();
+  for(var w3=0; w3<7; w3++){
+    var wx = h*(0.30 + rnd()*0.40), wy = h*(0.10 + rnd()*0.35);
+    var wr = h*(0.10 + rnd()*0.22);
+    var wgd = g.createRadialGradient(wx, wy, 0, wx, wy, wr);
+    wgd.addColorStop(0,'rgba(58,52,34,'+(0.16+rnd()*0.16).toFixed(2)+')');
+    wgd.addColorStop(0.7,'rgba(58,52,34,0.06)');
+    wgd.addColorStop(1,'rgba(58,52,34,0)');
+    g.fillStyle = wgd; g.beginPath(); g.arc(wx, wy, wr, 0, TAU); g.fill();
+  }
+  /* 下へ落ちる筋。長方形で塗ると輪郭が四角く残るので、
+     円を縦に重ねて幅を絞りながら降ろす。 */
+  for(var ws=0; ws<14; ws++){
+    var wt = ws/13;
+    var wy2 = h*(0.22 + wt*0.70);
+    var wr2 = h*(0.26 - wt*0.17);
+    var wgd2 = g.createRadialGradient(h*0.50, wy2, 0, h*0.50, wy2, wr2);
+    var wa = 0.10 * (1 - wt);
+    wgd2.addColorStop(0,'rgba(48,42,28,'+wa.toFixed(3)+')');
+    wgd2.addColorStop(1,'rgba(48,42,28,0)');
+    g.fillStyle = wgd2; g.beginPath(); g.arc(h*0.50, wy2, wr2, 0, TAU); g.fill();
+  }
+  g.restore();
+  return c;
+}
+
 /* 皮膚の粗さマップ。
    全面 roughness:1 だと、どこにもハイライトが乗らないので石膏像に見える。
    かといって一律に下げると全身がぬめって、汗ではなくビニールになる。
@@ -2233,6 +2345,10 @@ function buildTextures(){
   var fr2 = new THREE.CanvasTexture(texFleshRough(flc));
   fr2.wrapS = fr2.wrapT = THREE.RepeatWrapping;
   TEX.fleshR = fr2;
+
+  /* 壁の痕跡。透明度を持つので繰り返さない（1 枚 1 か所に貼る）。 */
+  TEX.decal = new THREE.CanvasTexture(texDecals(Math.max(256, s)));
+  TEX.decal.encoding = THREE.sRGBEncoding;
 }
 
 /* =========================================================================
@@ -3630,6 +3746,57 @@ function buildWorld(){
       quad(ox3, TRIM_H, oz3, ux3*CELL, 0, uz3*CELL, -dx3*TRIM_D, 0, -dz3*TRIM_D, 0, 1, 0, 2.2, 0.12);
     }
   }
+  /* --- 壁の痕跡 ---
+     壁が均一に汚れているだけで「ここで何かがあった」場所が無かった。
+     露出している壁面のうち何枚かに、血・手形・爪痕・水染みを貼る。
+     どれを貼るか・どこに貼るかはマスの座標から決める（乱数を引くと
+     同じ種でも間取りが変わる）。壁から 1.2cm 浮かせて奥行き争いを避ける。 */
+  var dcPos = [], dcUv = [], dcIdx = [], dcN = 0;
+  for(y=0;y<GH;y++) for(x=0;x<GW;x++){
+    if(g[idx(x,y)] !== 1) continue;
+    var wc4 = cellToWorld(x,y), hf4 = CELL/2;
+    for(var d5=0; d5<4; d5++){
+      var nx5 = x + DIRV[d5][0], ny5 = y + DIRV[d5][1];
+      if(solidAt(nx5, ny5)) continue;
+      var hs5 = (x*73856093 ^ y*19349663 ^ d5*83492791) >>> 0;
+      if((hs5 % 100) >= 26) continue;                 // 4 面に 1 枚くらい
+      var kind = (hs5 >> 7) % 4;
+      var dw = CELL * (0.26 + ((hs5 >> 11) % 7) * 0.035);
+      var dh = dw * (kind === 3 ? 1.35 : 1.0);        // 水染みは縦長
+      var cu = ((hs5 >> 15) % 100)/100 * 0.56 - 0.28; // 面内の左右位置
+      var cvv = kind === 3 ? 0.62 : (0.24 + ((hs5 >> 21) % 100)/100 * 0.42);
+      var ux5 = DIRV[d5][1], uz5 = -DIRV[d5][0];
+      var ox5 = wc4.x + DIRV[d5][0]*(hf4 + 0.012) + ux5*cu*CELL;
+      var oz5 = wc4.z + DIRV[d5][1]*(hf4 + 0.012) + uz5*cu*CELL;
+      var oy5 = cvv * WALL_H;
+      var base5 = dcPos.length/3;
+      var au = (kind & 1) ? 0.5 : 0, av = (kind & 2) ? 0.5 : 0;
+      var q = [[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+      for(var qi=0; qi<4; qi++){
+        dcPos.push(ox5 + ux5*q[qi][0]*dw, oy5 + q[qi][1]*dh, oz5 + uz5*q[qi][0]*dw);
+        dcUv.push(au + (q[qi][0]+0.5)*0.5, av + (q[qi][1]+0.5)*0.5);
+      }
+      dcIdx.push(base5, base5+1, base5+2, base5, base5+2, base5+3);
+      dcN++;
+    }
+  }
+  if(dcN && TEX.decal){
+    var dcGeo = new THREE.BufferGeometry();
+    dcGeo.setAttribute('position', new THREE.Float32BufferAttribute(dcPos, 3));
+    dcGeo.setAttribute('uv',       new THREE.Float32BufferAttribute(dcUv, 2));
+    dcGeo.setIndex(dcIdx);
+    dcGeo.computeVertexNormals();
+    var dcMat = new THREE.MeshBasicMaterial({
+      map:TEX.decal, transparent:true, depthWrite:false, opacity:0.92,
+      color:SRGB(0xb9bbb2)                 // 壁の明るさに馴染ませる
+    });
+    var dcMesh = new THREE.Mesh(dcGeo, dcMat);
+    dcMesh.frustumCulled = false;
+    dcMesh.renderOrder = 1;
+    world.group.add(dcMesh);
+  }
+  world.decals = dcN;
+
   var trimGeo = new THREE.BufferGeometry();
   trimGeo.setAttribute('position', new THREE.Float32BufferAttribute(trimPos, 3));
   trimGeo.setAttribute('normal',   new THREE.Float32BufferAttribute(trimNor, 3));
