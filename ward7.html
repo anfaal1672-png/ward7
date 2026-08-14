@@ -2429,8 +2429,12 @@ var EXP_BASE = 1.34;
    最終合成の持ち上げの有無・影・霧の濃さが品質で違うためで、同じ露出で
    揃うものではない。実測から逆算した係数を品質ごとに掛けて揃える。
    その後ビームを 33 度から 26 度へ絞ったぶん照らされる面積が減り、
-   平均が 50 前後まで落ちたので、ここで 1.15 倍して 58 前後へ戻した。 */
-var EXP_Q = [1.77, 1.12, 1.18, 1.28];
+   平均が 50 前後まで落ちたので 1.15 倍して 58 前後へ戻した。
+   さらに、露出の見積もりに入射角を入れたことで浅い角度の場面が
+   軒並み暗いと判定されるようになり（＝露出が開き）、69 前後まで
+   上がったので、実測から逆算して掛け直した。
+   実測 58.3 / 60.3 / 61.9 / 57.9。 */
+var EXP_Q = [1.40, 0.87, 1.02, 1.24];
 /* 自動露出（明順応）の倍率。何にどれだけ近くで光が当たっているかから
    毎フレーム作り直す。第15章の updateExposure を参照。
    宣言をここに置くのは、露出を読む側と同じ場所に無いと見落とすため。 */
@@ -7755,38 +7759,55 @@ function updatePlayer(dt){
    ここが 0.80 のままで画面平均が 58.6 → 48.3 まで落ちた。 */
 var EXP_REF = 0.10 + LAMP_I/Math.pow(2.9, 1.65);
 var EXP_LO = 0.62, EXP_HI = 1.25;   // 絞りの下限・上限
+/* ビームが最初に当たる面までの距離と、その面への入射の深さ。
+   距離だけでは足りない。同じ 4m でも、正面の壁に垂直に当たれば
+   全光量がそのまま返り、床を浅い角度でなでるだけならほとんど返らない。
+   実測：正面の壁を 4m から照らすと画面が白飛びしていたのに、露出は
+   むしろ開いていた（距離が遠いぶん暗いはずだと見積もっていた）。
+   結果は BEAM に書く（毎フレーム呼ぶので入れ物は使い回す）。 */
+var BEAM = { d:14, ndl:1 };
 function beamHitDist(){
   var cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
   var fx = -Math.sin(player.viewYaw)*cp, fy = sp, fz = -Math.cos(player.viewYaw)*cp;
-  var eyeY = camera.position.y, d = 14;
-  // 床と天井。ビームの中心が当たる距離は三角形で出る
-  if(fy < -0.05) d = Math.min(d, eyeY / -fy);
-  else if(fy > 0.05) d = Math.min(d, (WALL_H - eyeY) / fy);
-  // 壁。0.35m ずつ進めて最初の壁マスを探す（40 回で 14m）
-  var g = world.grid;
+  var eyeY = camera.position.y, d = 14, ndl = 1;
+  // 床と天井。ビームの中心が当たる距離は三角形で出る。入射の深さは |fy|
+  if(fy < -0.05){ d = eyeY / -fy; ndl = -fy; }
+  else if(fy > 0.05){ d = (WALL_H - eyeY) / fy; ndl = fy; }
+  if(d > 14){ d = 14; ndl = 1; }
+  /* 壁。0.35m ずつ進めて最初の壁マスを探す（40 回で 14m）。
+     どちらの軸をまたいで入ったかで面の向きが決まる。 */
+  var g = world.grid, pc = worldToCell(player.x, player.z);
   for(var s=0.35; s<d; s+=0.35){
     var c = worldToCell(player.x + fx*s, player.z + fz*s);
-    if(!inBounds(c.x, c.y) || g[idx(c.x, c.y)] !== 0){ d = s; break; }
+    if(!inBounds(c.x, c.y) || g[idx(c.x, c.y)] !== 0){
+      d = s;
+      ndl = (c.x !== pc.x) ? Math.abs(fx) : Math.abs(fz);
+      break;
+    }
+    pc = c;
   }
   /* 追跡者と什器。ビームの中にいるものだけを見る。円錐の外にあるものは
-     照らされていないので、寄られても露出を変えてはいけない。 */
+     照らされていないので、寄られても露出を変えてはいけない。
+     こちらを向いた物なので入射は正面（1）とみなす。 */
   var COSB = Math.cos(LAMP_ANG);
   function consider(px, py, pz, rad){
     var vx = px - player.x, vy = py - eyeY, vz = pz - player.z;
     var L = Math.sqrt(vx*vx + vy*vy + vz*vz);
     if(L < 0.2 || L >= d) return;
     if((vx*fx + vy*fy + vz*fz)/L < COSB) return;
-    d = Math.max(0.4, L - rad);
+    d = Math.max(0.4, L - rad); ndl = 1;
   }
   if(hunter.group && hunter.group.visible) consider(hunter.x, 1.15, hunter.z, 0.25);
   var pr = world.props;
   for(var i=0; i<pr.length; i++) consider(pr[i].x, pr[i].h*0.5, pr[i].z, pr[i].r);
+  BEAM.d = d; BEAM.ndl = clamp(ndl, 0.05, 1);
   return d;
 }
 function updateExposure(dt, lampOn){
   var d = Math.max(0.55, beamHitDist());
   // 環境光ぶんの下駄。電源が入っている区画は天井灯があるので底上げする
-  var ret = 0.10 * (world.power ? 1.7 : 1) + (LAMP_I*lampOn) / Math.pow(d, 1.65);
+  var ret = 0.10 * (world.power ? 1.7 : 1) +
+            (LAMP_I*lampOn) * BEAM.ndl / Math.pow(d, 1.65);
   /* 指数。0.32 では近づいたときの絞りが足りず、追跡者に 2m まで
      寄られると体が白く飛んだ（実測 平均輝度 120.7・背景の 1.23 倍）。
      0.44 にすると同じ場面で倍率が 0.78 → 0.71 になる。遠い側は
