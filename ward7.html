@@ -3176,6 +3176,115 @@ function buildViewModel(){
                 skinGeo:skinGeo, digitLens:digitLens, digitSt:digitSt, barrelAt:barrelRadiusAt };
 }
 
+/* 断面を掃引して一枚の皮を張る。
+   円柱と球を重ねて体を作ると、どれだけ数を増やしても部品の縁が面の途中に
+   出てくる。掴まれる距離まで寄られたときに「何かを積んだ物」に見える
+   いちばんの理由がこれだった。曲げない部位（胴）と、1 本の骨として
+   曲がる部位（上腕・前腕・腿・脛）は、断面を少しずつ変えながら掃いて
+   一続きの面にできる。
+
+   半径を返す関数 rad(theta, v, i) を受け取るのが要点。肋の谷も背骨の溝も
+   鎖骨の張りも、別の部品を貼り足すのではなく面そのものの起伏として作れる。
+   陰りも同じ場所から出せる——周りより凹んでいる頂点を暗くすればいい
+   （光線を飛ばす必要がない）。
+
+     rows … [{y, cx, cz, rx, rz}] を下から上へ
+     R    … 断面の分割数
+     rad  … (theta, v, i) → 半径の倍率。省略時は 1
+     opts … capA/capB で下端・上端に蓋（ドーム）を付ける */
+function loftGeo(rows, R, rad, opts){
+  opts = opts || {};
+  var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
+  var pos = new Float32Array(n*W*3), uvs = new Float32Array(n*W*2);
+  var mm  = new Float32Array(n*W);
+  var i, k, idx2;
+  for(i=0;i<n;i++){
+    var rw = rows[i], v = n>1 ? i/(n-1) : 0;
+    for(k=0;k<W;k++){
+      var th = (k % R) / R * TAU;
+      var m = rad ? rad(th, v, i) : 1;
+      idx2 = i*W + k;
+      mm[idx2] = m;
+      pos[idx2*3]   = (rw.cx||0) + Math.cos(th)*rw.rx*m;
+      pos[idx2*3+1] = rw.y;
+      pos[idx2*3+2] = (rw.cz||0) + Math.sin(th)*rw.rz*m;
+      uvs[idx2*2]   = k/R;
+      uvs[idx2*2+1] = v;
+    }
+  }
+  var ind = [];
+  for(i=0;i<n-1;i++) for(k=0;k<R;k++){
+    var a = i*W+k, b = a+1, c = (i+1)*W+k, d = c+1;
+    ind.push(a, b, c, b, d, c);            // 外を向く巻き方向
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(ind);
+  g.computeVertexNormals();
+  /* 継ぎ目の 2 列は同じ位置にあるのに別頂点なので、法線が食い違って
+     縦に 1 本線が入る。平均して両方に入れ直す。 */
+  var na = g.attributes.normal.array;
+  for(i=0;i<n;i++){
+    var p0 = (i*W)*3, p1 = (i*W + R)*3;
+    var nx = (na[p0]+na[p1])*0.5, ny = (na[p0+1]+na[p1+1])*0.5, nz = (na[p0+2]+na[p1+2])*0.5;
+    var L = Math.sqrt(nx*nx+ny*ny+nz*nz) || 1;
+    na[p0]=na[p1]=nx/L; na[p0+1]=na[p1+1]=ny/L; na[p0+2]=na[p1+2]=nz/L;
+  }
+  /* 陰り。周りより半径が小さい＝谷になっている頂点を暗くする。
+     肋の谷・背骨の溝・関節のくびれが、光の向きに関係なく沈む。 */
+  var col = new Float32Array(n*W*3);
+  for(i=0;i<n;i++) for(k=0;k<W;k++){
+    var s = 0, cnt = 0;
+    /* 近傍は 3x3。5x5 だと谷が均されて陰りがほとんど出なかった
+       （胴の AO が 0.83〜1.00 にしかならず、肋が読めなかった）。 */
+    for(var di=-1; di<=1; di++) for(var dk=-1; dk<=1; dk++){
+      var ii = i+di; if(ii<0||ii>=n) continue;
+      var kk = ((k+dk)%R + R)%R;
+      s += mm[ii*W+kk]; cnt++;
+    }
+    var loc = cnt ? s/cnt : 1, me = mm[i*W+k];
+    /* 係数 2.6 では、旧来の球を並べた胴（平均 0.884）に比べて陰りが
+       浅すぎた（0.979）。谷をもっと沈める。 */
+    var ao = clamp(1 - 9.0*Math.max(0, loc-me)/Math.max(loc, 1e-6), 0.30, 1);
+    var o = (i*W+k)*3;
+    col[o]=col[o+1]=col[o+2]=ao;
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // 端の蓋。中心を少し外へ出してドームにする
+  if(opts.capA || opts.capB){
+    var base = g.attributes.position.count;
+    var extraP = [], extraU = [], extraC = [];
+    function addCap(rowIdx, dir, dome){
+      var rw2 = rows[rowIdx];
+      extraP.push(rw2.cx||0, rw2.y + dir*dome, rw2.cz||0);
+      extraU.push(0.5, rowIdx ? 1 : 0);
+      extraC.push(1,1,1);
+      var c2 = base + (extraP.length/3 - 1);
+      for(var kk2=0; kk2<R; kk2++){
+        var a2 = rowIdx*W + kk2, b2 = a2 + 1;
+        if(dir > 0) ind.push(a2, b2, c2); else ind.push(b2, a2, c2);
+      }
+    }
+    if(opts.capA) addCap(0, -1, opts.capA);
+    if(opts.capB) addCap(n-1, 1, opts.capB);
+    var P2 = g.attributes.position.array, U2 = g.attributes.uv.array, C2 = g.attributes.color.array;
+    var np = new Float32Array(P2.length + extraP.length);
+    np.set(P2); np.set(extraP, P2.length);
+    var nu = new Float32Array(U2.length + extraU.length);
+    nu.set(U2); nu.set(extraU, U2.length);
+    var nc = new Float32Array(C2.length + extraC.length);
+    nc.set(C2); nc.set(extraC, C2.length);
+    g.setAttribute('position', new THREE.Float32BufferAttribute(np, 3));
+    g.setAttribute('uv',       new THREE.Float32BufferAttribute(nu, 2));
+    g.setAttribute('color',    new THREE.Float32BufferAttribute(nc, 3));
+    g.setIndex(ind);
+    g.computeVertexNormals();
+  }
+  g.computeBoundingSphere();
+  return g;
+}
+
 /* 小物用の簡易結合。
    拾得物は「板 1 枚」「円柱 1 本」で置かれていた。集めることが目的の
    物なのに、いちばん見る時間が長いのに、いちばん形が無かった。
@@ -4446,7 +4555,245 @@ var hunter = {
 
 var SWING_DUR = 0.46;      // 殴打モーション全体の長さ（ため→打ち抜き→戻し）
 
+/* 追跡者の体を組み立てる道具一式。
+   もとは buildHunter の中に置いていた。クロージャなので生成のたびに
+   作り直され、最適化がその 1 回の中で終わってしまう。胴を掃引に変えて
+   mergeBoxes を使わなくなった途端、最初の重い利用者になった腕の生成が
+   34ms → 125ms へ跳ね上がって露見した。モジュール直下で 1 度だけ定義する。
+   分割数と光線本数は品質で変わるので hunterSegs() で読み直す。 */
+var _m = new THREE.Matrix4(), _e = new THREE.Euler();
+/* 部品を 1 つのジオメトリに畳む。
+   もとは箱しか置けなかったので、体のどこを見ても角が立っていた。
+   円錐台（先細りの筒）と球を混ぜられるようにして、
+   骨と関節の形をそのまま出せるようにする。
+     type 省略      … 箱（w,h,d）
+     type:'cyl'     … 円錐台（rt=上半径, rb=下半径, h=長さ）
+     type:'sph'     … 球（r、sy で縦につぶす）
+   分割数は品質で変える。低い端末では今までどおり粗いまま。 */
+var SEG = 6;      // 生成のたびに hunterSegs() で読み直す
+/* 肌テクスチャの密度。1m あたり何回繰り返すか。
+   3.2 だと 30cm ごとに 1 タイル——斑と静脈がちょうど人体の縮尺に見える。 */
+var UV_PER_M = 3.2;
+
+/* --- 隙間の陰りを頂点に焼き込む -------------------------------------
+   部品を重ねて体を作っているので、肋の谷・眼窩の奥・関節の付け根は
+   本来なら光が届かない。ところが実行時のライトは点光源が数個しか
+   無いので、そういう凹みが平らな面と同じ明るさで返ってきて、
+   「粘土の塊に模様を描いた物」に見えていた。
+
+   製品のキャラクタが必ず持っている遮蔽マップの代わりに、生成時に
+   一度だけ半球へ光線を飛ばして、他の部品に当たった割合を頂点色に
+   入れる。実行中の負荷はゼロ。当たり判定は部品を陰関数として持つ
+   ——三角形と交差判定するより桁で速く、部品が凸なので自分自身に
+   誤ヒットしない（法線側へ出た光線は自分の外へ出るだけ）。 */
+function specSolid(sp){
+  var e = new THREE.Euler(sp.rx||0, sp.ry||0, sp.rz||0);
+  var m = new THREE.Matrix4().makeRotationFromEuler(e);
+  m.setPosition(sp.x||0, sp.y||0, sp.z||0);
+  /* 逆行列は要素配列のまま持つ。Vector3 を経由すると
+     内側のループで 100 万回オブジェクトを触ることになり、
+     これだけで焼き時間の半分を食っていた。
+     回転が無い部品は引き算だけで済むので、そのぶん分ける。 */
+  var s = { e:new THREE.Matrix4().copy(m).invert().elements, type:sp.type||'box',
+            rot:!!(sp.rx || sp.ry || sp.rz) };
+  if(sp.type === 'cyl'){ s.rt = sp.rt; s.rb = sp.rb; s.hh = sp.h/2;
+    s.rmax = Math.sqrt(Math.max(sp.rt, sp.rb)*Math.max(sp.rt, sp.rb) + s.hh*s.hh); }
+  else if(sp.type === 'sph'){
+    s.ax = sp.r*(sp.sx||1); s.ay = sp.r*(sp.sy||1); s.az = sp.r*(sp.sz||1);
+    s.ax2 = s.ax*s.ax; s.ay2 = s.ay*s.ay; s.az2 = s.az*s.az;
+    s.rmax = Math.max(s.ax, s.ay, s.az);
+  }else{
+    s.hx = sp.w/2; s.hy = sp.h/2; s.hz = sp.d/2;
+    s.rmax = Math.sqrt(s.hx*s.hx + s.hy*s.hy + s.hz*s.hz);
+  }
+  s.rr = s.rmax * s.rmax;
+  s.cx = sp.x||0; s.cy = sp.y||0; s.cz = sp.z||0;
+  return s;
+}
+function inSolid(s, wx, wy, wz){
+  // 粗い球で弾いてから正確に見る。9 割はここで帰る
+  var dx = wx-s.cx, dy = wy-s.cy, dz = wz-s.cz;
+  if(dx*dx + dy*dy + dz*dz > s.rr) return false;
+  var lx = dx, ly = dy, lz = dz;
+  if(s.rot){
+    var e = s.e;
+    lx = e[0]*wx + e[4]*wy + e[8]*wz  + e[12];
+    ly = e[1]*wx + e[5]*wy + e[9]*wz  + e[13];
+    lz = e[2]*wx + e[6]*wy + e[10]*wz + e[14];
+  }
+  if(s.type === 'sph')
+    return (lx*lx)/s.ax2 + (ly*ly)/s.ay2 + (lz*lz)/s.az2 < 1;
+  if(s.type === 'cyl'){
+    if(ly > s.hh || ly < -s.hh) return false;
+    var f = (ly + s.hh) / (s.hh*2);            // 下端 0 → 上端 1
+    var rc = s.rb + (s.rt - s.rb)*f;
+    return lx*lx + lz*lz < rc*rc;
+  }
+  return lx > -s.hx && lx < s.hx && ly > -s.hy && ly < s.hy && lz > -s.hz && lz < s.hz;
+}
+/* 半球の光線方向。乱数で撒くと部品ごとに模様が変わって縞に見えるので、
+   黄金角のらせん（どの本数でも均一に散る）で決め打ちにする。 */
+var HEMI = [], HEMI_N = -1;
+function hunterSegs(){
+  SEG = QC.detail ? 10 : 6;
+  var n = QC.hao || 1;
+  if(HEMI_N === n) return;
+  HEMI_N = n; HEMI = [];
+  for(var i=0;i<n;i++){
+    var y = (i + 0.5)/n;                        // 0..1（1 が法線方向）
+    var r = Math.sqrt(1 - y*y), th = i * 2.399963;
+    HEMI.push([Math.cos(th)*r, y, Math.sin(th)*r]);
+  }
+}
+var AO_REACH = 0.13;        // これより遠い部品は陰らせない（体の寸法に対する目安）
+/* 素直に「畳んだ後の全頂点 × 全部品」で回したら最高品質で +221ms 掛かった。
+   手元では一瞬でも、実機では確実に待たされる長さ。効いたのは 3 つ。
+     ・面をばらす前に焼く。畳んだ後は同じ座標が 6 回ずつ出てくるので、
+       部品ごとのインデックス付き頂点（1/6 の数）で計算して展開する。
+     ・逆行列を Vector3 経由で掛けない（inSolid の項を参照）。
+     ・指も足指も凸で、周りに何も無い。届く範囲に部品が 1 つも無い
+       頂点は、光線を飛ばすまでもなく明るいと決まる。
+   実測 +221ms → +30.6ms（最高品質）／+13.7ms（高精細）。 */
+/* 部品の代表寸法。小さすぎる部品の遮蔽を省くのに使う */
+function specSize(sp){
+  if(sp.type === 'cyl') return Math.max(sp.rt, sp.rb, sp.h*0.5);
+  if(sp.type === 'sph') return sp.r * Math.max(sp.sx||1, sp.sy||1, sp.sz||1);
+  return Math.max(sp.w, sp.h, sp.d) * 0.5;
+}
+var _ones = new Float32Array(0);
+function ONES(n){
+  if(_ones.length < n){ _ones = new Float32Array(n); _ones.fill(1); }
+  return _ones;
+}
+function bakeSolids(specs){
+  // 部品が 1 つだけなら陰るところが無い（凸なので自分自身を隠せない）
+  if(!QC.hao || specs.length < 2) return null;
+  var solids = [];
+  for(var i=0;i<specs.length;i++) solids.push(specSolid(specs[i]));
+  return solids;
+}
+// bg（変換済み・インデックス付き）の各頂点に対する遮蔽率を返す
+function bakeAOFor(bg, solids){
+  var pa = bg.attributes.position.array, na = bg.attributes.normal.array;
+  var n = bg.attributes.position.count, ao = new Float32Array(n);
+  if(!solids){ ao.fill(1); return ao; }
+  var ns = solids.length, nr = HEMI.length, cand = [];
+  var tx = new THREE.Vector3(), bx = new THREE.Vector3(), nv = new THREE.Vector3();
+  var up = new THREE.Vector3(0,1,0), up2 = new THREE.Vector3(1,0,0);
+  for(var v=0; v<n; v++){
+    var i3 = v*3, px0 = pa[i3], py0 = pa[i3+1], pz0 = pa[i3+2];
+    // 届く範囲に部品があるか。無ければ光線を飛ばさない
+    cand.length = 0;
+    for(var c2=0; c2<ns; c2++){
+      var S = solids[c2];
+      var ddx = px0-S.cx, ddy = py0-S.cy, ddz = pz0-S.cz;
+      var lim = S.rmax + AO_REACH;
+      if(ddx*ddx + ddy*ddy + ddz*ddz < lim*lim) cand.push(S);
+    }
+    if(!cand.length){ ao[v] = 1; continue; }
+    var nc = cand.length;
+
+    nv.set(na[i3], na[i3+1], na[i3+2]);
+    // 法線まわりの正規直交基底。法線が真上のときだけ別の軸を使う
+    tx.crossVectors(nv, Math.abs(nv.y) > 0.95 ? up2 : up).normalize();
+    bx.crossVectors(nv, tx);
+    var ox = px0 + nv.x*0.002, oy = py0 + nv.y*0.002, oz = pz0 + nv.z*0.002;
+    var hit = 0;
+    for(var r2=0; r2<nr; r2++){
+      var h = HEMI[r2];
+      var dx = tx.x*h[0] + nv.x*h[1] + bx.x*h[2];
+      var dy = tx.y*h[0] + nv.y*h[1] + bx.y*h[2];
+      var dz = tx.z*h[0] + nv.z*h[1] + bx.z*h[2];
+      // 近いところほど効く。3 点で足りる（凹みの幅がこの間隔より狭いことは無い）
+      for(var st=1; st<=3; st++){
+        var t2 = AO_REACH * st/3;
+        var qx = ox + dx*t2, qy = oy + dy*t2, qz = oz + dz*t2;
+        var blocked = false;
+        for(var s2=0; s2<nc; s2++){ if(inSolid(cand[s2], qx, qy, qz)){ blocked = true; break; } }
+        if(blocked){ hit += (4 - st)/3; break; }   // 手前で塞がれるほど暗い
+      }
+    }
+    // 完全に埋まっても真っ黒にはしない。周囲光が回り込む余地を残す
+    ao[v] = 1 - 0.62 * Math.min(1, hit/nr);
+  }
+  return ao;
+}
+
+function mergeBoxes(specs){
+  var pos = [], nor = [], uvs = [], cls = [];
+  var solids = bakeSolids(specs);
+  for(var i=0;i<specs.length;i++){
+    var sp = specs[i];
+    var bg;
+    if(sp.type === 'cyl'){
+      bg = new THREE.CylinderGeometry(sp.rt, sp.rb, sp.h, SEG, 1, true);
+    }else if(sp.type === 'sph'){
+      bg = new THREE.SphereGeometry(sp.r, SEG, Math.max(4, SEG>>1));
+      if(sp.sy || sp.sx || sp.sz) bg.scale(sp.sx||1, sp.sy||1, sp.sz||1);
+    }else{
+      bg = new THREE.BoxGeometry(sp.w, sp.h, sp.d);
+    }
+    _e.set(sp.rx||0, sp.ry||0, sp.rz||0);
+    _m.makeRotationFromEuler(_e);
+    _m.setPosition(sp.x||0, sp.y||0, sp.z||0);
+    /* UV を実寸に合わせる。
+       部品ごとに 0..1 のまま貼っていたので、指の一節にも 512px の
+       肌テクスチャが丸ごと乗り、模様が数十倍に拡大されて無地に見えていた。
+       体じゅうどこも「のっぺりした一色」だった原因はこれ。
+       部品の実際の周長・高さから繰り返し数を出すと、太い胴も細い指も
+       同じ肌理になる。 */
+    if(bg.attributes.uv){
+      var uS = 1, vS = 1;
+      if(sp.type === 'cyl'){
+        uS = TAU * (sp.rt + sp.rb) * 0.5 * UV_PER_M;
+        vS = sp.h * UV_PER_M;
+      }else if(sp.type === 'sph'){
+        var rr2 = sp.r * ((sp.sx||1) + (sp.sz||1)) * 0.5;
+        uS = TAU * rr2 * UV_PER_M;
+        vS = Math.PI * sp.r * (sp.sy||1) * UV_PER_M;
+      }else{
+        uS = sp.w * UV_PER_M; vS = sp.h * UV_PER_M;
+      }
+      // 1 周に満たないほど小さい部品でも、模様が消えない下限を持たせる
+      uS = Math.max(0.35, uS); vS = Math.max(0.35, vS);
+      var ua2 = bg.attributes.uv.array;
+      for(var uq=0; uq<ua2.length; uq+=2){ ua2[uq] *= uS; ua2[uq+1] *= vS; }
+    }
+    bg.applyMatrix4(_m);
+    var pa = bg.attributes.position.array,
+        na = bg.attributes.normal.array,
+        ua = bg.attributes.uv.array,
+        ix = bg.index ? bg.index.array : null;
+    /* 遮蔽はここで焼く。畳んだ後だと同じ座標を 6 回計算することになる。
+       ただし指の一節や爪のように 3.5cm を下回る部品は、そこに落ちる陰りが
+       画面上ほとんど見えない。焼く意味が薄いのに部品数が多いぶん頂点だけは
+       多く、起動時間の大半をここで使っていた（実測：腕2本の生成に125ms）。 */
+    var aoa = (solids && specSize(sp) >= 0.035) ? bakeAOFor(bg, solids)
+                                                : ONES(bg.attributes.position.count);
+    if(ix){
+      for(var k=0;k<ix.length;k++){
+        var v = ix[k];
+        pos.push(pa[v*3], pa[v*3+1], pa[v*3+2]);
+        nor.push(na[v*3], na[v*3+1], na[v*3+2]);
+        uvs.push(ua[v*2], ua[v*2+1]);
+        cls.push(aoa[v], aoa[v], aoa[v]);
+      }
+    }
+    bg.dispose();
+  }
+  var out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+  /* 頂点色は遮蔽専用。materialのvertexColorsを常に有効にしている以上、
+     この属性が無いメッシュは真っ黒になる。焼かない品質でも 1 を入れる。 */
+  out.setAttribute('color', new THREE.Float32BufferAttribute(cls, 3));
+  out.computeBoundingSphere();
+  return out;
+}
+
 function buildHunter(){
+  hunterSegs();          // 品質に応じた分割数と光線本数を用意する
   if(hunter.group){ scene.remove(hunter.group); disposeObject(hunter.group); hunter.group = null; }
   if(hunter.shadow){ scene.remove(hunter.shadow); disposeObject(hunter.shadow); hunter.shadow = null; }
   var g = new THREE.Group();
@@ -4473,218 +4820,6 @@ function buildHunter(){
   var eyeR_ = new THREE.MeshBasicMaterial({ color:0xffd9c0 });
   var bone_ = new THREE.MeshBasicMaterial({ color:0xb0a087 });
 
-  var _m = new THREE.Matrix4(), _e = new THREE.Euler();
-  /* 部品を 1 つのジオメトリに畳む。
-     もとは箱しか置けなかったので、体のどこを見ても角が立っていた。
-     円錐台（先細りの筒）と球を混ぜられるようにして、
-     骨と関節の形をそのまま出せるようにする。
-       type 省略      … 箱（w,h,d）
-       type:'cyl'     … 円錐台（rt=上半径, rb=下半径, h=長さ）
-       type:'sph'     … 球（r、sy で縦につぶす）
-     分割数は品質で変える。低い端末では今までどおり粗いまま。 */
-  var SEG = QC.detail ? 10 : 6;
-  /* 肌テクスチャの密度。1m あたり何回繰り返すか。
-     3.2 だと 30cm ごとに 1 タイル——斑と静脈がちょうど人体の縮尺に見える。 */
-  var UV_PER_M = 3.2;
-
-  /* --- 隙間の陰りを頂点に焼き込む -------------------------------------
-     部品を重ねて体を作っているので、肋の谷・眼窩の奥・関節の付け根は
-     本来なら光が届かない。ところが実行時のライトは点光源が数個しか
-     無いので、そういう凹みが平らな面と同じ明るさで返ってきて、
-     「粘土の塊に模様を描いた物」に見えていた。
-
-     製品のキャラクタが必ず持っている遮蔽マップの代わりに、生成時に
-     一度だけ半球へ光線を飛ばして、他の部品に当たった割合を頂点色に
-     入れる。実行中の負荷はゼロ。当たり判定は部品を陰関数として持つ
-     ——三角形と交差判定するより桁で速く、部品が凸なので自分自身に
-     誤ヒットしない（法線側へ出た光線は自分の外へ出るだけ）。 */
-  function specSolid(sp){
-    var e = new THREE.Euler(sp.rx||0, sp.ry||0, sp.rz||0);
-    var m = new THREE.Matrix4().makeRotationFromEuler(e);
-    m.setPosition(sp.x||0, sp.y||0, sp.z||0);
-    /* 逆行列は要素配列のまま持つ。Vector3 を経由すると
-       内側のループで 100 万回オブジェクトを触ることになり、
-       これだけで焼き時間の半分を食っていた。
-       回転が無い部品は引き算だけで済むので、そのぶん分ける。 */
-    var s = { e:new THREE.Matrix4().copy(m).invert().elements, type:sp.type||'box',
-              rot:!!(sp.rx || sp.ry || sp.rz) };
-    if(sp.type === 'cyl'){ s.rt = sp.rt; s.rb = sp.rb; s.hh = sp.h/2;
-      s.rmax = Math.sqrt(Math.max(sp.rt, sp.rb)*Math.max(sp.rt, sp.rb) + s.hh*s.hh); }
-    else if(sp.type === 'sph'){
-      s.ax = sp.r*(sp.sx||1); s.ay = sp.r*(sp.sy||1); s.az = sp.r*(sp.sz||1);
-      s.ax2 = s.ax*s.ax; s.ay2 = s.ay*s.ay; s.az2 = s.az*s.az;
-      s.rmax = Math.max(s.ax, s.ay, s.az);
-    }else{
-      s.hx = sp.w/2; s.hy = sp.h/2; s.hz = sp.d/2;
-      s.rmax = Math.sqrt(s.hx*s.hx + s.hy*s.hy + s.hz*s.hz);
-    }
-    s.rr = s.rmax * s.rmax;
-    s.cx = sp.x||0; s.cy = sp.y||0; s.cz = sp.z||0;
-    return s;
-  }
-  function inSolid(s, wx, wy, wz){
-    // 粗い球で弾いてから正確に見る。9 割はここで帰る
-    var dx = wx-s.cx, dy = wy-s.cy, dz = wz-s.cz;
-    if(dx*dx + dy*dy + dz*dz > s.rr) return false;
-    var lx = dx, ly = dy, lz = dz;
-    if(s.rot){
-      var e = s.e;
-      lx = e[0]*wx + e[4]*wy + e[8]*wz  + e[12];
-      ly = e[1]*wx + e[5]*wy + e[9]*wz  + e[13];
-      lz = e[2]*wx + e[6]*wy + e[10]*wz + e[14];
-    }
-    if(s.type === 'sph')
-      return (lx*lx)/s.ax2 + (ly*ly)/s.ay2 + (lz*lz)/s.az2 < 1;
-    if(s.type === 'cyl'){
-      if(ly > s.hh || ly < -s.hh) return false;
-      var f = (ly + s.hh) / (s.hh*2);            // 下端 0 → 上端 1
-      var rc = s.rb + (s.rt - s.rb)*f;
-      return lx*lx + lz*lz < rc*rc;
-    }
-    return lx > -s.hx && lx < s.hx && ly > -s.hy && ly < s.hy && lz > -s.hz && lz < s.hz;
-  }
-  /* 半球の光線方向。乱数で撒くと部品ごとに模様が変わって縞に見えるので、
-     黄金角のらせん（どの本数でも均一に散る）で決め打ちにする。 */
-  var HEMI = (function(){
-    var n = QC.hao || 1, a = [];
-    for(var i=0;i<n;i++){
-      var y = (i + 0.5)/n;                        // 0..1（1 が法線方向）
-      var r = Math.sqrt(1 - y*y), th = i * 2.399963;
-      a.push([Math.cos(th)*r, y, Math.sin(th)*r]);
-    }
-    return a;
-  })();
-  var AO_REACH = 0.13;        // これより遠い部品は陰らせない（体の寸法に対する目安）
-  /* 素直に「畳んだ後の全頂点 × 全部品」で回したら最高品質で +221ms 掛かった。
-     手元では一瞬でも、実機では確実に待たされる長さ。効いたのは 3 つ。
-       ・面をばらす前に焼く。畳んだ後は同じ座標が 6 回ずつ出てくるので、
-         部品ごとのインデックス付き頂点（1/6 の数）で計算して展開する。
-       ・逆行列を Vector3 経由で掛けない（inSolid の項を参照）。
-       ・指も足指も凸で、周りに何も無い。届く範囲に部品が 1 つも無い
-         頂点は、光線を飛ばすまでもなく明るいと決まる。
-     実測 +221ms → +30.6ms（最高品質）／+13.7ms（高精細）。 */
-  function bakeSolids(specs){
-    // 部品が 1 つだけなら陰るところが無い（凸なので自分自身を隠せない）
-    if(!QC.hao || specs.length < 2) return null;
-    var solids = [];
-    for(var i=0;i<specs.length;i++) solids.push(specSolid(specs[i]));
-    return solids;
-  }
-  // bg（変換済み・インデックス付き）の各頂点に対する遮蔽率を返す
-  function bakeAOFor(bg, solids){
-    var pa = bg.attributes.position.array, na = bg.attributes.normal.array;
-    var n = bg.attributes.position.count, ao = new Float32Array(n);
-    if(!solids){ ao.fill(1); return ao; }
-    var ns = solids.length, nr = HEMI.length, cand = [];
-    var tx = new THREE.Vector3(), bx = new THREE.Vector3(), nv = new THREE.Vector3();
-    var up = new THREE.Vector3(0,1,0), up2 = new THREE.Vector3(1,0,0);
-    for(var v=0; v<n; v++){
-      var i3 = v*3, px0 = pa[i3], py0 = pa[i3+1], pz0 = pa[i3+2];
-      // 届く範囲に部品があるか。無ければ光線を飛ばさない
-      cand.length = 0;
-      for(var c2=0; c2<ns; c2++){
-        var S = solids[c2];
-        var ddx = px0-S.cx, ddy = py0-S.cy, ddz = pz0-S.cz;
-        var lim = S.rmax + AO_REACH;
-        if(ddx*ddx + ddy*ddy + ddz*ddz < lim*lim) cand.push(S);
-      }
-      if(!cand.length){ ao[v] = 1; continue; }
-      var nc = cand.length;
-
-      nv.set(na[i3], na[i3+1], na[i3+2]);
-      // 法線まわりの正規直交基底。法線が真上のときだけ別の軸を使う
-      tx.crossVectors(nv, Math.abs(nv.y) > 0.95 ? up2 : up).normalize();
-      bx.crossVectors(nv, tx);
-      var ox = px0 + nv.x*0.002, oy = py0 + nv.y*0.002, oz = pz0 + nv.z*0.002;
-      var hit = 0;
-      for(var r2=0; r2<nr; r2++){
-        var h = HEMI[r2];
-        var dx = tx.x*h[0] + nv.x*h[1] + bx.x*h[2];
-        var dy = tx.y*h[0] + nv.y*h[1] + bx.y*h[2];
-        var dz = tx.z*h[0] + nv.z*h[1] + bx.z*h[2];
-        // 近いところほど効く。3 点で足りる（凹みの幅がこの間隔より狭いことは無い）
-        for(var st=1; st<=3; st++){
-          var t2 = AO_REACH * st/3;
-          var qx = ox + dx*t2, qy = oy + dy*t2, qz = oz + dz*t2;
-          var blocked = false;
-          for(var s2=0; s2<nc; s2++){ if(inSolid(cand[s2], qx, qy, qz)){ blocked = true; break; } }
-          if(blocked){ hit += (4 - st)/3; break; }   // 手前で塞がれるほど暗い
-        }
-      }
-      // 完全に埋まっても真っ黒にはしない。周囲光が回り込む余地を残す
-      ao[v] = 1 - 0.62 * Math.min(1, hit/nr);
-    }
-    return ao;
-  }
-
-  function mergeBoxes(specs){
-    var pos = [], nor = [], uvs = [], cls = [];
-    var solids = bakeSolids(specs);
-    for(var i=0;i<specs.length;i++){
-      var sp = specs[i];
-      var bg;
-      if(sp.type === 'cyl'){
-        bg = new THREE.CylinderGeometry(sp.rt, sp.rb, sp.h, SEG, 1, true);
-      }else if(sp.type === 'sph'){
-        bg = new THREE.SphereGeometry(sp.r, SEG, Math.max(4, SEG>>1));
-        if(sp.sy || sp.sx || sp.sz) bg.scale(sp.sx||1, sp.sy||1, sp.sz||1);
-      }else{
-        bg = new THREE.BoxGeometry(sp.w, sp.h, sp.d);
-      }
-      _e.set(sp.rx||0, sp.ry||0, sp.rz||0);
-      _m.makeRotationFromEuler(_e);
-      _m.setPosition(sp.x||0, sp.y||0, sp.z||0);
-      /* UV を実寸に合わせる。
-         部品ごとに 0..1 のまま貼っていたので、指の一節にも 512px の
-         肌テクスチャが丸ごと乗り、模様が数十倍に拡大されて無地に見えていた。
-         体じゅうどこも「のっぺりした一色」だった原因はこれ。
-         部品の実際の周長・高さから繰り返し数を出すと、太い胴も細い指も
-         同じ肌理になる。 */
-      if(bg.attributes.uv){
-        var uS = 1, vS = 1;
-        if(sp.type === 'cyl'){
-          uS = TAU * (sp.rt + sp.rb) * 0.5 * UV_PER_M;
-          vS = sp.h * UV_PER_M;
-        }else if(sp.type === 'sph'){
-          var rr2 = sp.r * ((sp.sx||1) + (sp.sz||1)) * 0.5;
-          uS = TAU * rr2 * UV_PER_M;
-          vS = Math.PI * sp.r * (sp.sy||1) * UV_PER_M;
-        }else{
-          uS = sp.w * UV_PER_M; vS = sp.h * UV_PER_M;
-        }
-        // 1 周に満たないほど小さい部品でも、模様が消えない下限を持たせる
-        uS = Math.max(0.35, uS); vS = Math.max(0.35, vS);
-        var ua2 = bg.attributes.uv.array;
-        for(var uq=0; uq<ua2.length; uq+=2){ ua2[uq] *= uS; ua2[uq+1] *= vS; }
-      }
-      bg.applyMatrix4(_m);
-      var pa = bg.attributes.position.array,
-          na = bg.attributes.normal.array,
-          ua = bg.attributes.uv.array,
-          ix = bg.index ? bg.index.array : null;
-      // 遮蔽はここで焼く。畳んだ後だと同じ座標を 6 回計算することになる
-      var aoa = bakeAOFor(bg, solids);
-      if(ix){
-        for(var k=0;k<ix.length;k++){
-          var v = ix[k];
-          pos.push(pa[v*3], pa[v*3+1], pa[v*3+2]);
-          nor.push(na[v*3], na[v*3+1], na[v*3+2]);
-          uvs.push(ua[v*2], ua[v*2+1]);
-          cls.push(aoa[v], aoa[v], aoa[v]);
-        }
-      }
-      bg.dispose();
-    }
-    var out = new THREE.BufferGeometry();
-    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    out.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
-    out.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-    /* 頂点色は遮蔽専用。materialのvertexColorsを常に有効にしている以上、
-       この属性が無いメッシュは真っ黒になる。焼かない品質でも 1 を入れる。 */
-    out.setAttribute('color', new THREE.Float32BufferAttribute(cls, 3));
-    out.computeBoundingSphere();
-    return out;
-  }
   /* 手足の骨。角柱ではなく、上が太く下が細い筒にする。
      付け根に球を置くと、曲げたときに関節の穴が開かない——
      箱を並べていたときは、肘や膝を深く曲げるたびに隙間が見えていた。 */
@@ -4727,22 +4862,56 @@ function buildHunter(){
   spine.position.y = 0.02 + THIGH + SOLE;
   g.add(spine);
 
-  // --- 痩せこけた胴。肋と背骨が浮き出ている ---
-  /* 胴は角柱をやめ、胸→腹→腰と細くなる筒でつなぐ。
-     肋と背骨は、潰した球を並べて皮の下の隆起にする（板を貼るより丸い）。 */
-  var torsoSpecs = [
-    { type:'cyl', rt:0.235, rb:0.155, h:0.48, y:0.78, sz:1 },   // 胸
-    { type:'cyl', rt:0.155, rb:0.135, h:0.44, y:0.36 },         // 腹
-    { type:'cyl', rt:0.135, rb:0.175, h:0.24, y:0.04 },         // 腰
-    { type:'sph', r:0.235, sy:0.62, y:1.00 },                   // 肩の上端を丸める
-    { type:'sph', r:0.175, sy:0.72, y:-0.06 }                   // 骨盤の下端
+  /* --- 痩せこけた胴 ---
+     筒 3 本と潰した球 12 個を重ねて作っていた。数を増やしても部品の縁が
+     面の途中に出てくるので、寄られると「何かを積んだ物」に見える。
+     腰から肩まで断面を少しずつ変えながら掃いて、一続きの皮にする。
+     肋も背骨も胸骨も鎖骨も、貼り足す部品ではなく皮そのものの起伏として
+     作る（半径を角度と高さの関数にする）。谷は自動的に暗くなる。 */
+  var TR = [
+    // y,     rx,    rz     … 下から上へ。骨盤→腰のくびれ→肋郭→肩
+    [-0.075, 0.150, 0.128], [-0.020, 0.171, 0.145], [ 0.040, 0.175, 0.146],
+    [ 0.100, 0.163, 0.136], [ 0.160, 0.148, 0.124], [ 0.225, 0.138, 0.116],
+    [ 0.295, 0.134, 0.113], [ 0.365, 0.137, 0.116], [ 0.435, 0.146, 0.123],
+    [ 0.505, 0.163, 0.132], [ 0.575, 0.184, 0.143], [ 0.645, 0.204, 0.152],
+    [ 0.715, 0.220, 0.158], [ 0.785, 0.230, 0.161], [ 0.850, 0.235, 0.161],
+    [ 0.905, 0.236, 0.158], [ 0.950, 0.230, 0.150], [ 0.985, 0.213, 0.137],
+    [ 1.010, 0.185, 0.120], [ 1.028, 0.140, 0.093]
   ];
-  for(var ri=0; ri<5; ri++)
-    torsoSpecs.push({ type:'sph', r:0.115-ri*0.009, sy:0.24, sz:1.18,
-                      y:0.66-ri*0.085, z:0.045 });
-  for(var si=0; si<7; si++)
-    torsoSpecs.push({ type:'sph', r:0.036, sy:0.85, y:0.14+si*0.105, z:-0.125 });
-  spine.add(new THREE.Mesh(mergeBoxes(torsoSpecs), skin));
+  var torsoRows = TR.map(function(r){ return { y:r[0], rx:r[1], rz:r[2] }; });
+  var TSEG = QC.detail ? 26 : 14;
+  var torsoGeo = loftGeo(torsoRows, TSEG, function(th, v){
+    var m = 1;
+    var front = Math.max(0, Math.sin(th));          // +Z が正面
+    var back  = Math.max(0, -Math.sin(th));
+    var side  = Math.abs(Math.cos(th));
+    /* 肋。胸の高さ（v 0.44〜0.80）に 6 本、正面と側面に回り込ませる。
+       山より谷を深くすると、皮の下に骨がある見え方になる。 */
+    var rv = (v - 0.44) / 0.36;
+    if(rv > 0 && rv < 1){
+      var w = Math.sin(rv*Math.PI);                 // 端で 0 になるので継ぎ目が出ない
+      var rib = Math.sin(rv*Math.PI*6.0);
+      m += w * (front*0.090 + side*0.062) * (rib > 0 ? rib*0.55 : rib);
+    }
+    // 胸骨の縦の溝。正面のまん中だけ落とす
+    m -= 0.038 * Math.exp(-Math.pow((th - Math.PI/2)/0.28, 2)) * Math.max(0, Math.sin((v-0.36)*3.0));
+    // 背骨の溝。腰から首まで通す
+    m -= 0.058 * Math.exp(-Math.pow((th + Math.PI/2)/0.24, 2)) * (0.35 + 0.65*v);
+    // 肩甲骨の張り。背中の左右に 2 枚
+    var sc = Math.exp(-Math.pow((v-0.80)/0.10, 2));
+    m += back * side * 0.055 * sc;
+    // 鎖骨。肩のすぐ下で正面に横一文字の稜線
+    m += front * 0.045 * Math.exp(-Math.pow((v-0.90)/0.045, 2));
+    // 腸骨の張り。骨盤の左右
+    m += side * 0.050 * Math.exp(-Math.pow((v-0.06)/0.055, 2));
+    return m;
+  }, { capA:0.06, capB:0.03 });
+  var torsoMesh = new THREE.Mesh(torsoGeo, skin);
+  /* 掃引の陰りは半径の起伏から直接出しているので、光線を飛ばす焼き込み
+     （QC.hao）とは別物。品質に関係なく掛かる。自己診断が両者を混同
+     しないように印を付ける。 */
+  torsoMesh.userData.loft = true;
+  spine.add(torsoMesh);
 
   var bl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.01), stain);
   bl.position.set(0.04, 0.5, 0.135); spine.add(bl);
@@ -7588,6 +7757,8 @@ function runSelfTest(){
       var ca = o.geometry.attributes.color;
       if(o.material.vertexColors && !ca){ noCol++; return; }
       if(!ca) return;
+      // 掃引の面（胴）は光線を飛ばさない別系統の陰りなので、この判定から外す
+      if(o.userData && o.userData.loft) return;
       for(var i=0;i<ca.count;i++){
         var v = ca.getX(i);
         if(!isFinite(v)) nan++;
