@@ -7,9 +7,13 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const file=process.argv[2], q=+(process.argv[3]||3), N=+(process.argv[4]||180);
+  /* 実機相当で測るための画面指定。既定の 720x1280・等倍は実機に無い設定で、
+     dpr=3 のときだけ現れる負荷（描く画素が 9 倍）を見落とす。
+     例: node fps.js <html> 3 180 390 844 3 */
+  const VW=+(process.argv[5]||720), VH=+(process.argv[6]||1280), DSF=+(process.argv[7]||1);
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
-  const p=await b.newPage({viewport:{width:720,height:1280}});
+  const p=await b.newPage({viewport:{width:VW,height:VH}, deviceScaleFactor:DSF});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
     body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
@@ -32,6 +36,6 @@ const fs=require('fs'), path=require('path');
     const med=dts[dts.length>>1], p95=dts[Math.floor(dts.length*0.95)];
     return { med, p95, min:dts[0], max:dts[dts.length-1] };
   }, {q,N});
-  console.log(`${path.basename(file).padEnd(12)} q${q}  フレーム時間 中央値 ${r.med.toFixed(1)}ms (${(1000/r.med).toFixed(1)}fps)  95%点 ${r.p95.toFixed(1)}ms  最短 ${r.min.toFixed(1)}  最長 ${r.max.toFixed(1)}  err=${errs.length}`);
+  console.log(`${path.basename(file).padEnd(12)} q${q} ${VW}x${VH}@${DSF}  フレーム時間 中央値 ${r.med.toFixed(1)}ms (${(1000/r.med).toFixed(1)}fps)  95%点 ${r.p95.toFixed(1)}ms  最短 ${r.min.toFixed(1)}  最長 ${r.max.toFixed(1)}  err=${errs.length}`);
   await b.close();
 })();

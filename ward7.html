@@ -1505,6 +1505,49 @@ function texFleshRough(fleshCanvas){
   og.putImageData(img,0,0);
   return out;
 }
+/* テクスチャの平均反射率（線形・チャンネルごと）。材質の色とテクスチャは
+   掛け算になるので、最終的な反射率を知るにはテクスチャ側の平均が要る。
+   検証でしか呼ばないが、同じ画像を何度も測るので結果は控えておく。
+
+   チャンネルを潰して先に輝度にしてはいけない。肌は赤だけが 0.44 で
+   緑青は半分以下、包帯は三色とも 0.6 近い——最大値で測ると
+   どちらも 0.39 になって区別が付かなかった（実際そうなった）。
+   sRGB の 2.2 乗近似で線形へ直してから平均する（先に平均してから
+   線形へ直すと、暗部の多い絵ほど明るく出てしまう）。 */
+var TEX_MEAN = [];
+function texMeanLinear(img){
+  if(!img || !img.width) return [1,1,1];
+  for(var i=0;i<TEX_MEAN.length;i++) if(TEX_MEAN[i].k === img) return TEX_MEAN[i].v;
+  var s = Math.min(64, img.width), c = makeCanvas(s), g = c.getContext('2d');
+  g.drawImage(img, 0, 0, s, s);
+  var d = g.getImageData(0,0,s,s).data, sr = 0, sg = 0, sb = 0;
+  for(var q=0;q<s*s;q++){
+    sr += Math.pow(d[q*4]/255, 2.2);
+    sg += Math.pow(d[q*4+1]/255, 2.2);
+    sb += Math.pow(d[q*4+2]/255, 2.2);
+  }
+  var n = s*s, v = [sr/n, sg/n, sb/n];
+  TEX_MEAN.push({ k:img, v:v });
+  return v;
+}
+
+/* 明暗をそのまま粗さに読み替える。金属の擦れや刻みは「削れた所ほど
+   細かい傷が付いて鈍く光る」ので、明るい所を粗く・暗い所を滑らかに
+   するのが実物に近い（lo が明部の粗さ、hi が暗部の粗さ）。
+   three は粗さを緑チャンネルから読むので、緑だけ書けばよい。 */
+function roughFrom(srcCanvas, lo, hi){
+  var s = srcCanvas.width;
+  var src = srcCanvas.getContext('2d').getImageData(0,0,s,s).data;
+  var out = makeCanvas(s), og = out.getContext('2d');
+  var img = og.createImageData(s,s), d = img.data;
+  for(var i=0;i<s*s;i++){
+    var l = (src[i*4]*0.299 + src[i*4+1]*0.587 + src[i*4+2]*0.114) / 255;
+    var v = Math.round(clamp(hi + (lo - hi)*l, 0, 1) * 255);
+    d[i*4] = 0; d[i*4+1] = v; d[i*4+2] = 0; d[i*4+3] = 255;
+  }
+  og.putImageData(img,0,0);
+  return out;
+}
 // 区画表示板。病棟の壁に貼られた区画記号のプレート。
 // 迷路は31x31・通路率約0.67で見た目の差が乏しいため、
 // 「今どのあたりにいるか」を地図ではなく風景から読ませるための目印。
@@ -1601,6 +1644,73 @@ function texGauze(size){
     g.fillStyle=gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
   }
   valueNoise(g, size, Math.max(1, size/48), 0.06);
+  return c;
+}
+/* ランプの筒。無地の暗い金属だと、画面の真ん中で「黒い円柱」に
+   しか見えない（実際そうなっていた）。実物の懐中電灯は旋盤で削った
+   跡が円周方向に細い筋として残り、角と稜だけ陽極酸化の被膜が擦れて
+   地金が出る。その二つを焼く。
+   円柱の UV は u が円周・v が軸方向なので、筋は横（u 方向）に引く。
+   縦に引くと繋ぎ目で必ず途切れる。 */
+function texLampMetal(size){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  /* 地色は明るくしておく。金属の反射率は材質の色で決めるので、
+     テクスチャは「そこからどれだけ落ちるか」を持つ役。暗い地色
+     （0x3a3d3f ＝ 線形 0.043）にすると、材質の色を上げても
+     23 分の 1 に潰されて真っ黒のままになる（実際そうなった）。 */
+  g.fillStyle = '#e6e8e8'; g.fillRect(0,0,size,size);
+  // 旋盤の筋。1 画素ごとの明暗で、寄っても潰れない細さにする
+  for(var i=0;i<size;i++){
+    var v = (Math.sin(i*2.7)*0.5+0.5)*0.5 + rnd()*0.5;
+    g.fillStyle = 'rgba(28,30,32,' + (v*0.20).toFixed(3) + ')';
+    g.fillRect(0, i, size, 1);
+  }
+  // 陽極酸化の色むら。均一な塗りに見せない
+  for(var b=0;b<14;b++){
+    var bx=rnd()*size, by=rnd()*size, br=size*(0.10+rnd()*0.22);
+    var gr=g.createRadialGradient(bx,by,0,bx,by,br);
+    gr.addColorStop(0, rnd()<0.5 ? 'rgba(30,34,38,0.34)' : 'rgba(255,255,255,0.20)');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(bx,by,br,0,TAU); g.fill();
+  }
+  // 擦れて出た地金。短い明るい引っかき傷
+  g.lineCap='round';
+  for(var s2=0;s2<26;s2++){
+    var sx=rnd()*size, sy=rnd()*size, sa=(rnd()-0.5)*0.5;
+    var sl=size*(0.02+rnd()*0.10);
+    g.strokeStyle='rgba(255,255,255,'+(0.16+rnd()*0.30).toFixed(2)+')';
+    g.lineWidth=Math.max(1, size/300);
+    g.beginPath(); g.moveTo(sx,sy);
+    g.lineTo(sx+Math.cos(sa)*sl, sy+Math.sin(sa)*sl); g.stroke();
+  }
+  valueNoise(g, size, Math.max(1, size/96), 0.05);
+  return c;
+}
+/* 握りのローレット。菱形の刻みは実物の握り部分そのもので、
+   これがあると太さと丸みが一目で読める。刻みの数は円周方向 28・
+   軸方向 12 で、実物の 0.8mm ピッチにおおよそ合う。 */
+function texKnurl(size){
+  var c = makeCanvas(size), g = c.getContext('2d');
+  // 地は筒と同じ明るさ。谷を暗く、山の頂を明るくする（金属の色は材質側）
+  g.fillStyle = '#c8cccc'; g.fillRect(0,0,size,size);
+  var NU = 28, NV = 12;
+  g.lineWidth = Math.max(1, size/150);
+  for(var d=0; d<2; d++){
+    // 右上がりと右下がりの二方向。交差した所が菱形の谷になる
+    g.strokeStyle = 'rgba(22,24,26,0.55)';
+    for(var k=-NV; k<NU+NV; k++){
+      var x0 = k/NU*size, x1 = x0 + (d ? size*NV/NU : -size*NV/NU);
+      g.beginPath(); g.moveTo(x0, 0); g.lineTo(x1, size); g.stroke();
+    }
+  }
+  // 山の頂だけ光る（谷は影になる）ので、点で明部を足す
+  for(var v2=0; v2<NV; v2++) for(var u2=0; u2<NU; u2++){
+    var px = (u2+0.5)/NU*size, py = (v2+0.5)/NV*size;
+    var gr = g.createRadialGradient(px,py,0,px,py,size/NU*0.55);
+    gr.addColorStop(0,'rgba(255,255,255,0.55)');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(px,py,size/NU*0.55,0,TAU); g.fill();
+  }
   return c;
 }
 // 非常口誘導の矢印。カルテが揃うまでは消灯していて読めない
@@ -2933,15 +3043,29 @@ function buildViewModel(){
      下げたので、そのままだと手だけが白く浮いて貼り付けたように見える。
      環境光を半分以下にし、代わりにランプからの点光源を強く・近くする。
      指の間に落ちる影がはっきりして、平たい板の集まりに見えなくなる。 */
-  viewScene.add(new THREE.AmbientLight(0x4c463e, 0.10));
-  /* 補助光をカメラ側（尾部の真横）に置いていたので、いちばん暗いはずの
-     尻栓が真正面から照らされ、ほぼ黒のゴムが 6 割グレーで返っていた。
-     光はランプの先から出て壁で跳ね返ってくるのだから、前から来るのが正しい。
-     レンズのあたりへ移すと、指の関節に光が乗って手前側が落ち、
-     握っている形がはじめて読めるようになる。 */
-  var vl = new THREE.PointLight(0xffcf98, 2.4, 1.5, 2.0);
-  vl.position.set(0.04, 0.02, -0.50);
+  viewScene.add(new THREE.AmbientLight(0x4c463e, 0.16));
+  /* 主光は「前の床と壁で跳ね返って戻ってくる光」。
+     ここを点光源にしていたのが間違いだった。跳ね返りの出どころは
+     2〜4m 先の床と壁なので、腕の中では距離差がほとんど無い。
+     点光源にすると距離の二乗で落ちるので、ランプを 34cm から 42cm へ
+     下げただけで手の明るさが 13 分の 1 になり（実測 平均輝度 96→79）、
+     ヘッドだけ真っ黒で白い縁が光る絵になった。
+     平行光にすれば、指も筒も頭も同じ光量で受ける。 */
+  var vl = new THREE.DirectionalLight(0xffd0a2, 2.7);
+  vl.position.set(0.42, -0.62, -1.0);          // 前・下から（床の跳ね返り）
   viewScene.add(vl);
+  /* レンズの周りから漏れる光。反射鏡の縁からは必ずいくらか横へ逃げるので、
+     ヘッドと、それに近い指の第一関節だけが強く光る。ここは本当に
+     距離が効くので点光源のままでよい。 */
+  var vlB = new THREE.PointLight(0xffc890, 2.2, 0.62, 2.0);
+  vlB.position.set(0.05, -0.135, -0.605);
+  viewScene.add(vlB);
+  /* 縁の光。廊下の非常灯と天井からの弱い光は、常に後ろ上から来る。
+     指の上の稜だけを冷たく光らせて、暗い背景から輪郭を切り離す。
+     ランプを消しても残る唯一の光でもある。 */
+  var vlR = new THREE.DirectionalLight(0x8ea8c8, 0.85);
+  vlR.position.set(-0.55, 0.85, 0.42);
+  viewScene.add(vlR);
   var vl2 = new THREE.PointLight(0x62748c, 0.20, 3, 1.6);
   vl2.position.set(-0.4, -0.1, 0.2);
   viewScene.add(vl2);
@@ -2972,14 +3096,60 @@ function buildViewModel(){
   if(skinN){ skinN.wrapS = skinN.wrapT = THREE.RepeatWrapping; skinN.repeat.set(1.6,1.6); }
   var gauzeN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(gauzeTex.image, 2.4)) : null;
   if(gauzeN){ gauzeN.wrapS = gauzeN.wrapT = THREE.RepeatWrapping; gauzeN.repeat.set(2.2,1); }
+  /* 肌の色。地の色（線形 0.66,0.51,0.42）に肌のテクスチャ（線形
+     0.44,0.24,0.15）を掛けると最終の反射率が (0.29,0.12,0.06)——
+     緑が赤の 4 割しかない、チョコレート色になっていた。実際の肌は
+     暗がりでももっと彩度が低い（およそ 赤:緑:青 = 1:0.65:0.55）。
+     色むらはテクスチャ側に任せ、材質の色は無彩色に近づける。 */
   var skin  = new THREE.MeshStandardMaterial({
-    color:0xa8836b, map:skinTex, normalMap:skinN, roughness:0.88
+    color:0xe4e0dc, map:skinTex, normalMap:skinN, roughness:0.86
   });
+  /* 包帯。地の色 0xd9d4c4 を線形のまま使っていたので反射率 0.85、
+     そこへ織り目のテクスチャ（0.62）を掛けても 0.53 ある。新品の
+     コピー用紙より白い布が薄暗い廊下にあることになり、手の甲を横切る
+     一枚だけが必ず白飛びしていた。汚れたガーゼは 0.3 前後。 */
   var band  = new THREE.MeshStandardMaterial({
-    color:0xd9d4c4, map:gauzeTex, normalMap:gauzeN, roughness:0.86
+    color:SRGB(0xbdb8a8), map:gauzeTex, normalMap:gauzeN, roughness:0.86
   });
-  var metal = regEnvMat(new THREE.MeshStandardMaterial({ color:SRGB(0x4a4f52), roughness:0.42, metalness:0.75 }));
-  var grip  = new THREE.MeshStandardMaterial({ color:SRGB(0x1d1f20), roughness:0.95 });
+  /* ランプの筒。無地だと画面の中央でただの黒い円柱になる。旋盤の筋・
+     陽極酸化のむら・擦れた地金を貼り、粗さも同じ絵から作る。
+     金属の色は反射率そのもの。0x4a4f52 は線形で 0.075——黒鉛より
+     暗い金属で、光源が一つしかない廊下では白い筋以外まったく返さない
+     （黒い棒に白い線が乗っているだけに見えていた）。使い込んだ
+     アルミの地金（0.32 前後）にする。中間調が出て、初めて筒に見える。 */
+  var lampTex = new THREE.CanvasTexture(texLampMetal(QC.tex >= 512 ? 512 : 256));
+  lampTex.wrapS = lampTex.wrapT = THREE.RepeatWrapping;
+  lampTex.encoding = THREE.sRGBEncoding;
+  var lampR = new THREE.CanvasTexture(roughFrom(lampTex.image, 0.30, 0.62));
+  lampR.wrapS = lampR.wrapT = THREE.RepeatWrapping;
+  var lampN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(lampTex.image, 1.1)) : null;
+  if(lampN) lampN.wrapS = lampN.wrapT = THREE.RepeatWrapping;
+  var metal = regEnvMat(new THREE.MeshStandardMaterial({
+    color:SRGB(0x9aa0a3), map:lampTex, roughnessMap:lampR, normalMap:lampN,
+    roughness:1.0, metalness:0.90,
+    /* 金属は拡散反射がゼロなので、映り込みが全ての中間調を作る。
+       環境マップは廊下の平均の明るさで焼いてあるが、ランプは
+       ビームのすぐ脇にあって周囲が実際より明るい。その差を掛ける。 */
+    envMapIntensity:2.2
+  }));
+  /* 握り。ローレット（菱形の刻み）を貼る。刻みは太さと丸みを一目で
+     読ませる形なので、ここが無地だと筒の径が分からなくなる。
+     材質は筒と同じアルミ。菱形の山が一つずつ光を返すので、握りだけ
+     細かくきらめいて、手が触れている場所がはっきりする。 */
+  var knurlTex = new THREE.CanvasTexture(texKnurl(QC.tex >= 512 ? 512 : 256));
+  knurlTex.wrapS = knurlTex.wrapT = THREE.RepeatWrapping;
+  knurlTex.encoding = THREE.sRGBEncoding;
+  var knurlN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(knurlTex.image, 2.6)) : null;
+  if(knurlN) knurlN.wrapS = knurlN.wrapT = THREE.RepeatWrapping;
+  var knurlM = regEnvMat(new THREE.MeshStandardMaterial({
+    color:SRGB(0x8e9498), map:knurlTex, normalMap:knurlN, roughness:0.52, metalness:0.88,
+    envMapIntensity:2.2
+  }));
+  /* 尻栓とスイッチのゴム。金属ではないので metalness は 0。
+     反射率 0.045 は黒ゴムの実測に近い（暗いのは正しい）。 */
+  var grip  = new THREE.MeshStandardMaterial({
+    color:SRGB(0x3c3f40), roughness:0.82, metalness:0.0
+  });
   var lensM = new THREE.MeshStandardMaterial({
     color:0xfff0d0, emissive:0xffdca0, emissiveIntensity:2.2, roughness:0.3
   });
@@ -2988,31 +3158,47 @@ function buildViewModel(){
   // 縦持ちの水平画角は狭いので、部品はかなり小さく作らないと画面を覆ってしまう
   var ARM = new THREE.Group();
   ARM.name = 'ARMROOT';
-  ARM.position.set(0.031, -0.085, -0.345);
-  // 光軸は視線とほぼ平行にする。以前は上へ 5.7 度・外へ 8 度も振っていて、
-  // 前ではなく斜め外を照らしているように見えた
-  ARM.rotation.set(0.055, -0.045, 0.07);
+  /* 置き場所。以前は画面のほぼ中央に、視線と平行に、34cm の至近で
+     構えていた。ランプの軸と視線のなす角が 5 度しかないので、
+     見えるのは尻栓の真円だけ——画面の目立つ位置に、いちばん情報の
+     少ない面（無地の黒い円盤）が正対して置かれていた。
+
+     直し方は二つある。横へずらすと視差で斜めから見えるが、縦持ちは
+     水平の画角が狭い（半幅が距離の 0.32 倍しかない）ので、ずらせる量に
+     上限がある。そこで少し遠ざけて小さくし、そのぶん横へ出し、
+     さらに手首の角度として 6 度だけひねる。
+     斜めから見える角度は 5 度 → 16 度。筒の側面が読めるようになる。
+
+     ひねりは光軸と模型の向きを 6 度ずらすことになるが、実際の照射角は
+     33 度あるので、狙った所が照らせなくなることはない。 */
+  ARM.position.set(0.082, -0.150, -0.420);
+  ARM.rotation.set(0.045, 0.115, 0.145);
   viewRig.add(ARM);
 
+  /* 分割数。筒は画面の手前 40cm にあるので、輪郭の多角形がそのまま
+     見える。16 分割だと 22.5 度ごとに角が立ち、尻栓が六角形に見えていた。
+     最高品質だけ 26 に上げる（腕は一つに焼き固めるのでドローコールは
+     増えない。増えるのは頂点だけ）。 */
+  var LSEG = QC.detail ? 26 : 14;
   function tube(rTop, rBot, len, mat, seg){
     var m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, seg || 10), mat || skin);
     m.rotation.x = Math.PI/2;                 // 軸を Z 方向へ
     return m;
   }
   // ---- ランプ本体（軸 = ARM のローカル原点） ----
-  var body = tube(0.020, 0.022, 0.170, metal, 16);
+  var body = tube(0.020, 0.022, 0.170, metal, LSEG);
   body.position.set(0, 0, -0.060);
   ARM.add(body);
-  var gripRing = tube(0.0245, 0.0245, 0.052, grip, 16);
+  var gripRing = tube(0.0245, 0.0245, 0.052, knurlM, LSEG);
   gripRing.position.set(0, 0, -0.020);
   ARM.add(gripRing);
-  var headC = tube(0.033, 0.021, 0.056, metal, 18);
+  var headC = tube(0.033, 0.021, 0.056, metal, LSEG);
   headC.position.set(0, 0, -0.173);
   ARM.add(headC);
-  var bezel = new THREE.Mesh(new THREE.TorusGeometry(0.0305, 0.0045, 7, 18), metal);
+  var bezel = new THREE.Mesh(new THREE.TorusGeometry(0.0305, 0.0045, QC.detail ? 10 : 6, LSEG), metal);
   bezel.position.set(0, 0, -0.201);
   ARM.add(bezel);
-  var lens = new THREE.Mesh(new THREE.CircleGeometry(0.0295, 18), lensM);
+  var lens = new THREE.Mesh(new THREE.CircleGeometry(0.0295, LSEG), lensM);
   lens.position.set(0, 0, -0.2035);
   ARM.add(lens);
 
@@ -3021,16 +3207,26 @@ function buildViewModel(){
      金属円盤のままだったので、画面でいちばん目を引く場所に、いちばん
      情報の無い面が置かれていた。ゴムの尻栓・金属の縁・通電表示に分ける。
      どれも数百面だが、握りの中心なので効きが大きい。 */
-  var tail = tube(0.0225, 0.0208, 0.017, grip, 16);
+  var tail = tube(0.0225, 0.0208, 0.017, grip, LSEG);
   tail.position.set(0, 0, 0.0325);
   ARM.add(tail);
-  var tailRing = new THREE.Mesh(new THREE.TorusGeometry(0.0218, 0.0026, 6, 18), metal);
+  var tailRing = new THREE.Mesh(new THREE.TorusGeometry(0.0218, 0.0026, QC.detail ? 8 : 5, LSEG), metal);
   tailRing.position.set(0, 0, 0.0245);
   ARM.add(tailRing);
+  /* 押しボタン。平らな円盤は面の向きが一定なので、どんな光を当てても
+     一様な塗りにしかならない——画面のいちばん目立つ所が、ただの黒い円に
+     なっていた。ゴムのボタンは実際わずかに膨らんでいる。半球を潰して
+     置くと、縁へ向かって面が寝るぶん階調が出て「押せる物」に見える。 */
+  var btn = new THREE.Mesh(
+    new THREE.SphereGeometry(0.0172, LSEG, QC.detail ? 10 : 6, 0, TAU, 0, Math.PI/2), grip);
+  btn.rotation.x = Math.PI/2;      // 半球の頂点をカメラ側（+Z）へ
+  btn.scale.set(1, 0.34, 1);       // 潰す。軸は回す前の Y
+  btn.position.set(0, 0, 0.0398);
+  ARM.add(btn);
   // 通電表示。点いていることが手元でも分かる（消灯中は暗い赤に落とす）
   var ledM = new THREE.MeshBasicMaterial({ color:0xff3a24 });
   var led = new THREE.Mesh(new THREE.CircleGeometry(0.0040, 10), ledM);
-  led.position.set(0.0078, 0.0058, 0.0412);
+  led.position.set(0.0078, 0.0058, 0.0462);   // 膨らんだ面の上に乗せる
   ARM.add(led);
   // 側面のスイッチ。親指の掛かる位置に置く
   var sw = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.006, 0.022), grip);
@@ -3143,6 +3339,10 @@ function buildViewModel(){
     return geo;
   }
 
+  /* 指と手のひらの断面の分割数。指は 9 分割だと 40 度ごとに角が立ち、
+     握った指の輪郭が階段状に見えていた（画面の手前 40cm にあるので
+     そのまま読める）。手のひらは 12 分割で 30 度ごと。最高品質だけ上げる。 */
+  var DSEG = QC.detail ? 12 : 8, PSEG = QC.detail ? 16 : 10;
   var skinParts = [], bandParts = [], nailParts = [], digitLens = [], digitSt = [];
   function addSkin(geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
   function addBand(geo){ bandParts.push(new THREE.Mesh(geo, band)); }
@@ -3196,7 +3396,7 @@ function buildViewModel(){
     // 指先は丸める
     var last = st[st.length-1];
     last.rx *= 0.82; last.ry *= 0.82;
-    addSkin(hugBarrel(sweepGeo(st, 9, 1, 2)));
+    addSkin(hugBarrel(sweepGeo(st, DSEG, 1, 2)));
     return st;
   }
 
@@ -3214,11 +3414,15 @@ function buildViewModel(){
       ns.push({ p:[a.p[0]+ox*lift, a.p[1]+oy*lift, a.p[2]],
                 rx:r*0.13, ry:r*(0.70 - i*0.11), up:[0,0,1] });
     }
-    nailParts.push(new THREE.Mesh(sweepGeo(ns, 8, 1, 2), nailMat));
+    nailParts.push(new THREE.Mesh(sweepGeo(ns, QC.detail ? 10 : 7, 1, 2), nailMat));
   }
 
+  /* 爪。toneMapped:false のままだと ACES を素通りするので、指が暗い所でも
+     爪だけが白く飛ぶ。実際、指先に白い三角が乗っているように見えていた。
+     トーンマップに戻し、色も肌より少しだけ明るい程度に落とす。
+     爪は角質なので粗さは肌より低い（濡れたように光る）。 */
   var nailMat = new THREE.MeshStandardMaterial({
-    color:0xcfb2a4, roughness:0.35, metalness:0.0, toneMapped:false
+    color:SRGB(0xa89286), roughness:0.42, metalness:0.0
   });
 
   /* 手掌：手根から中手骨頭の並びまで。板ではなく、胴を包む向きに湾曲した
@@ -3241,7 +3445,7 @@ function buildViewModel(){
       });
     }
   })();
-  addSkin(hugBarrel(sweepGeo(palmSt, 12, 2, 1)));
+  addSkin(hugBarrel(sweepGeo(palmSt, PSEG, 2, 1)));
 
   // 母指球：親指の付け根の肉。手のひらで一番厚い部分で、ここが無いと板に見える
   var thenar = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 9), skin);
@@ -3393,8 +3597,9 @@ function buildViewModel(){
   ], 10, 0, 0), 0.0022));
 
   // 患者用リストバンド
+  // 包帯と同じ理由で、トーンマップを外していたのを戻して反射率も落とす
   var idBandMat = new THREE.MeshStandardMaterial({
-    color:0xd8d5c9, map:gauzeTex, roughness:0.75, toneMapped:false
+    color:SRGB(0xc6c2b4), map:gauzeTex, roughness:0.75
   });
   var wbA = foreSt[2], wbB = foreSt[3];        // 手首の少し肘寄りに巻く
   var wbG = sweepGeo([
@@ -3427,7 +3632,12 @@ function buildViewModel(){
 
   viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
-                base:{ x:0, y:0, z:0 },
+                base:{ x:0, y:0, z:0 }, root:ARM,
+                /* ランプから出た光（直接・跳ね返り）は、消灯したら消える。
+                   固定にしていたので、灯りを消しても手だけが暖かく
+                   照らされたままだった。強さを控えて毎フレーム戻す。 */
+                keyLight:vl, keyI:vl.intensity,
+                bounceLight:vlB, bounceI:vlB.intensity,
                 skinGeo:skinGeo, digitLens:digitLens, digitSt:digitSt, barrelAt:barrelRadiusAt };
 }
 
@@ -6941,6 +7151,11 @@ function updatePlayer(dt){
     // レンズの発光はランプの状態に連動
     viewParts.lens.emissiveIntensity = player.lamp ? 2.4*flickAmt : 0.04;
     viewParts.lens.color.setRGB(1, 0.94, 0.82);
+    /* 手を照らしている光もランプ由来なので、一緒に消す。消したときに
+       残るのは後ろ上からの縁の光と環境光だけになり、手が沈む。 */
+    var lampK = player.lamp ? flickAmt : 0.06;
+    viewParts.keyLight.intensity = viewParts.keyI * lampK;
+    viewParts.bounceLight.intensity = viewParts.bounceI * lampK;
     // 尾部の通電表示。消灯中も完全には消さない（電池が生きていることは分かる）
     /* 色は線形で渡るので、消灯時の (0.28,0.04,0.10) は画面では
        ピンクに見えていた。線形で暗い値まで落とす。 */
@@ -8312,6 +8527,41 @@ function runSelfTest(){
       }
     });
     t('指が胴を握っている（浮いていない）', gripOK);
+
+    /* トーンマップを外した材質が混ざっていないか。
+       腕は本編と別のシーンに描くので、ここに toneMapped:false が
+       一つでもあると、その部品だけ ACES を素通りして白く飛ぶ。
+       実際、爪・包帯・リストバンドの 3 つが外れていて、暗い廊下で
+       指先と手首だけが紙のように光っていた。 */
+    var rawTone = 0;
+    viewScene.traverse(function(o){
+      if(!o.isMesh || !o.material) return;
+      var ml = Array.isArray(o.material) ? o.material : [o.material];
+      for(var mi3=0; mi3<ml.length; mi3++)
+        if(ml[mi3].isMeshStandardMaterial && ml[mi3].toneMapped === false) rawTone++;
+    });
+    t('腕にトーンマップを外した材質が無い', rawTone === 0);
+
+    /* 反射率の上限。色とテクスチャは掛け算になるので、両方明るいと
+       「白い紙より白い布」ができあがる。実際、包帯が線形 0.53 あって
+       ランプを向けるたびに必ず白飛びしていた。
+       実在の拡散反射材で最も明るいのは新雪の 0.8、白い塗料で 0.7。
+       この場面に出るのは汚れた布・肌・ゴムだけ。実測で今いちばん
+       明るい面が 0.313、飛んでいた包帯を戻すと 0.381。0.35 で切る
+       （両側におよそ 1 割の余裕を取った位置）。 */
+    var tooBright = null;
+    viewScene.traverse(function(o){
+      if(tooBright || !o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
+      var m3 = o.material;
+      if(m3.metalness > 0.5) return;              // 金属は拡散反射が無いので別勘定
+      // 発光する面（レンズ）は光源であって材質ではない。上限の対象外
+      if(m3.emissive && (m3.emissive.r + m3.emissive.g + m3.emissive.b) > 0.01) return;
+      var k = m3.map ? texMeanLinear(m3.map.image) : [1,1,1];
+      var lin = 0.299*m3.color.r*k[0] + 0.587*m3.color.g*k[1] + 0.114*m3.color.b*k[2];
+      if(lin > 0.35) tooBright = o.name + ' ' + lin.toFixed(3);
+    });
+    t('腕の反射率が実在の材質の範囲に収まっている' +
+      (tooBright ? '（' + tooBright + '）' : ''), tooBright === null);
   }
 
   // --- AI観戦モード ---
@@ -10402,6 +10652,10 @@ try{
     toTitle: toTitle, setState: function(s){ state = s; },
     audio: Audio2, spatial: spatial, camera: camera, cheats: cheats,
     viewArm: function(){ return viewArm; }, viewCam: function(){ return viewCam; },
+    /* 描画の実体。検証ツールが本編だけを隠して腕を撮ったり、
+       描いた画素をそのまま読んだりするのに要る（外からは触れなかった） */
+    gfx: function(){ return { renderer:renderer, scene:scene, camera:camera,
+                              viewScene:viewScene, viewCam:viewCam, QC:QC }; },
     viewRigRef: function(){ return viewRig; },
     lensMat: function(){ return viewParts.lens; },
     viewPartsRef: function(){ return viewParts; },
