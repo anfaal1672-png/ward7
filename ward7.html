@@ -1188,7 +1188,11 @@ function texWall(size){
     var sh = 0.94 + rnd()*0.12;
     // 20枚に1枚くらい、目立って汚れた／欠けたタイル
     if(rnd() < 0.05) sh *= 0.66 + rnd()*0.16;
-    var r = Math.floor(88*sh), gg = Math.floor(95*sh), b = Math.floor(92*sh);
+    /* タイルの地色。88,95,92 は線形で 0.10——アスファルトなみの反射率で、
+       病棟の白タイルとしては暗すぎた。これまでは塗装の剥がれの淡い斑が
+       全体を持ち上げていて、その斑を小さくした途端に壁が沈んだ。
+       124,132,126（線形 0.21）にする。汚れているので白では無い。 */
+    var r = Math.floor(124*sh), gg = Math.floor(132*sh), b = Math.floor(126*sh);
     g.fillStyle = 'rgb('+r+','+gg+','+b+')';
     g.fillRect(x*tile+gap, y*tile+gap, tile-gap*2, tile-gap*2);
     // 目地側の面取り。上と左を少し明るくすると 1 枚 1 枚が浮き上がる
@@ -1201,13 +1205,32 @@ function texWall(size){
      引き伸ばされるだけで、高精細にしても「大きくぼやけた壁」になっていた。
      面積比で増やすと、寄っても離れても密度が変わらない。 */
   var K = (size/256) * (size/256);
+  /* 汚れの形。真円の斑を撒いていたので、壁が迷彩柄に見えていた。
+     壁に付く汚れは重力で必ず下へ伸びる——水が垂れ、埃が流れ、
+     手で触った跡が下へこすれる。縦に 1.6〜3.4 倍伸ばし、
+     濃さの中心も上へ寄せて、下へ抜けるようにする。 */
   for(var i=0;i<Math.round(180*K);i++){
-    var px = rnd()*size, py = rnd()*size, rr = rnd()*size*0.14*(0.5+0.5/Math.sqrt(K));
-    var grad = g.createRadialGradient(px,py,0,px,py,rr);
-    var a = rnd()*0.16;
+    var px = rnd()*size, py = rnd()*size;
+    var rr = rnd()*size*0.10*(0.5+0.5/Math.sqrt(K));
+    var el = 1.6 + rnd()*1.8;                    // 縦の伸び
+    var a = rnd()*0.17;
+    g.save();
+    g.translate(px, py); g.scale(1, el);
+    var grad = g.createRadialGradient(0,-rr*0.35,0, 0,-rr*0.35,rr);
     grad.addColorStop(0,'rgba(30,26,20,'+a+')');
     grad.addColorStop(1,'rgba(30,26,20,0)');
-    g.fillStyle = grad; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
+    g.fillStyle = grad; g.beginPath(); g.arc(0,-rr*0.35,rr,0,TAU); g.fill();
+    g.restore();
+  }
+  /* 目地に溜まる汚れ。タイルの面は拭けても、目地は落ちない。
+     ここが均一だと「模様を印刷した板」に見える。線ごとに濃さを変える。 */
+  for(var gy=0; gy<=N; gy++){
+    g.fillStyle = 'rgba(26,24,20,' + (0.10 + rnd()*0.26).toFixed(2) + ')';
+    g.fillRect(0, gy*tile - gap*0.5, size, gap*1.6);
+  }
+  for(var gx=0; gx<=N; gx++){
+    g.fillStyle = 'rgba(26,24,20,' + (0.06 + rnd()*0.18).toFixed(2) + ')';
+    g.fillRect(gx*tile - gap*0.5, 0, gap*1.6, size);
   }
   // 錆の垂れ
   for(var j=0;j<Math.round(10*Math.sqrt(K));j++){
@@ -1237,17 +1260,27 @@ function texWall(size){
       g.strokeStyle = 'rgba(150,150,140,0.10)';
       g.lineWidth = 0.7; g.stroke();
     }
-    // 塗装の剥がれ。下地の色が覗く不定形の面
-    for(var pl=0; pl<Math.round(5*K); pl++){
-      var ox = rnd()*size, oy = rnd()*size, rad = size*(0.012 + rnd()*0.035);
-      g.fillStyle = 'rgba(96,92,80,' + (0.20 + rnd()*0.25) + ')';
+    /* 塗装の剥がれ。下地のモルタルが覗く不定形の面。
+       半径をテクスチャの 1.2〜4.7% で描いていたので、壁の上では
+       20〜50cm の大きな淡い斑になり、しかも地の色より明るかった。
+       離れて見ると迷彩柄にしか見えない（実際そう見えていた）。
+       剥がれは塗膜が浮いて欠ける現象なので、実物は数 cm。
+       小さく・地より暗く・縁に影を付ける。 */
+    for(var pl=0; pl<Math.round(9*K); pl++){
+      var ox = rnd()*size, oy = rnd()*size, rad = size*(0.005 + rnd()*0.013);
       g.beginPath();
       for(var pa=0; pa<8; pa++){
         var aa = pa/8*TAU, rr2 = rad*(0.6 + rnd()*0.8);
         var xx = ox + Math.cos(aa)*rr2, yy = oy + Math.sin(aa)*rr2;
         if(pa === 0) g.moveTo(xx, yy); else g.lineTo(xx, yy);
       }
-      g.closePath(); g.fill();
+      g.closePath();
+      g.fillStyle = 'rgba(70,72,68,' + (0.28 + rnd()*0.26).toFixed(2) + ')';
+      g.fill();
+      // 欠けた縁は塗膜の厚みぶん影になる
+      g.strokeStyle = 'rgba(30,30,28,0.30)';
+      g.lineWidth = Math.max(1, size/700);
+      g.stroke();
     }
   }
   g.globalAlpha = 0.05; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
@@ -4172,7 +4205,7 @@ function buildWorld(){
      露出している壁面のうち何枚かに、血・手形・爪痕・水染みを貼る。
      どれを貼るか・どこに貼るかはマスの座標から決める（乱数を引くと
      同じ種でも間取りが変わる）。壁から 1.2cm 浮かせて奥行き争いを避ける。 */
-  var dcPos = [], dcUv = [], dcIdx = [], dcN = 0;
+  var dcPos = [], dcNor = [], dcUv = [], dcIdx = [], dcN = 0;
   for(y=0;y<GH;y++) for(x=0;x<GW;x++){
     if(g[idx(x,y)] !== 1) continue;
     var wc4 = cellToWorld(x,y), hf4 = CELL/2;
@@ -4195,6 +4228,8 @@ function buildWorld(){
       var q = [[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
       for(var qi=0; qi<4; qi++){
         dcPos.push(ox5 + ux5*q[qi][0]*dw, oy5 + q[qi][1]*dh, oz5 + uz5*q[qi][0]*dw);
+        // 法線は貼った壁面と同じ。計算に任せると 4 点が同一平面なので不定になる
+        dcNor.push(DIRV[d5][0], 0, DIRV[d5][1]);
         dcUv.push(au + (q[qi][0]+0.5)*0.5, av + (q[qi][1]+0.5)*0.5);
       }
       dcIdx.push(base5, base5+1, base5+2, base5, base5+2, base5+3);
@@ -4206,10 +4241,16 @@ function buildWorld(){
     dcGeo.setAttribute('position', new THREE.Float32BufferAttribute(dcPos, 3));
     dcGeo.setAttribute('uv',       new THREE.Float32BufferAttribute(dcUv, 2));
     dcGeo.setIndex(dcIdx);
-    dcGeo.computeVertexNormals();
-    var dcMat = new THREE.MeshBasicMaterial({
-      map:TEX.decal, transparent:true, depthWrite:false, opacity:0.92,
-      color:SRGB(0xb9bbb2)                 // 壁の明るさに馴染ませる
+    dcGeo.setAttribute('normal', new THREE.Float32BufferAttribute(dcNor, 3));
+    /* 痕跡は壁に付いた「物」であって光源ではない。MeshBasicMaterial は
+       光をまったく受けないので、暗い廊下では壁より明るく、照らすと壁より
+       暗いという逆の振る舞いをしていた。実際、遠くの壁に淡い斑が
+       浮かんで迷彩のように見えていた原因がこれ。壁と同じ照明を受けさせる。
+       面は壁と同一平面なので、法線は壁と同じ向きに揃う。 */
+    var dcMat = new THREE.MeshStandardMaterial({
+      map:TEX.decal, transparent:true, depthWrite:false, opacity:0.95,
+      roughness:0.86, metalness:0, color:0xffffff,
+      polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2
     });
     var dcMesh = new THREE.Mesh(dcGeo, dcMat);
     dcMesh.frustumCulled = false;
