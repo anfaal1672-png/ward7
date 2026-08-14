@@ -53,6 +53,15 @@
       linear-gradient(180deg,rgba(5,9,10,.90) 0%,rgba(6,11,13,.52) 34%,
                       rgba(5,9,11,.72) 58%,rgba(4,8,10,.94) 100%);
   }
+  /* 明るさの較正見本。本編と同じトーンカーブで塗るので、
+     ここで見える／見えないが、そのまま病棟での見え方になる。 */
+  #calib{display:flex;gap:2px;margin-top:10px;height:44px}
+  #calib i{flex:1;position:relative;border-radius:1px}
+  #calib i::after{
+    content:'';position:absolute;left:50%;top:50%;width:12px;height:12px;
+    transform:translate(-50%,-50%) rotate(45deg);
+    border:1px solid rgba(232,226,212,.55)}
+  .hint{font-size:11px;line-height:1.5;color:var(--dim);margin:8px 0 0}
   .panel[hidden]{display:none}
   .panel > :first-child{margin-top:auto}
   .panel > :last-child{margin-bottom:auto}
@@ -483,6 +492,9 @@
   <div class="field">
     <label for="gam">画面の明るさ <span id="valG">1.00</span></label>
     <input type="range" id="gam" min="0.6" max="1.9" step="0.05" value="1">
+    <div id="calib" aria-hidden="true"></div>
+    <p class="hint">いちばん左の四角が「かろうじて見える」ところに合わせる。
+      本編と同じ計算で描いているので、ここで見えない暗さは病棟でも見えない。</p>
   </div>
   <div class="sect">操作</div>
   <div class="field">
@@ -6066,6 +6078,35 @@ function syncQualityHint(){
   if(el) el.innerHTML = d[1] + '<br>' + d[2];
 }
 
+/* 較正見本を塗る。
+   レンダラの ACES → 最終合成の曲線 → sRGB 出力、という本編と同じ順で
+   1 段ずつ計算する。スライダを動かすと即座に塗り直すので、
+   「この明るさなら病棟でも見える」が設定画面の中で確かめられる。
+   ここを目分量の説明文で済ませると、暗すぎる／明るすぎるの相談が
+   永遠に終わらない。 */
+function acesApprox(x){
+  // three の ACESFilmicToneMapping と同じ近似式
+  var a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
+  return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
+}
+function toSRGB(v){
+  return v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055;
+}
+var CALIB_STEPS = [0.006, 0.011, 0.020, 0.036, 0.065, 0.118];
+function paintCalib(){
+  var el = $('calib'); if(!el) return;
+  if(!el.children.length){
+    for(var i=0;i<CALIB_STEPS.length;i++) el.appendChild(document.createElement('i'));
+  }
+  var post = QC.post, ex = EXP_BASE * (settings.gamma || 1) * (post ? 1 : EXP_NOPOST);
+  for(var k=0;k<CALIB_STEPS.length;k++){
+    var lin = acesApprox(CALIB_STEPS[k] * ex);
+    if(post) lin = lin / (lin + 1.05) * 1.95;      // 最終合成の曲線
+    var v = Math.round(clamp(toSRGB(clamp(lin,0,1)), 0, 1) * 255);
+    el.children[k].style.background = 'rgb('+v+','+(v+1)+','+v+')';
+  }
+}
+
 function syncSettingsUI(){
   syncQualityHint();
   var cr = $('chartRec');
@@ -6092,6 +6133,7 @@ function syncSettingsUI(){
   $('chartGoal').textContent = 'カルテ' + DIFF[settings.diff].records + '枚 → 非常口';
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
+  paintCalib();
   renderer.toneMappingExposure = exposureNow();
 }
 
@@ -6252,6 +6294,7 @@ $('segI').querySelectorAll('button').forEach(function(b){
 $('gam').addEventListener('input', function(){
   settings.gamma = +this.value;
   $('valG').textContent = settings.gamma.toFixed(2);
+  paintCalib();
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
 });
