@@ -2257,19 +2257,34 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-/* ポスト処理を通さない品質では、最終合成の持ち上げ（col/(col+0.44)*1.36）が
-   丸ごと抜ける。同じ照明のまま切ると画面平均が 68 → 30 まで落ちて、
-   いちばん非力な端末だけが暗くて遊べない状態になる。露出で埋め合わせる。 */
-/* ポスト処理の持ち上げを弱めた（1.05/1.95）ぶん、それを露出で肩代わり
-   していた最低品質も下げないと、そこだけ明るい別のゲームになる。
-   実測 q0 40.1 / q3 63.6。周辺減光が無いぶん平均は高めで釣り合う。 */
 /* 既定の露出。1.18 のままだと画面平均が 53.6 まで落ちて、明るい部屋で
    スマホを見たときに何も見えない懸念があった。1.34 で 65.4——元の 104 より
    ずっと締まっているが、暗すぎもしない。足りない人は設定の明るさ
    （0.6〜1.9 倍）で戻せる。 */
-var EXP_BASE = 1.34, EXP_NOPOST = 1.25;
+var EXP_BASE = 1.34;
+
+/* 品質ごとの露出の微調整。
+   ここは長いあいだ「ポスト処理を通さない品質だけ 1.25 倍」で済ませていた。
+   ところが renderer.toneMappingExposure を設定画面と起動時にしか
+   書き込んでいなかったので、起動後に品質を変えると露出が古いままだった。
+   検証ツールは毎回そこを通る（起動時は低品質、その後 q3 で開始）ため、
+   最高品質の画をずっと 1.34 ではなく 1.675 で撮っていた。
+   この 25% を測り込んだまま露出を決めていたので、実機では最初から
+   想定より暗い画が出ていたことになる。露出は毎フレーム書き直す。
+
+   直したうえで四段階を実測すると 51.9 / 66.1 / 62.2 / 57.6 と割れた。
+   最終合成の持ち上げの有無・影・霧の濃さが品質で違うためで、同じ露出で
+   揃うものではない。実測から逆算した係数を品質ごとに掛け、
+   60.2 / 63.7 / 63.4 / 61.9 に揃えた（最低品質だけは周辺減光が無いので
+   分布の形が違い、平均を合わせても白飛びは出ていない）。 */
+var EXP_Q = [1.54, 0.97, 1.03, 1.11];
+/* 自動露出（明順応）の倍率。何にどれだけ近くで光が当たっているかから
+   毎フレーム作り直す。第15章の updateExposure を参照。
+   宣言をここに置くのは、露出を読む側と同じ場所に無いと見落とすため。 */
+var expAdapt = 1;
 function exposureNow(){
-  return EXP_BASE * (settings.gamma || 1) * (QC.post ? 1 : EXP_NOPOST);
+  return EXP_BASE * EXP_Q[clamp(settings.quality|0, 0, 3)] *
+         expAdapt * (settings.gamma || 1);
 }
 renderer.toneMappingExposure = EXP_BASE;
 renderer.shadowMap.enabled = false;
@@ -5348,7 +5363,13 @@ function buildHunter(){
     emissive:0x1d2119, emissiveIntensity:0.14, vertexColors:true
   });
   if(skin.normalMap) skin.normalScale = new THREE.Vector2(0.85, 0.85);
-  var stain = new THREE.MeshStandardMaterial({ color:SRGB(0x5a3f38), roughness:1 });
+  /* 血の染み。痕跡のアトラス（壁と共用）の左上のタイルを胴に貼る。
+     透明度を持つので深度は書かない。皮より手前に出すため多角形オフセットを
+     掛ける（4mm 浮かせてあるが、遠くでは深度の精度が足りなくなる）。 */
+  var stain = TEX.decal ? new THREE.MeshStandardMaterial({
+    map:TEX.decal, transparent:true, roughness:0.62, metalness:0,
+    depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2
+  }) : new THREE.MeshStandardMaterial({ color:SRGB(0x5a3f38), roughness:1 });
   /* 髪。真っ黒のつもりの 0x0e0b0a が、寄って撮ると白い棒になっていた。
      理由は 2 つある。
 
@@ -5455,7 +5476,7 @@ function buildHunter(){
   ];
   var torsoRows = TR.map(function(r){ return { y:r[0], rx:r[1], rz:r[2] }; });
   var TSEG = QC.detail ? 26 : 14;
-  var torsoGeo = loftGeo(torsoRows, TSEG, function(th, v){
+  function torsoRad(th, v){
     var m = 1;
     var front = Math.max(0, Math.sin(th));          // +Z が正面
     var back  = Math.max(0, -Math.sin(th));
@@ -5480,7 +5501,8 @@ function buildHunter(){
     // 腸骨の張り。骨盤の左右
     m += side * 0.050 * Math.exp(-Math.pow((v-0.06)/0.055, 2));
     return m;
-  }, { capA:0.06, capB:0.03 });
+  }
+  var torsoGeo = loftGeo(torsoRows, TSEG, torsoRad, { capA:0.06, capB:0.03 });
   var torsoMesh = new THREE.Mesh(torsoGeo, skin);
   /* 掃引の陰りは半径の起伏から直接出しているので、光線を飛ばす焼き込み
      （QC.hao）とは別物。品質に関係なく掛かる。自己診断が両者を混同
@@ -5488,8 +5510,46 @@ function buildHunter(){
   torsoMesh.userData.loft = true;
   spine.add(torsoMesh);
 
-  var bl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.01), stain);
-  bl.position.set(0.04, 0.5, 0.135); spine.add(bl);
+  /* 腹の血の染み。以前は 0.2×0.3m・厚さ 1cm の直方体を胴の前に浮かせて
+     いた。12 三角形で面の向きが一定なので、どんな光でも一様な塗りにしか
+     ならず、寄られると「桃色のシールを貼った物」に見えた。実際、至近で
+     撮ると腹に平らな桃色の長方形が乗っていた。
+     胴と同じ式で面を作り、4mm だけ外へ出して貼る。皮の起伏に沿うので
+     縁が立たず、肋の谷では暗く、山では明るくなる。 */
+  // 正面（+Z）はθ=π/2。そこから少し脇へずらして左胸から腹にかけて垂らす
+  spine.add(torsoDecal(Math.PI*0.5 - 0.30, 0.30, 0.74, 1.25));
+
+  function torsoDecal(thC, y0, y1, thW){
+    var NU = QC.detail ? 14 : 8, NV = QC.detail ? 12 : 7;
+    var pos = [], uv = [], ind = [];
+    var yA = TR[0][0], yB = TR[TR.length-1][0];
+    for(var j=0; j<=NV; j++){
+      var ty = y0 + (y1-y0)*(j/NV);
+      // 行を y で線形補間する（行の間隔は一定ではない）
+      var ri = 0;
+      while(ri < TR.length-2 && TR[ri+1][0] < ty) ri++;
+      var f = (ty - TR[ri][0]) / (TR[ri+1][0] - TR[ri][0]);
+      var rx = TR[ri][1] + (TR[ri+1][1]-TR[ri][1])*f;
+      var rz = TR[ri][2] + (TR[ri+1][2]-TR[ri][2])*f;
+      var vv = (ty - yA) / (yB - yA);
+      for(var i2=0; i2<=NU; i2++){
+        var th = thC + (i2/NU - 0.5)*thW;
+        var m2 = torsoRad(th, vv) + 0.026;      // 皮の 4mm ほど外
+        pos.push(Math.cos(th)*rx*m2, ty, Math.sin(th)*rz*m2);
+        // 痕跡アトラスの左上（血）だけを使う。端は少し内側へ寄せる
+        uv.push(0.04 + 0.42*(i2/NU), 0.54 + 0.42*(j/NV));
+      }
+    }
+    for(var j2=0; j2<NV; j2++) for(var i3=0; i3<NU; i3++){
+      var a4 = j2*(NU+1)+i3, b4 = a4+1, c4 = a4+NU+1, d4 = c4+1;
+      ind.push(a4, c4, b4, b4, c4, d4);
+    }
+    var dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    dg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    dg.setIndex(ind); dg.computeVertexNormals();
+    return new THREE.Mesh(dg, stain);
+  }
 
   // --- 首は独立させ、追いつめると不自然に伸びる ---
   var neck = boneUp(0.10, 0.26, 0.10);
@@ -6318,7 +6378,10 @@ function paintCalib(){
   if(!el.children.length){
     for(var i=0;i<CALIB_STEPS.length;i++) el.appendChild(document.createElement('i'));
   }
-  var post = QC.post, ex = EXP_BASE * (settings.gamma || 1) * (post ? 1 : EXP_NOPOST);
+  /* 較正見本は「いま設定している明るさ」を映すものなので、
+     明順応の倍率は入れない（見本が呼吸してしまう）。 */
+  var post = QC.post;
+  var ex = EXP_BASE * EXP_Q[clamp(settings.quality|0, 0, 3)] * (settings.gamma || 1);
   for(var k=0;k<CALIB_STEPS.length;k++){
     var lin = acesApprox(CALIB_STEPS[k] * ex);
     if(post) lin = lin / (lin + 1.05) * 1.95;      // 最終合成の曲線
@@ -6636,6 +6699,7 @@ function startGame(){
     flashlight.shadow.camera.far = 34;
   }
 
+  expAdapt = 1;             // 明順応は毎回まっさらから（前回の暗さを持ち越さない）
   resetHunterVox();
   buildInfo = buildWorld();
   buildHunter();
@@ -7166,8 +7230,69 @@ function updatePlayer(dt){
   flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
   playerLight.intensity = player.lamp ? 0.9*flickAmt : 0.14;
   ambient.intensity = (AMB_BASE - panic*0.14) * (world.power ? 1.7 : 1);
+  updateExposure(dt, player.lamp ? flickAmt : 0);
 
   return { hd:hd, visible:visible, los:losRaw, sight:sightRaw, vmag:vmag };
+}
+
+/* ---- 自動露出（明順応） ----
+   実物の懐中電灯は、白い壁を 1.5m から照らせば 1000 lux を超える。
+   人の目はそこで絞るので白飛びしては見えないが、露出を固定した画面は
+   そのまま飛ぶ。実測：追跡者に 1.5m まで寄られると体の平均輝度が
+   背景の 1.32 倍まで上がり、皮膚のテクスチャが白一色に潰れていた。
+   逆に、電池を切って真っ暗な廊下に立つと、目なら数秒で慣れるはずの
+   明るさが最後まで見えないままだった。
+
+   画面を読み返して測る（readPixels）のが正攻法だが、GPU の処理待ちを
+   起こすのでモバイルでは払いたくない。代わりに「ビームが何にどれだけ
+   近くで当たるか」を幾何から見積もる。減衰は distance^-1.65 と
+   自分で決めた値なので、当たる距離さえ分かれば返る光の量は計算できる。
+   壁・床・天井・追跡者・什器の 5 つを見て、いちばん近いものを採る。 */
+/* 基準の戻り光。ここに合わせたときだけ倍率 1 になる。
+   値そのものより「ふつうの廊下で今までの明るさが保たれるか」が判定基準。
+   0.59（＝壁 3.5m 相当）だと画面平均が 64.5 → 58.1 まで落ちた。
+   0.80（＝壁 2.9m 相当）で 64 前後に戻る。 */
+var EXP_REF = 0.80;
+var EXP_LO = 0.62, EXP_HI = 1.25;   // 絞りの下限・上限
+function beamHitDist(){
+  var cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
+  var fx = -Math.sin(player.viewYaw)*cp, fy = sp, fz = -Math.cos(player.viewYaw)*cp;
+  var eyeY = camera.position.y, d = 14;
+  // 床と天井。ビームの中心が当たる距離は三角形で出る
+  if(fy < -0.05) d = Math.min(d, eyeY / -fy);
+  else if(fy > 0.05) d = Math.min(d, (WALL_H - eyeY) / fy);
+  // 壁。0.35m ずつ進めて最初の壁マスを探す（40 回で 14m）
+  var g = world.grid;
+  for(var s=0.35; s<d; s+=0.35){
+    var c = worldToCell(player.x + fx*s, player.z + fz*s);
+    if(!inBounds(c.x, c.y) || g[idx(c.x, c.y)] !== 0){ d = s; break; }
+  }
+  /* 追跡者と什器。ビームの中にいるものだけを見る。円錐の外にあるものは
+     照らされていないので、寄られても露出を変えてはいけない。 */
+  var COSB = Math.cos(Math.PI/5.4);
+  function consider(px, py, pz, rad){
+    var vx = px - player.x, vy = py - eyeY, vz = pz - player.z;
+    var L = Math.sqrt(vx*vx + vy*vy + vz*vz);
+    if(L < 0.2 || L >= d) return;
+    if((vx*fx + vy*fy + vz*fz)/L < COSB) return;
+    d = Math.max(0.4, L - rad);
+  }
+  if(hunter.group && hunter.group.visible) consider(hunter.x, 1.15, hunter.z, 0.25);
+  var pr = world.props;
+  for(var i=0; i<pr.length; i++) consider(pr[i].x, pr[i].h*0.5, pr[i].z, pr[i].r);
+  return d;
+}
+function updateExposure(dt, lampOn){
+  var d = Math.max(0.55, beamHitDist());
+  // 環境光ぶんの下駄。電源が入っている区画は天井灯があるので底上げする
+  var ret = 0.10 * (world.power ? 1.7 : 1) + (LAMP_I*lampOn) / Math.pow(d, 1.65);
+  var k = clamp(Math.pow(EXP_REF/ret, 0.32), EXP_LO, EXP_HI);
+  /* 順応の速さは方向で違う。まぶしくなったときの縮瞳は 0.2 秒ほどで
+     終わるが、暗さに慣れるのは何秒もかかる。同じ速さにすると、
+     壁からぱっと離れた瞬間に画面全体が持ち上がって不自然に見える。 */
+  var tau = (k < expAdapt) ? 0.22 : 1.10;
+  expAdapt += (k - expAdapt) * (1 - Math.exp(-dt/tau));
+  renderer.toneMappingExposure = exposureNow();
 }
 
 function updateHunter(dt, info){
@@ -8563,6 +8688,60 @@ function runSelfTest(){
     t('腕の反射率が実在の材質の範囲に収まっている' +
       (tooBright ? '（' + tooBright + '）' : ''), tooBright === null);
   }
+
+  /* --- 自動露出（明順応） ---
+     幾何から戻り光を見積もっているので、GPU を通さずに数で確かめられる。
+     プレイヤーを動かして向きを変え、絞りが正しい向きに動くかを見る。
+     終わったら元の位置と倍率へ必ず戻す（試験が状態を残すと、
+     次の試行が別の明るさで始まってしまう）。 */
+  (function(){
+    var sx = player.x, sz = player.z, syaw = player.viewYaw,
+        spit = player.pitch, sad = expAdapt;
+    /* 露出が「いまの品質」で書き直されているか。
+       ここが抜けていたのが元のバグで、起動時の品質で計算した値が
+       ずっと残り、最高品質の画が 25% 明るいまま描かれていた。
+       設定画面を開かないと直らないので、遊んでいる側からは気づけない。 */
+    t('露出がいまの品質で書き直されている',
+      Math.abs(renderer.toneMappingExposure - exposureNow()) < 1e-6);
+    // 目の前が壁になる向きと、いちばん遠くまで抜ける向きを探す
+    var near = -1, far = -1, dn = 99, df = 0;
+    for(var q3=0; q3<4; q3++){
+      player.viewYaw = q3 * Math.PI/2; player.pitch = 0;
+      var dd3 = beamHitDist();
+      if(dd3 < dn){ dn = dd3; near = q3; }
+      if(dd3 > df){ df = dd3; far = q3; }
+    }
+    t('ビームの当たる距離が向きで変わる', df - dn > 1.0);
+    // 近い壁を向いたら絞る、遠くを向いたら開く
+    player.viewYaw = near * Math.PI/2; expAdapt = 1;
+    for(var s3=0; s3<40; s3++) updateExposure(0.05, 1);
+    var kNear = expAdapt;
+    player.viewYaw = far * Math.PI/2; expAdapt = 1;
+    for(var s4=0; s4<40; s4++) updateExposure(0.05, 1);
+    var kFar = expAdapt;
+    t('近い壁を向くと絞る', kNear < kFar);
+    // 消灯すると暗さに慣れて開く（上限まで）
+    expAdapt = 1;
+    for(var s5=0; s5<200; s5++) updateExposure(0.05, 0);
+    t('消灯すると明順応で開く', expAdapt > 1.15);
+    t('露出倍率が上下限に収まっている',
+      kNear >= EXP_LO - 1e-6 && kFar <= EXP_HI + 1e-6 && expAdapt <= EXP_HI + 1e-6);
+    /* 順応は「まぶしい方が速い」。同じ速さだと、壁から離れた瞬間に
+       画面全体が持ち上がって不自然に見える。 */
+    /* 速さは「同じ隔たりを 0.1 秒でどれだけ詰めたか」で比べる。
+       到達値からの差を揃えないと、隔たりの大きさの違いを速さと
+       取り違える（最初これで 1.52 倍と出て、差があるのに落ちた）。 */
+    var GAP = 0.30;
+    player.viewYaw = near * Math.PI/2; expAdapt = kNear + GAP;
+    updateExposure(0.10, 1);
+    var fDown = (kNear + GAP - expAdapt) / GAP;
+    player.viewYaw = far * Math.PI/2; expAdapt = kFar - GAP;
+    updateExposure(0.10, 1);
+    var fUp = (expAdapt - (kFar - GAP)) / GAP;
+    t('絞るほうが慣れるより速い', fDown / Math.max(fUp, 1e-6) > 2);
+    player.x = sx; player.z = sz; player.viewYaw = syaw;
+    player.pitch = spit; expAdapt = sad;
+  })();
 
   // --- AI観戦モード ---
   // 既定では 1 行も走らないこと、走るなら記憶が確保されていることを見る
@@ -10679,6 +10858,9 @@ try{
     texGen: { wall:texWall, floor:texFloor },
     noteOrder: function(){ return world.noteOrder; }, noteCount: function(){ return NOTES.length; },
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
+    // 自動露出。検証で「近い壁を向くと絞るか」を数で見るのに使う
+    exposure: function(){ return { adapt:expAdapt, now:exposureNow(), hit:beamHitDist() }; },
+    stepExposure: function(dt, lamp){ updateExposure(dt, lamp === undefined ? 1 : lamp); },
     forceQC: function(){ QC = qualityCfg(); },
     post: function(){ return { on:postEnabled(), fx:postFX,
       u: postMat ? { aberr:+postMat.uniforms.uAberr.value.toFixed(3),
