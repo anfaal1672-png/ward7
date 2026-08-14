@@ -3772,15 +3772,36 @@ function buildWorld(){
     var spot = wallCellNear();
     if(!spot) break;
     var sw2 = cellToWorld(spot.cell.x, spot.cell.y);
+    /* ロッカー。無地の箱に細い羽根板を 3 枚貼っただけで、暗がりでは
+       ただの白い直方体だった。扉の合わせ目・蝶番・取っ手・番号札・
+       足元の台輪を足す。焼き固め（mergeMeshes）は position/normal/uv しか
+       運ばないので、ここで頂点色を使ってはいけない（材質のまま増やす）。 */
     var lgrp = new THREE.Group();
     var lbody = new THREE.Mesh(new THREE.BoxGeometry(0.92, 2.05, 0.62), lockerMat);
     lbody.position.y = 1.025; lgrp.add(lbody);
-    var slatSpecs = new THREE.Group();
-    for(var sl2=0; sl2<3; sl2++){
-      var slat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.02), slatMat);
-      slat.position.set(0, 1.62 - sl2*0.13, 0.315);
+    // 扉の合わせ目。縦に 1 本入るだけで「開く物」に見える
+    var seam = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1.86, 0.014), slatMat);
+    seam.position.set(0, 1.03, 0.312); lgrp.add(seam);
+    // 上下の縁。天板と台輪が出っ張ると、床から生えた板ではなくなる
+    var lcap = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.055, 0.68), slatMat);
+    lcap.position.y = 2.06; lgrp.add(lcap);
+    var lbase = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.10, 0.66), slatMat);
+    lbase.position.y = 0.05; lgrp.add(lbase);
+    for(var sl2=0; sl2<4; sl2++){
+      var slat = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.042, 0.024), slatMat);
+      slat.position.set(0, 1.70 - sl2*0.115, 0.316);
       lgrp.add(slat);
     }
+    // 蝶番 2 個と取っ手
+    for(var hg=0; hg<2; hg++){
+      var hinge = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.13, 0.05), slatMat);
+      hinge.position.set(-0.455, 1.62 - hg*1.05, 0.28); lgrp.add(hinge);
+    }
+    var grip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.19, 0.055), slatMat);
+    grip.position.set(0.30, 1.02, 0.345); lgrp.add(grip);
+    // 番号札。白い小片が 1 枚あるだけで、同じ物が並んでいる感じが消える
+    var plate = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.10, 0.008), sheetMat);
+    plate.position.set(-0.20, 1.80, 0.316); lgrp.add(plate);
     lgrp.position.set(sw2.x + spot.dir[0]*(CELL/2 - 0.36), 0, sw2.z + spot.dir[1]*(CELL/2 - 0.36));
     lgrp.rotation.y = Math.atan2(-spot.dir[0], -spot.dir[1]);
     lgrp.userData.bake = true;      // 置いたら動かない
@@ -3807,10 +3828,27 @@ function buildWorld(){
     frame.position.y = 0.62; bgrp.add(frame);
     var sheet = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.14, 1.95), sheetMat);
     sheet.position.y = 0.74; bgrp.add(sheet);
+    // 枕。頭の側が分かると、ベッドが「向きのある物」になる
+    var pillow = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.13, 0.34), sheetMat);
+    pillow.position.set(0, 0.845, -0.72); bgrp.add(pillow);
+    // 頭側と足側の柵。病棟のベッドには必ず付いている
+    for(var hb=0; hb<2; hb++){
+      var zz = hb ? 1.02 : -1.02, hh = hb ? 0.34 : 0.52;
+      var rail = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.05, 0.05), bedMat);
+      rail.position.set(0, 0.68 + hh, zz); bgrp.add(rail);
+      for(var pv=0; pv<2; pv++){
+        var post = new THREE.Mesh(new THREE.BoxGeometry(0.05, hh, 0.05), bedMat);
+        post.position.set((pv?1:-1)*0.48, 0.68 + hh/2, zz); bgrp.add(post);
+      }
+    }
     for(var lgi=0; lgi<4; lgi++){
-      var leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.56, 0.09), bedMat);
-      leg.position.set((lgi%2?1:-1)*0.46, 0.28, (lgi<2?1:-1)*0.95);
+      var leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.50, 0.07), bedMat);
+      leg.position.set((lgi%2?1:-1)*0.46, 0.31, (lgi<2?1:-1)*0.95);
       bgrp.add(leg);
+      // キャスター
+      var cast = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.11, 0.06), slatMat);
+      cast.position.set((lgi%2?1:-1)*0.46, 0.055, (lgi<2?1:-1)*0.95);
+      bgrp.add(cast);
     }
     bgrp.position.set(bw.x, 0, bw.z);
     var bedRot = (rnd() < 0.5) ? 0 : Math.PI/2;
@@ -7578,6 +7616,14 @@ function runSelfTest(){
     if(near > 1.6*1.6) placeOK = false;
   });
   t('焼き固めた什器が元の位置にある', sampled === 0 || placeOK);
+  /* mergeMeshes は position・normal・uv しか運ばない。焼く対象の材質が
+     頂点色を使っていると、焼いた瞬間に色属性が消えて真っ黒になる
+     （追跡者の足で一度これをやった）。暗い場面では影と見分けが付かない。 */
+  var bakedVC = 0;
+  world.group.traverse(function(o){
+    if(o.isMesh && o.material && o.material.vertexColors && !o.geometry.attributes.color) bakedVC++;
+  });
+  t('頂点色を使う什器を焼き固めていない', bakedVC === 0);
   // --- 腕（ビューモデル） ---
   if(viewParts && viewParts.skinGeo){
     var dl = viewParts.digitLens;
