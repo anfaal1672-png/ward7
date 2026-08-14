@@ -1316,7 +1316,11 @@ function texFloor(size){
   for(var y=0;y<NF;y++) for(var x=0;x<NF;x++){
     var sh = 0.93 + rnd()*0.14;
     if(rnd() < 0.06) sh *= 0.78 + rnd()*0.12;      // 何枚かは剥がれて黒ずんでいる
-    g.fillStyle = 'rgb('+Math.floor(52*sh)+','+Math.floor(56*sh)+','+Math.floor(54*sh)+')';
+    /* 床の地色。52,56,54 は線形で 0.037——アスファルト並みの反射率で、
+       どれだけ光を当てても黒いままだった。手前の床は画面の 3 割を占める
+       のに、そこが常に真っ黒で奥行きの手がかりが無かった。
+       擦り切れた長尺シートの実測に近い 0.11 前後（92,97,94）にする。 */
+    g.fillStyle = 'rgb('+Math.floor(92*sh)+','+Math.floor(97*sh)+','+Math.floor(94*sh)+')';
     g.fillRect(x*tileF, y*tileF, tileF, tileF);
     g.strokeStyle = 'rgba(14,16,15,0.55)';
     g.lineWidth = Math.max(1, size/512);
@@ -3037,7 +3041,8 @@ function updateLampShafts(dt){
       mo.material.uniforms.uTime.value = u.uTime.value;
       mo.visible = m.visible;
     }
-    if(m.visible && pl) m.position.set(pl.position.x, pl.position.y + 0.10, pl.position.z);
+    // 光柱の頂点は器具の底に合わせる（0.10 だと器具との間に隙間が出る）
+    if(m.visible && pl) m.position.set(pl.position.x, pl.position.y + 0.23, pl.position.z);
   }
 }
 
@@ -4965,9 +4970,14 @@ function buildWorld(){
     });
   }
 
-  // --- 非常灯（見た目は板、明かりはライトプールで最寄りだけ点灯） ---
+  /* --- 非常灯（明かりはライトプールで最寄りだけ点灯） ---
+     見た目が 0.9x0.28 の板 1 枚だった。天井に光る長方形が貼ってあるだけで、
+     見上げても「照明器具」に見えない。実物は箱形の筐体に乳白の
+     パネルが嵌まっている。筐体は 16 台ぶんを 1 つに結合するので
+     ドローコールは増えない（明滅するパネルだけ台ごとに持つ）。 */
   var lampMatProto = new THREE.MeshBasicMaterial({ color:0xffb75a });
   var lampGeo = new THREE.PlaneGeometry(0.9, 0.28);
+  var caseSpecs = [];
   var lampCells = [];
   for(var lr=0; lr<world.rooms.length; lr++)
     lampCells.push({ x:world.rooms[lr].cx, y:world.rooms[lr].cy });   // 部屋の中央を光らせて目印にする
@@ -4981,7 +4991,23 @@ function buildWorld(){
     lm.position.set(wl.x, WALL_H-0.12, wl.z);
     lm.rotation.x = Math.PI/2;
     world.group.add(lm);
+    /* 筐体。パネルより一回り大きい浅い箱と、長辺の 2 本のリブ。
+       向きはマスの通路の向きに合わせず全台同じにする——天井の
+       T バーの目地と平行になるので、揃っているほうが自然に見える。 */
+    /* 箱の底はパネルより 1cm 上に置く。同じ高さにすると、下から見たとき
+       箱の底面がパネルを塞いで、器具が消灯しているように見える。 */
+    caseSpecs.push({ w:1.06, h:0.13, d:0.44, x:wl.x, y:WALL_H-0.045, z:wl.z, c:0x6d7268 });
+    caseSpecs.push({ w:1.10, h:0.035, d:0.06, x:wl.x, y:WALL_H-0.118, z:wl.z-0.20, c:0x4a4f47 });
+    caseSpecs.push({ w:1.10, h:0.035, d:0.06, x:wl.x, y:WALL_H-0.118, z:wl.z+0.20, c:0x4a4f47 });
     world.lamps.push({ x:wl.x, z:wl.z, mesh:lm, flick:rnd()*TAU, alive:true });
+  }
+  if(caseSpecs.length){
+    var caseMesh = new THREE.Mesh(mergeTinted(caseSpecs), new THREE.MeshStandardMaterial({
+      color:0xffffff, vertexColors:true, map:TEX.grunge || null,
+      roughnessMap:TEX.grungeR || null, roughness:TEX.grungeR ? 1 : 0.68, metalness:0.32
+    }));
+    caseMesh.frustumCulled = false;
+    world.group.add(caseMesh);
   }
 
   // --- 区画表示板 ---
