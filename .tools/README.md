@@ -96,3 +96,30 @@ Chromium（SwiftShader）で実 WebGL を通し、PNG を書き出す。
 3. 画面の一部を矩形で切って測るとほぼ確実に腕やランプが混ざる。
    追跡者は freeze チートで止めて表示/非表示の差、小物は素材を黒に
    差し替えた差、で対象の画素だけを取る。
+
+## 2026-08-14 に足した道具
+
+    node .tools/arm-shot.js  <html> [png] [fov] [bg] [pose]
+        一人称の腕とランプだけを撮って測る。本編を隠し、腕を消した画と
+        引き算して腕の画素だけを取り出し、面積・平均輝度・散らばりを出す。
+        pose は game / side / top。side と top は viewRig を回して見る
+        （viewArm は毎フレーム揺れで上書きされるので触っても効かない）。
+    node .tools/texshow.js   <html> <wall|floor> <png> [size]
+        手続きテクスチャを 1 枚の PNG に落とす。__WARD7.texGen を使う。
+        tex-dump.js は痕跡アトラス専用で、壁と床が見られなかった。
+    node .tools/crop.js      <src> <dst> <x> <y> <w> <h> [倍率]
+        PNG の切り出しと拡大。外部依存を増やさないよう Chromium の
+        canvas を使う（pngjs も ImageMagick もこの環境には無い）。
+    node .tools/fps.js <html> <q> <N> [幅] [高さ] [dpr]
+        画面指定を足した。既定の 720x1280・等倍は実機に無い設定で、
+        dpr=3 のときだけ現れる負荷（描く画素が 9 倍）を見落とす。
+
+### 落とし穴、その 4 と 5
+
+4. `page.locator('canvas').screenshot()` は時々「1 フレーム古い・暗い」
+   画を返す。露出が動いている最中に撮ると別物になるので、
+   平均輝度の判断は readPixels（gpu.js の数字）で行い、
+   スクリーンショットは形の確認だけに使う。
+5. 明るさの数字を作業前と比べるときは、両方を同じセッションで測り直す。
+   SwiftShader のフレーム時間は同じファイルでも 348〜395ms と振れる
+   （±7%）。1 回の測定で「速くなった／遅くなった」と言わないこと。
