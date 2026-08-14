@@ -66,3 +66,33 @@ gpu.js は Playwright の Chromium（SwiftShader）で本物の HTML を開き�
 「描けていない」と誤判定する（一度これで嵌まった）。
 three.min.js は同ディレクトリのものを page.route で差し込むので、
 回線に依存しない。
+
+## 描画まわりの撮影ツール一式
+
+harness.js（スタブ）では画が一枚も出ない。以下はすべて Playwright の
+Chromium（SwiftShader）で実 WebGL を通し、PNG を書き出す。
+
+    node .tools/gpu.js        <html> <q> [png]        # 通常視点。輝度分布も出す
+    node .tools/hunter-shot.js<html> <q> [png] [dist] [pitch] [noarms]
+    node .tools/item-shot.js  <html> [png]            # 拾得物を並べて撮る
+    node .tools/prop-shot.js  <html> [png]            # 通路の物。素材を黒に差し替えて画素を測る
+    node .tools/door-shot.js  <html> [png] [seed]     # 施錠扉を正面から
+    node .tools/lamp-shot.js  <html> [png]            # 電源を入れて非常灯を見上げる
+    node .tools/end-shot.js   <html>                  # 死亡／脱出の画面
+    node .tools/tour.js       <html> [枚数] [間隔ms]  # ボットに歩かせて一定間隔で撮る
+    node .tools/viewport-shot.js <html> <W> <H> [png] # 実機サイズ（dpr=3）
+    node .tools/tex-dump.js   <html> [png]            # 焼いたテクスチャを壁色の上に出す
+    node .tools/zone-check.js                         # 9区画の色調を頂点色から集計
+    node .tools/seedcheck.js                          # 品質を変えても同じ種で同じ間取りか
+
+撮るときの落とし穴を 3 つ、実際に嵌まった順に：
+
+1. 既定のフレームバッファは合成後に無効化される。readPixels は必ず
+   requestAnimationFrame の中で呼ぶこと。外だと必ず真っ黒が返り、
+   「描けていない」と誤判定する。
+2. タイトル画面ではキャンバスが合成されず、Playwright のスクリーンショットは
+   必ず黒く写る（クリア色を赤にしても黒）。readPixels では中身が出るので、
+   タイトルの見た目は実機でしか確認できない。
+3. 画面の一部を矩形で切って測るとほぼ確実に腕やランプが混ざる。
+   追跡者は freeze チートで止めて表示/非表示の差、小物は素材を黒に
+   差し替えた差、で対象の画素だけを取る。
