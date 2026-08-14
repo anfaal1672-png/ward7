@@ -17,12 +17,17 @@ const fs=require('fs'), path=require('path');
     const f=new THREE.Vector3(); cam.getWorldDirection(f); f.y=0; f.normalize();
     Hn.x=P.x+f.x*1.5; Hn.z=P.z+f.z*1.5;
     Hn.group.visible=true; Hn.group.position.set(Hn.x,Hn.group.position.y,Hn.z);
-    Hn.group.rotation.y=Math.atan2(-f.x,-f.z)+Math.PI;
+    // 追跡者はこちらを向いて覆いかぶさる。+PI を足すと背中を向けてしまう
+    Hn.group.rotation.y=Math.atan2(-f.x,-f.z);
     Hn.mode='chase';
     A.act('lose');   // チートの「即座に力尽きる」で捕まった演出を出す
   });
+  /* 演出の途中と、暗転の直前の 2 枚を撮る。ランプを落とす演出が入って
+     以降、500ms の 1 枚だけでは「いちばん見せたい絵」が撮れない。 */
   await p.waitForTimeout(500);
   await p.locator('canvas').first().screenshot({path:'death_a.png'});
+  await p.waitForTimeout(640);
+  await p.locator('canvas').first().screenshot({path:'death_mid.png'});
   await p.waitForTimeout(2600);
   await p.screenshot({path:'death_b.png'});
   console.log('撮影 err', errs.length); errs.slice(0,3).forEach(e=>console.log(' !',e.slice(0,140)));

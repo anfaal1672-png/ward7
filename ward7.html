@@ -2412,6 +2412,15 @@ var EXP_Q = [1.77, 1.12, 1.18, 1.28];
    毎フレーム作り直す。第15章の updateExposure を参照。
    宣言をここに置くのは、露出を読む側と同じ場所に無いと見落とすため。 */
 var expAdapt = 1;
+/* 足元の補助光を既定の位置と強さへ戻す。死亡演出でここを床へ降ろして
+   「落ちたランプ」に流用しているので、遊び直すときとタイトルへ戻るときの
+   両方で戻す必要がある（片方だけ直して一度取りこぼした）。 */
+var PLIGHT_I = 0.88;
+function resetPlayerLight(){
+  if(!playerLight) return;
+  playerLight.position.set(0, 0, 0);
+  playerLight.intensity = PLIGHT_I;
+}
 function exposureNow(){
   return EXP_BASE * EXP_Q[clamp(settings.quality|0, 0, 3)] *
          expAdapt * (settings.gamma || 1);
@@ -2746,7 +2755,7 @@ function setupLights(){
      0.55 まで落とすと足元まで真っ暗になり、画面の 4 割が最暗部に
      沈んだ（実測 平均輝度 58.6 → 48.3）。絞りの効果は遠くの側壁に
      出るもので、手前の床は別問題。範囲だけ詰めて強さは戻す。 */
-  playerLight = new THREE.PointLight(0xffdcae, 0.88, 9, 1.8);
+  playerLight = new THREE.PointLight(0xffdcae, PLIGHT_I, 9, 1.8);
   camera.add(playerLight);
   scene.add(camera);
 
@@ -7026,6 +7035,10 @@ function toTitle(){
   Audio2.stopAmbient();
   if(hunter.group){ hunter.group.visible = false; hunter.shadow.visible = false; }
   if(hunterEyeLight) hunterEyeLight.intensity = 0;
+  /* 死亡演出で足元の補助光を床へ降ろして強くしてある。タイトルの情景も
+     同じシーンと同じカメラで描くので、戻さないと廊下の床だけが
+     暖色で明るいままになる。 */
+  resetPlayerLight();
   blackout(true, true);
   showPanel('title');
 }
@@ -7082,6 +7095,7 @@ function startGame(){
   }
 
   expAdapt = 1;             // 明順応は毎回まっさらから（前回の暗さを持ち越さない）
+  resetPlayerLight();
   resetHunterVox();
   buildInfo = buildWorld();
   buildHunter();
@@ -7610,7 +7624,7 @@ function updatePlayer(dt){
     viewArm.visible = !player.hiding;
   }
   flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
-  playerLight.intensity = player.lamp ? 0.9*flickAmt : 0.14;
+  playerLight.intensity = player.lamp ? PLIGHT_I*flickAmt : 0.14;
   ambient.intensity = (AMB_BASE - panic*0.14) * (world.power ? 1.7 : 1);
   updateExposure(dt, player.lamp ? flickAmt : 0);
 
@@ -8566,6 +8580,28 @@ function doDeath(){
     camera.rotation.set(lerp(camera.rotation.x, 0.05, 0.15), yaw, (Math.random()-0.5)*0.08*(1-k));
     camera.fov = lerp(camera.fov, 42, 0.06);
     camera.updateProjectionMatrix();
+
+    /* 掴まれたらランプを落とす。
+       1.25m の至近で全灯のまま照らすと、反射率 0.18 の肌でも輝度が
+       1.7 を超えて完全に飛ぶ。自動露出の下限（0.62 倍）でも足りない。
+       ゲーム中いちばん見せたい場面が「白い塊」になっていた。
+       手から落ちた灯りが床から照らす形にすると、飛びが収まるうえに
+       顔が下から照らされる。 */
+    var flick = 0.72 + 0.28*Math.abs(Math.sin(performance.now()*0.021));
+    flashlight.intensity = LAMP_I * (1 - k*0.88);
+    /* 落ちたランプは、既にある足元の補助光をそのまま床へ降ろして使う。
+       専用の光源を 1 つ足すと、その 1 灯が「常に」全ての材質の
+       全画素の計算に乗る（three は強さ 0 でもシェーダに含める）。
+       playerLight はカメラの子なので、ローカル座標で前下方に置けば
+       ちょうど手から落ちて転がった位置になる。
+       強さは 1.3。3.0 だと床から 1.3m の胸で照度が 5.8 になり、
+       懐中電灯を落とした意味が無くなる（今度は落ちたランプで飛ぶ）。 */
+    playerLight.position.set(0.20, -1.42 + 0.10*(1-k), -0.44 - 0.30*k);
+    playerLight.intensity = PLIGHT_I*(1-k) + 1.3*k*flick;
+    /* 露出。この間は updateExposure が回らない（更新処理そのものが
+       止まっている）ので、ここで直に書く。光を落としたぶん開ける。 */
+    renderer.toneMappingExposure = EXP_BASE * EXP_Q[clamp(settings.quality|0,0,3)] *
+                                   (settings.gamma || 1) * lerp(0.62, 1.18, k);
     if(k < 1) requestAnimationFrame(zoom);
     else{
       blackout(true);
@@ -9146,6 +9182,25 @@ function runSelfTest(){
   (function(){
     var sx = player.x, sz = player.z, syaw = player.viewYaw,
         spit = player.pitch, sad = expAdapt;
+    /* 足元の補助光。死亡演出でここを床へ降ろして「落ちたランプ」に
+       流用している。戻し忘れると、遊び直したときもタイトルへ戻ったときも
+       床だけが暖色で明るいまま残る。
+
+       2 つ見る。遊んでいる間に既定の位置にあること（毎フレーム
+       書き直しているので、その処理が消えたら落ちる）と、戻す関数が
+       実際に戻すこと。呼び出し側が消えた場合はこれでは捕まらない
+       ——診断中に toTitle を通すわけにはいかないので、そこは諦める。 */
+    t('足元の補助光が既定の位置にある', playerLight.position.lengthSq() < 0.04);
+    (function(){
+      var sp = playerLight.position.clone(), si = playerLight.intensity;
+      playerLight.position.set(0.20, -1.42, -0.74); playerLight.intensity = 2.0;
+      resetPlayerLight();
+      var okR = playerLight.position.lengthSq() < 1e-9 &&
+                Math.abs(playerLight.intensity - PLIGHT_I) < 1e-9;
+      playerLight.position.copy(sp); playerLight.intensity = si;
+      t('補助光を既定へ戻せる', okR);
+    })();
+
     /* 露出の見積もりが使う照射角と、実際の光の照射角が一致しているか。
        別々に書いていたので、ビームを絞ったあとも見積もりだけ 33 度の
        ままだった。円錐の外の物まで「照らしている」と数えてしまう。 */
