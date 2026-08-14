@@ -2084,12 +2084,19 @@ var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
 function setupLights(){
-  ambient = new THREE.AmbientLight(0x1a2430, 0.46);
+  /* 環境光を強く入れると、どの面も最低限の明るさを持ってしまい、
+     せっかく焼いた遮蔽も懐中電灯の輪も見えなくなる。落とす。 */
+  ambient = new THREE.AmbientLight(0x1a2430, 0.32);
   scene.add(ambient);
-  hemi = new THREE.HemisphereLight(0x243244, 0x090b0d, 0.38);
+  hemi = new THREE.HemisphereLight(0x243244, 0x090b0d, 0.28);
   scene.add(hemi);
 
-  flashlight = new THREE.SpotLight(0xffe9c4, 3.2, 34, Math.PI/5.4, 0.62, 1.15);
+  /* 減衰を 1.15 にしていたので、8m 先の突き当たりが手元の壁と同じ明るさで
+     返ってきていた。光の輪が無く、廊下全体がのっぺり明るい。実際の
+     携行灯は距離の二乗で落ちる。2.0 では足元しか見えず遊べないので、
+     間を取って 1.65。届く距離も 34m → 28m に詰め、代わりに手元の
+     強さを 3.2 → 4.4 に上げて、近くの明るさは保ったまま先だけ暗くする。 */
+  flashlight = new THREE.SpotLight(0xffe9c4, 4.4, 28, Math.PI/5.4, 0.62, 1.65);
   flashlight.position.set(0,0,0);
   flashTarget = new THREE.Object3D();
   scene.add(flashTarget);
@@ -2296,7 +2303,8 @@ function buildPost(){
       uScan:  { value: 0 },
       uWarp:  { value: 0 },
       tBloom: { value: null },
-      uBloom: { value: 0 }
+      uBloom: { value: 0 },
+      uSharp: { value: 0 }
     },
     vertexShader: [
       'varying vec2 vUv;',
@@ -2305,10 +2313,16 @@ function buildPost(){
     fragmentShader: [
       'uniform sampler2D tDiffuse;',
       'uniform vec2 uRes;',
-      'uniform float uTime, uAberr, uNoise, uScan, uWarp, uBloom;',
+      'uniform float uTime, uAberr, uNoise, uScan, uWarp, uBloom, uSharp;',
       'uniform sampler2D tBloom;',
       'varying vec2 vUv;',
       'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+      /* 交互勾配ノイズ。整列した点が画面全体に均一に散るので、
+         同じ 1 個の乱数でも sin ベースの hash より粒が揃う。
+         最後の量子化誤差をばらすためだけに使う。 */
+      'float ign(vec2 p){',
+      '  return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));',
+      '}',
       'void main(){',
       '  vec2 c = vUv - 0.5;',
       '  float r2 = dot(c, c);',
@@ -2322,6 +2336,22 @@ function buildPost(){
       '  col.r = texture2D(tDiffuse, clamp(uv + d, 0.0005, 0.9995)).r;',
       '  col.g = texture2D(tDiffuse, uv).g;',
       '  col.b = texture2D(tDiffuse, clamp(uv - d, 0.0005, 0.9995)).b;',
+      /* 輪郭の持ち上げ。端末の画素密度より低い解像度で描いて引き伸ばす
+         設定があるので、そのままだと全体がふやける。上下左右 4 点との
+         差を足し戻すと輪郭が戻る。ただし素の差を足すと縁が白く光る
+         （リンギング）ので、近傍の最小最大で挟んで抑える。
+         uSharp が 0 の品質では一様分岐なので実行されない。 */
+      '  if(uSharp > 0.0){',
+      '    vec2 tx = 1.0 / uRes;',
+      '    vec3 s1 = texture2D(tDiffuse, clamp(uv + vec2(tx.x, 0.0), 0.0005, 0.9995)).rgb;',
+      '    vec3 s2 = texture2D(tDiffuse, clamp(uv - vec2(tx.x, 0.0), 0.0005, 0.9995)).rgb;',
+      '    vec3 s3 = texture2D(tDiffuse, clamp(uv + vec2(0.0, tx.y), 0.0005, 0.9995)).rgb;',
+      '    vec3 s4 = texture2D(tDiffuse, clamp(uv - vec2(0.0, tx.y), 0.0005, 0.9995)).rgb;',
+      '    vec3 lo = min(min(s1, s2), min(s3, s4));',
+      '    vec3 hi = max(max(s1, s2), max(s3, s4));',
+      '    vec3 sh = col + (col * 4.0 - (s1 + s2 + s3 + s4)) * (uSharp * 0.25);',
+      '    col = clamp(sh, min(lo, col), max(hi, col));',
+      '  }',
       '  float sl = sin(uv.y * uRes.y * 1.5) * 0.5 + 0.5;',      // 走査線
       '  col *= 1.0 - uScan * 0.20 * sl;',
       '  col *= 1.0 - band * uScan * 0.25;',
@@ -2330,10 +2360,21 @@ function buildPost(){
       '  col += texture2D(tBloom, uv).rgb * uBloom;',        // 光の滲み
       // 色調整。暗部をわずかに青緑へ持ち上げ、明部の伸びを寝かせる。
       // 真っ黒が本当に 0 だと、暗い画面が「消えている」ように見える
-      '  col = col / (col + vec3(0.28)) * 1.28;',
+      // 0.28 では中間調を持ち上げすぎて、壁が軒並み白く飛んでいた
+      '  col = col / (col + vec3(0.44)) * 1.36;',
       '  col += vec3(0.004, 0.011, 0.010) * (1.0 - smoothstep(0.0, 0.30, col));',
+      /* 明暗で色を振り分ける。暗部を青緑へ寄せるのは前からやっていたが、
+         明部が無彩色のままだと、非常灯もランプも同じ白い塊に見えていた。
+         明るい所だけ暖色へ倒すと、光源が「灯り」として立つ。 */
+      '  float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+      '  col = mix(col, col * vec3(1.045, 0.995, 0.930), smoothstep(0.42, 0.95, lum));',
       // 周辺減光。四隅を落とすと視線が中央に集まり、暗さの中で奥行きが出る
       '  col *= 1.0 - (0.34 + uWarp * 0.55) * r2;',
+      /* 量子化のばらし。暗い場面ばかりなので、8bit に落とすところで
+         濃淡の段（バンディング）が同心円状にはっきり出ていた。
+         ±半階調だけずらすと段が消え、粒に化ける。粒子ノイズとは別物で、
+         こちらは常時・振幅固定。 */
+      '  col += (ign(gl_FragCoord.xy) - 0.5) / 255.0;',
       '  gl_FragColor = vec4(max(col, 0.0), 1.0);',
       '}'
     ].join('\n'),
@@ -2439,6 +2480,11 @@ function updatePost(dt){
   u.uNoise.value = postFX.noise;
   u.uScan.value  = postFX.scan;
   u.uWarp.value  = postFX.warp;
+  /* 輪郭の持ち上げ量。端末の画素密度を品質ごとの上限で切っているので、
+     切られた分だけ引き伸ばされてぼける。切られていなければ掛けない
+     （等倍の画にまで掛けると、ただ縁が硬くなるだけ）。 */
+  var dpr = window.devicePixelRatio || 1;
+  u.uSharp.value = (settings.quality|0) >= 1 ? clamp((dpr - QC.pixelCap) * 0.9, 0, 0.85) : 0;
 }
 
 function buildViewModel(){
@@ -2446,11 +2492,15 @@ function buildViewModel(){
   viewCam = new THREE.PerspectiveCamera(52, 1, 0.01, 6);
   viewCam.position.set(0,0,0);
 
-  viewScene.add(new THREE.AmbientLight(0x4c463e, 0.34));
-  var vl = new THREE.PointLight(0xffcf98, 1.45, 3.2, 1.5);
+  /* 腕は本編とは別のシーンに置いて別に照らしている。本編の露出を
+     下げたので、そのままだと手だけが白く浮いて貼り付けたように見える。
+     環境光を半分以下にし、代わりにランプからの点光源を強く・近くする。
+     指の間に落ちる影がはっきりして、平たい板の集まりに見えなくなる。 */
+  viewScene.add(new THREE.AmbientLight(0x4c463e, 0.16));
+  var vl = new THREE.PointLight(0xffcf98, 1.9, 2.2, 2.0);
   vl.position.set(0.10, 0.22, 0.30);
   viewScene.add(vl);
-  var vl2 = new THREE.PointLight(0x62748c, 0.28, 3, 1.6);
+  var vl2 = new THREE.PointLight(0x62748c, 0.20, 3, 1.6);
   vl2.position.set(-0.4, -0.1, 0.2);
   viewScene.add(vl2);
 

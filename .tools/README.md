@@ -45,3 +45,24 @@ harness.js（jsdom + three.js のスタブ）だけはスクラッチパッド�
 - `leak.js` / `leak3.js` … 持ち越し状態の検出（指紋・フレーム単位の差分）
 
 計測時間：120 本が 5〜6 分 → **80 秒**（4 コア）。
+
+## gpu.js — 実ブラウザ・実 WebGL での検証
+
+harness.js は three.js を実物で動かすが、WebGL 自体はスタブなので
+**シェーダは一度もコンパイルされない**。GLSL の誤りも、真っ黒画面も、
+巻き方向の裏返りも、すべてそこを素通りする。
+gpu.js は Playwright の Chromium（SwiftShader）で本物の HTML を開き、
+
+  - シェーダのコンパイル／リンクの失敗を console error として拾う
+  - 実際に描かれた画を PNG で保存する（目視できる唯一の手段）
+  - 画面全体の輝度分布を測る（真っ黒・白飛びの検出）
+
+使い方:
+    node .tools/gpu.js <html> <quality 0-3> [出力png]
+    # 例: node .tools/gpu.js ward7.html 3 shot.png
+
+注意: 既定のフレームバッファは合成後に無効化されるので、readPixels は
+必ず requestAnimationFrame の中で呼ぶ。外で呼ぶと必ず真っ黒が返り、
+「描けていない」と誤判定する（一度これで嵌まった）。
+three.min.js は同ディレクトリのものを page.route で差し込むので、
+回線に依存しない。
