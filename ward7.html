@@ -4811,10 +4811,18 @@ function buildWorld(){
   }
 
   // --- 隠れ場所：通路のロッカーと、部屋のベッドの下 ---
-  var lockerMat = regEnvMat(new THREE.MeshStandardMaterial({ color:SRGB(0x46524d), roughness:0.6, metalness:0.5 }));
-  var slatMat   = new THREE.MeshStandardMaterial({ color:SRGB(0x2a322e), roughness:0.9 });
-  var bedMat    = new THREE.MeshStandardMaterial({ color:SRGB(0x5c5f58), roughness:0.85 });
-  var sheetMat  = new THREE.MeshStandardMaterial({ color:0xb9b6a6, roughness:0.95 });
+  /* 隠れ場所の什器にも、通路の物と同じ汚れを貼る。ここだけ無地のまま
+     だったので、廊下でロッカーだけが真新しい水色の箱に見えていた。
+     シーツの色 0xb9b6a6 は線形で 0.53——白い塗料（0.7）に迫る反射率で、
+     40 年放置された病棟の寝具としては明るすぎた。0.3 前後へ落とす。 */
+  var GT2 = TEX.grunge || null, GR2 = TEX.grungeR || null;
+  var lockerMat = regEnvMat(new THREE.MeshStandardMaterial({
+    color:SRGB(0x46524d), map:GT2, roughnessMap:GR2,
+    roughness:GR2?1:0.6, metalness:0.5 }));
+  var slatMat   = new THREE.MeshStandardMaterial({ color:SRGB(0x2a322e), map:GT2, roughness:0.9 });
+  var bedMat    = new THREE.MeshStandardMaterial({ color:SRGB(0x5c5f58), map:GT2, roughnessMap:GR2,
+                                                   roughness:GR2?1:0.85 });
+  var sheetMat  = new THREE.MeshStandardMaterial({ color:SRGB(0xa9a698), map:GT2, roughness:0.95 });
 
   function wallCellNear(){
     for(var att=0; att<60; att++){
