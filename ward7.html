@@ -3111,6 +3111,52 @@ function buildViewModel(){
                 skinGeo:skinGeo, digitLens:digitLens, digitSt:digitSt, barrelAt:barrelRadiusAt };
 }
 
+/* 小物用の簡易結合。
+   拾得物は「板 1 枚」「円柱 1 本」で置かれていた。集めることが目的の
+   物なのに、いちばん見る時間が長いのに、いちばん形が無かった。
+   部品に分けたいがマテリアルを分けると 1 個につきドローコールが
+   3〜4 増える。色は頂点色に持たせて、1 個 1 メッシュのまま作る。
+
+     type 省略  … 箱（w,h,d）
+     type:'cyl' … 円柱（r=半径, h=長さ, ax:'y'|'x'|'z' で軸）
+     c          … 0xRRGGBB。頂点色に焼き込む */
+function mergeTinted(parts){
+  var pos = [], nor = [], uvs = [], col = [];
+  var m4 = new THREE.Matrix4(), eu = new THREE.Euler(), cv = new THREE.Color();
+  for(var i=0;i<parts.length;i++){
+    var sp = parts[i], bg;
+    if(sp.type === 'cyl'){
+      bg = new THREE.CylinderGeometry(sp.r, sp.rb === undefined ? sp.r : sp.rb, sp.h, sp.seg || 10);
+      if(sp.ax === 'x') bg.rotateZ(Math.PI/2);
+      else if(sp.ax === 'z') bg.rotateX(Math.PI/2);
+    }else{
+      bg = new THREE.BoxGeometry(sp.w, sp.h, sp.d);
+    }
+    eu.set(sp.rx||0, sp.ry||0, sp.rz||0);
+    m4.makeRotationFromEuler(eu);
+    m4.setPosition(sp.x||0, sp.y||0, sp.z||0);
+    bg.applyMatrix4(m4);
+    cv.setHex(sp.c === undefined ? 0xffffff : sp.c);
+    var pa = bg.attributes.position.array, na = bg.attributes.normal.array,
+        ua = bg.attributes.uv.array, ix = bg.index ? bg.index.array : null;
+    if(ix) for(var k=0;k<ix.length;k++){
+      var v = ix[k];
+      pos.push(pa[v*3], pa[v*3+1], pa[v*3+2]);
+      nor.push(na[v*3], na[v*3+1], na[v*3+2]);
+      uvs.push(ua[v*2], ua[v*2+1]);
+      col.push(cv.r, cv.g, cv.b);
+    }
+    bg.dispose();
+  }
+  var out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+  out.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  out.computeBoundingSphere();
+  return out;
+}
+
 function buildWorld(){
   clearWorld();
   var d = DIFF[settings.diff];
@@ -3466,13 +3512,28 @@ function buildWorld(){
     return null;
   }
 
-  // --- カルテ ---
-  var recGeo = new THREE.BoxGeometry(0.42, 0.03, 0.58);
+  /* --- カルテ ---
+     厚さ 3cm の板が 1 枚浮いているだけだった。集めることが目的の物なので、
+     手に取る前から「書類の綴り」だと分かる形にする。
+     台紙・はみ出た用紙の束・金具・背の帯・角の折れ、の 5 要素。 */
+  var recGeo = mergeTinted([
+    { w:0.42, h:0.022, d:0.58, y:0,      c:0x8d7f5e },            // 台紙（マニラ紙）
+    { w:0.39, h:0.020, d:0.55, y:0.021, x:0.008, z:-0.006, c:0xe6e2d4 }, // 中の用紙
+    { w:0.40, h:0.014, d:0.54, y:0.036, x:-0.006, z:0.010, c:0xd9d3c2 }, // ずれた1枚
+    { w:0.030,h:0.016, d:0.58, x:-0.196, y:0.016, c:0x6b6047 },   // 背の帯
+    { w:0.13, h:0.012, d:0.045, y:0.046, z:-0.245, c:0x9aa0a2 },  // 綴じ金具
+    { type:'cyl', ax:'z', r:0.010, h:0.10, y:0.046, z:-0.268, c:0x9aa0a2 }
+  ]);
   for(var r=0;r<d.records;r++){
     var c = take(5);
     if(!c) break;
     var w = cellToWorld(c.x,c.y);
-    var mat = new THREE.MeshStandardMaterial({ color:0xd8d2c0, emissive:0x6fbfa8, emissiveIntensity:0.55, roughness:0.7 });
+    /* 自己発光は「遠くから気づける」ためのものだが、0.42 も入れると
+       材質の色より発光が勝って、どの拾得物も同じ白い塊になっていた
+       （紺色の電池胴ですら白く出ていた）。遠距離の視認は加算スプライトが
+       受け持っているので、ここは形が沈まない程度まで落とす。 */
+    var mat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true,
+      emissive:0x6fbfa8, emissiveIntensity:0.13, roughness:0.72, metalness:0.04 });
     var m = new THREE.Mesh(recGeo, mat);
     m.position.set(w.x, 0.9, w.z);
     var spr = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -3483,13 +3544,23 @@ function buildWorld(){
     world.records.push({ mesh:m, spr:spr, mat:mat, x:w.x, z:w.z, taken:false, phase:rnd()*TAU });
   }
 
-  // --- 予備電池 ---
-  var batGeo = new THREE.CylinderGeometry(0.09,0.09,0.28,10);
+  /* --- 予備電池 ---
+     無地の円柱 1 本だった。単一形状の乾電池は、胴のラベル・上下の
+     金属端子・正極の出っ張りで一目で分かる。部品はどれも小さいが、
+     暗がりで拾うとき「電池だ」と即断できるかどうかが変わる。 */
+  var batGeo = mergeTinted([
+    { type:'cyl', r:0.088, h:0.255, y:0,      c:0x2f3138 },   // 胴
+    { type:'cyl', r:0.090, h:0.130, y:-0.010, c:0x8a5f24 },   // ラベルの帯
+    { type:'cyl', r:0.084, h:0.016, y:0.132,  c:0xb9b2a2 },   // 上の端子
+    { type:'cyl', r:0.038, h:0.024, y:0.148,  c:0xcfc7b4 },   // 正極の出っ張り
+    { type:'cyl', r:0.086, h:0.012, y:-0.132, c:0xa89f8e }    // 下の端子
+  ]);
   for(var b=0;b<d.batteries + (d.batteries2||0);b++){
     var cb = take(3);
     if(!cb) break;
     var wb = cellToWorld(cb.x,cb.y);
-    var bmat = new THREE.MeshStandardMaterial({ color:0x2b2b30, emissive:0xe8a33d, emissiveIntensity:0.4, roughness:0.5, metalness:0.4 });
+    var bmat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true,
+      emissive:0xe8a33d, emissiveIntensity:0.10, roughness:0.46, metalness:0.45 });
     var bm = new THREE.Mesh(batGeo, bmat);
     bm.position.set(wb.x, 0.62, wb.z);
     var bs = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -3505,15 +3576,25 @@ function buildWorld(){
   if(keyCell){
     var kw = cellToWorld(keyCell.x, keyCell.y);
     var keyMat = new THREE.MeshStandardMaterial({
-      color:0xd8c77a, emissive:0xb89b2e, emissiveIntensity:0.5, roughness:0.4, metalness:0.8
+      color:0xd8c77a, emissive:0xb89b2e, emissiveIntensity:0.18, roughness:0.4, metalness:0.8
     });
+    /* 鍵。3 つの部品を別メッシュで置いていたのを 1 つに畳む。
+       ついでに軸を丸棒にし、歯を 2 枚にして、頭にタグを下げる
+       （病棟の鍵には必ず札が付いている）。 */
     var keyGrp = new THREE.Group();
-    var kb = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.34), keyMat);
-    keyGrp.add(kb);
+    keyGrp.add(new THREE.Mesh(mergeTinted([
+      { type:'cyl', ax:'z', r:0.021, h:0.34, c:0xd8c77a },          // 軸
+      { w:0.048, h:0.105, d:0.052, y:-0.052, z:-0.115, c:0xd8c77a },// 歯（大）
+      { w:0.048, h:0.070, d:0.040, y:-0.035, z:-0.028, c:0xd8c77a },// 歯（小）
+      { type:'cyl', ax:'z', r:0.030, h:0.020, z:0.155, c:0xc9b76c } // 頭の座
+    ]), keyMat));
     var kr = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.022, 6, 12), keyMat);
     kr.position.z = 0.22; kr.rotation.y = Math.PI/2; keyGrp.add(kr);
-    var kt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.11, 0.05), keyMat);
-    kt.position.set(0, -0.05, -0.13); keyGrp.add(kt);
+    var tagMat = new THREE.MeshStandardMaterial({
+      color:0xc8c2ac, emissive:0x2a2a22, emissiveIntensity:0.4, roughness:0.85
+    });
+    var ktag = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.11, 0.006), tagMat);
+    ktag.position.set(0, -0.13, 0.235); keyGrp.add(ktag);
     keyGrp.position.set(kw.x, 0.85, kw.z);
     var keySpr = new THREE.Sprite(new THREE.SpriteMaterial({
       map:TEX.glowW, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.5
