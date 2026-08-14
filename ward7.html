@@ -1586,6 +1586,26 @@ var WALL_H = 3.6;
 
 // 病棟を3x3に区切った区画記号。壁のプレートに焼いて現在地の手がかりにする
 var ZONE_LETTERS = ['A','B','C','D','E','F','G','H','J'];   // I は 1 と紛れるので飛ばす
+/* 区画ごとの色調。
+   9 区画がどれも同じ色なので、区画表示板を読むまで自分がどこにいるか
+   分からなかった。壁も床も天井も結合ジオメトリで頂点色を持っているので、
+   マスの区画で色を掛けるだけなら描画の回数は 1 回のまま増えない。
+
+   派手に色を変えると別のゲームになるので、あくまで「別の翼に来た」と
+   分かる程度に留める（明度 ±8%、色相は寒暖の振り分けだけ）。 */
+var ZONE_TINT = [
+  [1.00, 1.00, 1.00],   // 0 基準（旧病棟）
+  [0.97, 1.00, 0.97],   // 1 手術区画：緑がかる
+  [1.03, 0.99, 0.93],   // 2 事務区画：黄ばむ
+  [0.94, 0.97, 1.03],   // 3 霊安室側：青く冷える
+  [1.02, 1.01, 0.97],   // 4 中央ホール：少し暖かい
+  [0.96, 0.99, 0.98],   // 5 隔離区画：色が抜ける
+  [1.01, 0.97, 0.94],   // 6 給湯・配膳：赤茶
+  [0.95, 1.00, 1.00],   // 7 検査区画：青緑
+  [1.00, 0.96, 0.92]    // 8 焼却炉側：煤けて赤い
+];
+function zoneTint(cx, cy){ return ZONE_TINT[zoneOf(cx, cy)]; }
+
 function zoneOf(cx, cy){
   var zx = clamp(Math.floor(cx * 3 / GW), 0, 2);
   var zy = clamp(Math.floor(cy * 3 / GH), 0, 2);
@@ -3466,7 +3486,9 @@ function buildWorld(){
     var pa = geo.attributes.position, n = pa.count, col = new Float32Array(n*3);
     for(var i=0;i<n;i++){
       var ao = 1 - k * gridOcc(pa.getX(i), pa.getZ(i));
-      col[i*3] = col[i*3+1] = col[i*3+2] = ao;
+      var pc = worldToCell(pa.getX(i), pa.getZ(i));
+      var zt = zoneTint(clamp(pc.x,0,GW-1), clamp(pc.y,0,GH-1));
+      col[i*3] = ao*zt[0]; col[i*3+1] = ao*zt[1]; col[i*3+2] = ao*zt[2];
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   }
@@ -3539,7 +3561,9 @@ function buildWorld(){
         var nc2 = cellToWorld(nx2, ny2);
         var amb = 0.40 * gridOcc((px2 + nc2.x)/2, (pz2 + nc2.z)/2, x, y);
         var ao2 = clamp(1 - vy - edge - amb, 0.16, 1);
-        wcol.push(ao2, ao2, ao2);
+        // 区画の色調を掛ける。描画の回数は増えない
+        var zt = zoneTint(x, y);
+        wcol.push(ao2*zt[0], ao2*zt[1], ao2*zt[2]);
       }
       for(var r2=0; r2<WROW-1; r2++) for(var c4=0; c4<WCOL-1; c4++){
         var a2 = base + r2*WCOL + c4, b2 = a2+1, c5 = a2+WCOL, d2 = c5+1;
