@@ -4015,11 +4015,61 @@ function buildWorld(){
     world.props.push({ x:wg.position.x, z:wg.position.z, r:0.42, h:1.05 });
   }
 
-  // --- 小物（ドラム缶）：InstancedMesh + 円形コリジョン ---
-  var propGeo = new THREE.CylinderGeometry(0.44,0.46,1.05,10);
-  var propMat = new THREE.MeshStandardMaterial({ color:0x4a3f33, roughness:0.85, metalness:0.25 });
+  /* --- 通路に転がっている物 ---
+     ドラム缶 1 種類しか置いていなかったので、どの廊下も同じ樽が
+     並んでいるだけだった。病棟なのに病棟の物が何も無い。
+     3 種類に増やす。
+
+     大事な制約が 2 つある。
+       ・当たり判定は全種で同じ（半径0.55・高さ1.05）にする。見た目だけの
+         変更に留めれば、経路探索も遮蔽もこれまでと 1 ビットも変わらない。
+       ・種類を選ぶのに rnd() を引かない。乱数の流れが 1 回でもずれると
+         間取りごと変わって、これまでの回帰結果と比べられなくなる。
+         マスの座標から決める。 */
+  var PROP_KINDS = [
+    // 0: 廃液のドラム缶
+    mergeTinted([
+      { type:'cyl', r:0.44, rb:0.46, h:1.05, c:0x4a3f33 },
+      { type:'cyl', r:0.475, h:0.055, y:0.30,  c:0x3a3128 },   // 補強のリブ
+      { type:'cyl', r:0.475, h:0.055, y:-0.28, c:0x3a3128 },
+      { type:'cyl', r:0.36,  h:0.035, y:0.53,  c:0x3c3529 },   // 天板
+      { type:'cyl', r:0.085, h:0.045, y:0.56, x:0.20, c:0x4a4237 } // 注ぎ口
+    ]),
+    // 1: 積み上げた薬品ケース
+    mergeTinted([
+      { w:0.78, h:0.36, d:0.60, y:-0.34, c:0x35382f },
+      { w:0.74, h:0.030,d:0.56, y:-0.15, c:0x3f4239 },
+      { w:0.70, h:0.34, d:0.54, y:0.02, ry:0.22, c:0x3b3e33 },
+      { w:0.66, h:0.030,d:0.50, y:0.20, ry:0.22, c:0x45483c },
+      { w:0.54, h:0.28, d:0.44, y:0.36, ry:-0.15, c:0x33362d },
+      { w:0.20, h:0.012,d:0.15, y:0.501,ry:-0.15, c:0x6f6b5f }  // 貼り紙
+    ]),
+    // 2: 洗濯物のかご（キャスター付き）
+    mergeTinted([
+      { w:0.86, h:0.055, d:0.62, y:-0.42, c:0x2a2c31 },          // 台
+      { type:'cyl', ax:'x', r:0.055, h:0.70, y:-0.50, z:0.22, c:0x24262a },
+      { type:'cyl', ax:'x', r:0.055, h:0.70, y:-0.50, z:-0.22, c:0x24262a },
+      { w:0.84, h:0.52, d:0.60, y:-0.10, c:0x494739 },           // かご
+      { w:0.88, h:0.045,d:0.64, y:0.17,  c:0x36382f },           // 縁
+      { w:0.72, h:0.22, d:0.48, y:0.28,  ry:0.18, c:0x7d786a }   // はみ出た布
+    ])
+  ];
+  /* metalness 0.22 ＋ roughness 0.82 だと、鏡面反射の下駄（F0≒0.095）が
+     暗い色の拡散反射（0.06 程度）を上回って、何色を入れても白い塊に
+     なっていた。地色を赤にしたときだけ赤く出たのがその証拠。
+     塗装された金属は「広く鈍く光る」のではなく「狭く強く光る」。 */
+  var propMat = new THREE.MeshStandardMaterial({
+    color:0xffffff, vertexColors:true, roughness:0.66, metalness:0.05
+  });
   var pn = QC.props;
-  var propMesh = new THREE.InstancedMesh(propGeo, propMat, pn);
+  var propMesh = [], propN = [0,0,0];
+  for(var pk2=0; pk2<3; pk2++){
+    var im = new THREE.InstancedMesh(PROP_KINDS[pk2], propMat, pn);
+    im.frustumCulled = false;
+    im.castShadow = !!QC.shadows;
+    im.receiveShadow = !!QC.shadows;
+    propMesh.push(im);
+  }
   var dummy = new THREE.Object3D();   // 壁を結合ジオメトリにしたので、置き場をここへ移す
   var pi = 0;
   for(var p=0;p<pn;p++){
@@ -4031,15 +4081,17 @@ function buildWorld(){
     dummy.rotation.set(0, rnd()*TAU, 0);
     dummy.scale.set(1,1,1);
     dummy.updateMatrix();
-    propMesh.setMatrixAt(pi++, dummy.matrix);
+    var kind = (cp.x*7 + cp.y*13 + p*5) % 3;      // 乱数を消費しない選び方
+    propMesh[kind].setMatrixAt(propN[kind]++, dummy.matrix);
+    pi++;
     world.props.push({ x:wp.x+ox, z:wp.z+oz, r:0.55, h:1.05 });
   }
-  propMesh.count = pi;
-  propMesh.instanceMatrix.needsUpdate = true;
-  propMesh.frustumCulled = false;
-  propMesh.castShadow = !!QC.shadows;
-  propMesh.receiveShadow = !!QC.shadows;
-  world.group.add(propMesh);
+  for(var pk3=0; pk3<3; pk3++){
+    propMesh[pk3].count = propN[pk3];
+    propMesh[pk3].instanceMatrix.needsUpdate = true;
+    if(propN[pk3]) world.group.add(propMesh[pk3]);
+  }
+  world.propKinds = propN;
 
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
