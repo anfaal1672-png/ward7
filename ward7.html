@@ -5656,7 +5656,7 @@ var hunter = {
   group:null, root:null, head:null, armL:null, armR:null, legL:null, legR:null, shadow:null,
   x:0, z:0, yaw:0, cell:{x:1,y:1}, target:null, path:null,
   mode:'patrol', repathT:0, patrolT:0, lastSeen:null, speed:1.9, attackCd:0, bob:0, spawnGrace:0,
-  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, parts:null,
+  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:undefined, parts:null,
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
   gazeT:0, gazeY:0, gazeTarget:0
@@ -6504,7 +6504,7 @@ function placeHunter(reach, startC){
   hunter.repathT = 0; hunter.patrolT = 0; hunter.lastSeen = null;
   hunter.attackCd = 0; hunter.bob = 0; hunter.patrolGoal = null; hunter.patrolT = 0;
   hunter.memT = 0; hunter.chaseT = 0; hunter.twitchT = 0; hunter.twitch = 0;
-  hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0; hunter.gaitRun = 0; hunter.turnLead = 0; hunter.walkK = 0; hunter.bank = 0;
+  hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0; hunter.gaitRun = 0; hunter.turnLead = 0; hunter.walkK = 0; hunter.bank = 0; hunter.yawRate = 0; hunter.yawPrev = undefined;
   // 種を固定しても再現しなかった原因。ここが Math.random だと最初のグリッチが
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
   hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
@@ -8439,10 +8439,26 @@ function updateHunter(dt, info){
   var strike = Math.pow(Math.max(0, Math.cos(ph*2*TAU)), 8) * (0.014 + 0.012*rk) * walkK;
   P.spine.position.y += pelvis - strike;
   P.spine.rotation.z += list;
-  /* 曲がるときに体を内側へ倒す案は、符号と強さを確かめられなかったので
-     入れていない。倒し込みは移動しているときにしか出ない値（walkK）に
-     掛かるため、追跡者を静止させて姿勢だけ測る手が使えない。歩かせながら
-     一定の角速度で旋回させ続ける撮影リグが要る。 */
+  /* 曲がるときに体を内側へ倒す。
+     走って角を曲がる人は、遠心力に釣り合うぶんだけ内側へ傾く。傾かずに
+     向きだけ変わると、体が軸に刺さって回っているように見える。
+
+     駆動値に turnLead（体がまだ向いていない残り角）を使うと効かない。
+     yaw は diff * min(1, dt*6) で追従するので残り角はほぼ常に 0 で、
+     旋回撮影リグで測っても 0.01 しか出なかった。実際の角速度を持つ。
+
+     傾きは物理どおり atan(v·ω/g) を目安にする。v=5.7m/s・ω=1rad/s なら
+     0.58rad になるが、人はそこまで倒さない（足で支える）ので 0.38 倍。
+     0.24rad（14 度）で頭打ち。 */
+  var yprev = (hunter.yawPrev === undefined) ? hunter.yaw : hunter.yawPrev;
+  hunter.yawPrev = hunter.yaw;
+  var dy = ((hunter.yaw - yprev + Math.PI*3) % TAU) - Math.PI;
+  var yrate = dy / Math.max(dt, 1e-4);
+  hunter.yawRate = lerp(hunter.yawRate || 0, yrate, 1 - Math.pow(0.03, dt));
+  var spd = moved / Math.max(dt, 1e-4);
+  var bank = clamp(hunter.yawRate * spd / 9.8 * 0.38, -0.24, 0.24) * walkK;
+  P.spine.rotation.z += bank;
+  hunter.bank = bank;
   P.spine.rotation.y += Math.sin(ph*TAU) * (0.06 + 0.04*rk) * walkK;   // 骨盤のひねり
 
   /* 病衣の裾は髪より重い。遅れを大きく、戻りを鈍くする。
