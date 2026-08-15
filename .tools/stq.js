@@ -1,6 +1,7 @@
-/* 4段階すべての品質で、実ブラウザ・実 WebGL のセルフテストを走らせる */
+/* 4段階すべての品質で、実ブラウザ・実 WebGL のセルフテストを走らせる。
+   使い方: node stq.js <html の絶対パス> */
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const fs=require('fs');
+const fs=require('fs'), path=require('path');
 (async()=>{
   const file=process.argv[2]||'/home/user/ward7/ward7.html';
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -9,7 +10,7 @@ const fs=require('fs');
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERROR '+e.message));
   p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
   await p.route('**/three.min.js',r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync('/home/user/ward7/.tools/three.min.js','utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
   await p.goto('file://'+file+'?debug=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   for(const q of [0,1,2,3]){
