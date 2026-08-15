@@ -3128,7 +3128,13 @@ function buildPost(){
       '  float band = smoothstep(0.0, 0.05, bandPos) * smoothstep(0.13, 0.05, bandPos);',
       '  uv.x += band * uScan * 0.016 * (hash(vec2(uTime * 11.0, floor(uv.y * 120.0))) - 0.5);',
       '  uv = clamp(uv, 0.0005, 0.9995);',
-      '  vec2 d = c * (uAberr * 0.022 + band * uScan * 0.005);', // 色収差
+      /* 色収差。中心からの距離に線形で掛けていたが、実際のレンズの倍率色収差は
+         おおむね像高の二乗で効く。線形だと画面中央寄りにも残り、常時映っている
+         手の輪郭が 8px ほど色ズレして「post の副作用」に見えていた。
+         r2 を掛け、係数を 0.022→0.044 にして四隅の強さは元のまま揃える
+         （四隅 |c|=0.707: 旧 0.707×0.022=0.01556、新 0.707×0.5×0.044=0.01555）。
+         手のあたり |c|=0.26 では 0.0057 → 0.0004 と 15 分の 1 になる。 */
+      '  vec2 d = c * (uAberr * 0.044 * r2 + band * uScan * 0.005);', // 色収差
       '  vec3 col;',
       '  col.r = texture2D(tDiffuse, clamp(uv + d, 0.0005, 0.9995)).r;',
       '  col.g = texture2D(tDiffuse, uv).g;',
@@ -3478,7 +3484,8 @@ function buildViewModel(){
   ARM.add(btn);
   // 通電表示。点いていることが手元でも分かる（消灯中は暗い赤に落とす）
   var ledM = new THREE.MeshBasicMaterial({ color:0xff3a24 });
-  var led = new THREE.Mesh(new THREE.CircleGeometry(0.0040, 10), ledM);
+  // 画面の最前面で直径 50px ほどになる。10 分割では十角形が読めるので上げる
+  var led = new THREE.Mesh(new THREE.CircleGeometry(0.0040, QC.detail ? 22 : 10), ledM);
   led.position.set(0.0078, 0.0058, 0.0462);   // 膨らんだ面の上に乗せる
   ARM.add(led);
   // 側面のスイッチ。親指の掛かる位置に置く
@@ -3536,21 +3543,50 @@ function buildViewModel(){
       var k2 = (k+1)%R, r0 = i*R, r1 = (i+1)*R;
       ind.push(r0+k, r0+k2, r1+k, r0+k2, r1+k2, r1+k);
     }
-    // 端の蓋。指先は丸めたいので中心を少し先へ出す
+    /* 端の蓋。頂点ひとつへ扇を張ると円錐になり、指先が角張って
+       「平らに切り落とした多角形」に見えていた（画面の手前 40cm にある
+       指先で、面が 5〜6 枚読める）。半球の断面に沿った輪を 1〜2 段
+       挟んでから頂点へ閉じる。dome が 0 のとき（平らな蓋）は従来どおり。 */
     function cap(si, dirSign, dome){
-      var c = pos.length/3;
       var s0 = st[si];
       var a2 = st[Math.max(0,si-1)].p, b2 = st[Math.min(n-1,si+1)].p;
       T.set(b2[0]-a2[0], b2[1]-a2[1], b2[2]-a2[2]).normalize();
-      pos.push(s0.p[0] + T.x*dome*dirSign,
-               s0.p[1] + T.y*dome*dirSign,
-               s0.p[2] + T.z*dome*dirSign);
+      // 断面の基底を掃引時と同じ手順で作り直す
+      U.set(s0.up[0], s0.up[1], s0.up[2]);
+      Rt.crossVectors(U, T);
+      if(Rt.lengthSq() < 1e-12) Rt.set(1,0,0);
+      Rt.normalize();
+      U.crossVectors(T, Rt).normalize();
+      P.set(s0.p[0], s0.p[1], s0.p[2]);
+      var rings = (dome > 0) ? (QC.detail ? 2 : 1) : 0;
+      var prev = si*R, j, kk;
+      for(j=1;j<=rings;j++){
+        var t2 = j/(rings+1) * Math.PI/2;
+        var sc = Math.cos(t2), off = Math.sin(t2)*dome*dirSign;
+        var c0 = pos.length/3;
+        for(kk=0;kk<R;kk++){
+          var th2 = kk/R*TAU;
+          tmp.copy(P).addScaledVector(T, off)
+                     .addScaledVector(Rt, Math.cos(th2)*s0.rx*sc)
+                     .addScaledVector(U,  Math.sin(th2)*s0.ry*sc);
+          pos.push(tmp.x, tmp.y, tmp.z);
+          uvs.push(kk/R, si===0 ? 0 : 1);
+        }
+        // 巻き方向は胴と同じ規則で。手前側の蓋は輪の並びが逆向きになる
+        for(kk=0;kk<R;kk++){
+          var kb = (kk+1)%R;
+          if(dirSign > 0) ind.push(prev+kk, prev+kb, c0+kk, prev+kb, c0+kb, c0+kk);
+          else            ind.push(c0+kk, c0+kb, prev+kk, c0+kb, prev+kb, prev+kk);
+        }
+        prev = c0;
+      }
+      var c = pos.length/3;
+      pos.push(P.x + T.x*dome*dirSign, P.y + T.y*dome*dirSign, P.z + T.z*dome*dirSign);
       uvs.push(0.5, si===0 ? 0 : 1);
-      var base = si*R;
       for(k=0;k<R;k++){
         var k2b = (k+1)%R;
-        if(dirSign > 0) ind.push(base+k, base+k2b, c);
-        else            ind.push(base+k2b, base+k, c);
+        if(dirSign > 0) ind.push(prev+k, prev+k2b, c);
+        else            ind.push(prev+k2b, prev+k, c);
       }
     }
     if(capA) cap(0, -1, capA === 2 ? st[0].ry*0.8 : 0);
