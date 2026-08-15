@@ -8316,7 +8316,11 @@ function updateHunter(dt, info){
 
   /* 前傾。chasing の真偽で切り替えると、追跡に入った 1 フレームで
      上体が 10 度飛ぶ。歩容と同じ係数で送る。 */
-  var lean = 0.24 + 0.18*hunter.gaitRun;
+  /* 前傾。追跡でも 0.42rad（24 度）にしかならず、走りに見えなかった。
+     背骨は腰から上だけを傾けるので、同じ角度でも見た目の傾きは小さい。
+     走りの成分を 0.18 → 0.34 に上げ、全開で 0.58（33 度）まで倒す。
+     歩きの 0.24 は据え置き（歩いている相手が前のめりだと落ち着かない）。 */
+  var lean = 0.24 + 0.34*hunter.gaitRun;
   P.spine.rotation.x = lean + Math.sin(hunter.bob*0.5)*0.03;
   P.spine.rotation.z = Math.sin(now*0.79)*0.035;
   P.spine.scale.y = 1 + Math.sin(now*1.21 + Math.sin(now*0.43)*2)*0.024;  // 呼吸ではない伸縮
@@ -8363,7 +8367,10 @@ function updateHunter(dt, info){
   // 見回しはゆっくり、捕捉したときだけ素早く首が回る
   var headK = chasing ? 0.08 : 0.55;
   P.head.rotation.y = lerp(P.head.rotation.y, wantHead + lead, 1 - Math.pow(headK, dt));
-  P.head.rotation.x = -lean*1.15 + Math.sin(now*0.71)*0.06;
+  /* 頭は傾いた背骨を打ち消して水平に保つ（標的から目を離さない）。
+     ただし 1.15 倍では打ち消しすぎて顔が上を向き、せっかくの前傾が
+     消えて見えた。0.86 倍にすると首から上だけがわずかに前へ残る。 */
+  P.head.rotation.x = -lean*0.86 + Math.sin(now*0.71)*0.06;
   P.head.rotation.z = Math.sin(now*0.61)*0.24 + hunter.twitch + (rnd()-0.5)*1.1*gl;
 
   // 瞳：片方だけ勝手に泳ぎ、ときどき両方消える
@@ -8398,8 +8405,14 @@ function updateHunter(dt, info){
   P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
   P.armL.up.rotation.z =  0.16 + (chasing?0.1:0) + hunter.twitch*0.3;
   P.armR.up.rotation.z = -0.16 - (chasing?0.1:0) - hunter.twitch*0.3;
-  P.armL.fore.rotation.x = lerp(P.armL.fore.rotation.x, -0.5 - Math.abs(sw)*0.3 + (chasing?0.25:0), lagK);
-  P.armR.fore.rotation.x = lerp(P.armR.fore.rotation.x, -0.5 - Math.abs(sw)*0.3 + (chasing?0.25:0), lagK);
+  /* 肘。追跡中は -0.25rad（14 度）とほぼ伸び切っており、腕を前へ突き出した
+     まま棒のように走っていた。走る人の肘はおよそ 60 度に畳まれ、腕の振りに
+     合わせて伸び縮みする。歩きの垂らし方は据え置き。 */
+  var elbW = -0.5 - Math.abs(sw)*0.3;
+  var elbL = elbW + (-1.05 - elbW + Math.abs(swA)*0.28) * hunter.gaitRun;
+  var elbR = elbW + (-1.05 - elbW + Math.abs(swB)*0.28) * hunter.gaitRun;
+  P.armL.fore.rotation.x = lerp(P.armL.fore.rotation.x, elbL, lagK);
+  P.armR.fore.rotation.x = lerp(P.armR.fore.rotation.x, elbR, lagK);
   P.armL.hand.rotation.x = Math.sin(now*4.3)*0.3;
   P.armR.hand.rotation.x = Math.sin(now*4.3 + 1.7)*0.3;
 
