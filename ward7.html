@@ -3374,8 +3374,15 @@ function buildViewModel(){
      緑が赤の 4 割しかない、チョコレート色になっていた。実際の肌は
      暗がりでももっと彩度が低い（およそ 赤:緑:青 = 1:0.65:0.55）。
      色むらはテクスチャ側に任せ、材質の色は無彩色に近づける。 */
+  /* 粗さが一様 0.86 だと、関節の隆起にできる稜が全部そろって同じ鋭さで
+     光る。画面の手前 40cm でそれをやると、しわが白い線画のように見える。
+     実際の肌は関節や指先が乾いて粗く、甲は皮脂で滑らか。色むらの絵から
+     粗さを起こして 0.72〜0.94 に散らすと、稜の光り方が場所ごとに変わる。 */
+  var skinR = new THREE.CanvasTexture(roughFrom(skinTex.image, 0.72, 0.94));
+  skinR.wrapS = skinR.wrapT = THREE.RepeatWrapping;
+  skinR.repeat.set(1.6, 1.6);
   var skin  = new THREE.MeshStandardMaterial({
-    color:0xe4e0dc, map:skinTex, normalMap:skinN, roughness:0.86
+    color:0xe4e0dc, map:skinTex, normalMap:skinN, roughnessMap:skinR, roughness:1.0
   });
   /* 包帯。地の色 0xd9d4c4 を線形のまま使っていたので反射率 0.85、
      そこへ織り目のテクスチャ（0.62）を掛けても 0.53 ある。新品の
