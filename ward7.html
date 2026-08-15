@@ -5628,7 +5628,7 @@ var hunter = {
   group:null, root:null, head:null, armL:null, armR:null, legL:null, legR:null, shadow:null,
   x:0, z:0, yaw:0, cell:{x:1,y:1}, target:null, path:null,
   mode:'patrol', repathT:0, patrolT:0, lastSeen:null, speed:1.9, attackCd:0, bob:0, spawnGrace:0,
-  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, parts:null,
+  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, parts:null,
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
   gazeT:0, gazeY:0, gazeTarget:0
@@ -6463,7 +6463,7 @@ function placeHunter(reach, startC){
   hunter.repathT = 0; hunter.patrolT = 0; hunter.lastSeen = null;
   hunter.attackCd = 0; hunter.bob = 0; hunter.patrolGoal = null; hunter.patrolT = 0;
   hunter.memT = 0; hunter.chaseT = 0; hunter.twitchT = 0; hunter.twitch = 0;
-  hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0;
+  hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0; hunter.gaitRun = 0;
   // 種を固定しても再現しなかった原因。ここが Math.random だと最初のグリッチが
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
   hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
@@ -8227,9 +8227,9 @@ function updateHunter(dt, info){
   var sw = Math.sin(hunter.bob), cw = Math.cos(hunter.bob);
   /* 歩容の位相。0 が踵接地。腕も脚もここから引くので、いちばん先に出す。 */
   var ph = hunter.bob / TAU;
-  var HIPT = chasing ? GAIT_HIP_R : GAIT_HIP_W;
-  var KNET = chasing ? GAIT_KNEE_R : GAIT_KNEE_W;
-  var ANKT = chasing ? GAIT_ANK_R : GAIT_ANK_W;
+  // 歩き 0 ／ 走り 1。姿勢の切り替わりはすべてこの 1 本で送る
+  hunter.gaitRun = lerp(hunter.gaitRun, chasing ? 1 : 0, 1 - Math.pow(0.02, dt));
+  var rk = hunter.gaitRun;
   // 止まっているときは表を引かない（その場で脚が動くと床を滑って見える）
   var walkK = clamp(moved / Math.max(1e-5, dt) / 1.2, 0, 1);
 
@@ -8252,7 +8252,9 @@ function updateHunter(dt, info){
   hunter.jawOpen = lerp(hunter.jawOpen, chasing ? 1 : 0.08, 1 - Math.pow(0.05, dt));
   P.jaw.rotation.x = hunter.jawOpen * 0.95 + Math.abs(sw) * 0.05;   // 人の可動域を超えて開く
 
-  var lean = chasing ? 0.42 : 0.24;
+  /* 前傾。chasing の真偽で切り替えると、追跡に入った 1 フレームで
+     上体が 10 度飛ぶ。歩容と同じ係数で送る。 */
+  var lean = 0.24 + 0.18*hunter.gaitRun;
   P.spine.rotation.x = lean + Math.sin(hunter.bob*0.5)*0.03;
   P.spine.rotation.z = Math.sin(now*0.79)*0.035;
   P.spine.scale.y = 1 + Math.sin(now*1.21 + Math.sin(now*0.43)*2)*0.024;  // 呼吸ではない伸縮
@@ -8323,7 +8325,7 @@ function updateHunter(dt, info){
      歩いているのに腕が体側に貼り付いて見えた）。
      構え（追跡中に前へ突き出す量）だけを遅らせ、振りはそのまま入れる。 */
   hunter.reach = lerp(hunter.reach, reachOut, lagK);
-  var swA = gaitKey(HIPT, ph+0.5)*walkK, swB = gaitKey(HIPT, ph)*walkK;
+  var swA = hipR, swB = hipL;   // 腕は対側の脚と組む（脚と同じ値をそのまま使う）
   P.armL.up.rotation.x = swA*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
   P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
   P.armL.up.rotation.z =  0.16 + (chasing?0.1:0) + hunter.twitch*0.3;
@@ -8336,12 +8338,12 @@ function updateHunter(dt, info){
   /* 脚。位相 0 が踵接地。右脚は半周期ずらす。
      移動していないときは表を引かず、立ち姿勢へ寄せる（その場で
      脚だけが動き続けると、床の上を滑っているように見える）。 */
-  var hipL  = gaitKey(HIPT, ph)      * walkK;
-  var hipR  = gaitKey(HIPT, ph+0.5)  * walkK;
-  var kneL  = gaitKey(KNET, ph)      * walkK - 0.10;
-  var kneR  = gaitKey(KNET, ph+0.5)  * walkK - 0.10;
-  var ankL  = gaitKey(ANKT, ph)      * walkK;
-  var ankR  = gaitKey(ANKT, ph+0.5)  * walkK;
+  var hipL  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph,     rk) * walkK;
+  var hipR  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph+0.5, rk) * walkK;
+  var kneL  = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph,     rk) * walkK - 0.10;
+  var kneR  = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph+0.5, rk) * walkK - 0.10;
+  var ankL  = gaitMix(GAIT_ANK_W,  GAIT_ANK_R,  ph,     rk) * walkK;
+  var ankR  = gaitMix(GAIT_ANK_W,  GAIT_ANK_R,  ph+0.5, rk) * walkK;
   P.legL.thigh.rotation.x = hipL;
   P.legR.thigh.rotation.x = hipR;
   P.legL.shin.rotation.x  = kneL;
@@ -8351,14 +8353,14 @@ function updateHunter(dt, info){
   if(P.legR.foot) P.legR.foot.rotation.x = ankR;
   /* 骨盤。体重が片脚に乗るたび、遊脚側の腰が落ちて上体が傾く。
      上下は 1 歩に 1 回ではなく 2 回（両脚支持でいちばん低い）。 */
-  var pelvis = -(0.5 + 0.5*Math.cos(ph*2*TAU)) * (chasing ? 0.052 : 0.030) * walkK;
-  var list   = Math.sin(ph*TAU) * (chasing ? 0.075 : 0.048) * walkK;
+  var pelvis = -(0.5 + 0.5*Math.cos(ph*2*TAU)) * (0.030 + 0.022*rk) * walkK;
+  var list   = Math.sin(ph*TAU) * (0.048 + 0.027*rk) * walkK;
   /* 接地の当たり。踵が着く一瞬だけ体を沈めると、初めて体重が出る。
      位相 0 と 0.5 に鋭い山を立てる（8 乗で幅を絞る）。 */
-  var strike = Math.pow(Math.max(0, Math.cos(ph*2*TAU)), 8) * (chasing ? 0.026 : 0.014) * walkK;
+  var strike = Math.pow(Math.max(0, Math.cos(ph*2*TAU)), 8) * (0.014 + 0.012*rk) * walkK;
   P.spine.position.y += pelvis - strike;
   P.spine.rotation.z += list;
-  P.spine.rotation.y += Math.sin(ph*TAU) * (chasing ? 0.10 : 0.06) * walkK;   // 骨盤のひねり
+  P.spine.rotation.y += Math.sin(ph*TAU) * (0.06 + 0.04*rk) * walkK;   // 骨盤のひねり
 
   /* 病衣の裾は髪より重い。遅れを大きく、戻りを鈍くする。
      歩幅（sw）に合わせて前後へ振れ、走ると後ろへ流れる。 */
@@ -8589,6 +8591,14 @@ var GAIT_ANK_W   = [[0.00, 0.16],[0.10,-0.02],[0.40,-0.14],[0.56,-0.42],[0.66, 0
 var GAIT_HIP_R   = [[0.00, 0.72],[0.16, 0.34],[0.34,-0.30],[0.46,-0.62],[0.66, 0.20],[0.86, 0.70]];
 var GAIT_KNEE_R  = [[0.00,-0.30],[0.10,-0.62],[0.30,-0.30],[0.46,-0.55],[0.62,-1.70],[0.84,-0.60]];
 var GAIT_ANK_R   = [[0.00, 0.10],[0.08,-0.10],[0.30,-0.22],[0.44,-0.55],[0.58, 0.20],[0.84, 0.14]];
+/* 歩きと走りの表を混ぜる。mode が chase に入った瞬間に表を差し替えると、
+   その 1 フレームで腿が 0.2 rad 飛ぶ（歩きの立脚中期と走りの蹴り出しが
+   同じ位相に並んでいるため）。混ぜる比を時定数 0.25 秒で送る。 */
+function gaitMix(tw, tr, ph, rk){
+  return rk <= 0.001 ? gaitKey(tw, ph)
+       : rk >= 0.999 ? gaitKey(tr, ph)
+       : gaitKey(tw, ph)*(1-rk) + gaitKey(tr, ph)*rk;
+}
 
 function updateHunterVox(dt, info, hs){
   // 追跡者がまだ出ていない間は、状態だけ追って声は出さない
