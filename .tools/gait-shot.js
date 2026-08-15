@@ -18,20 +18,21 @@ const fs=require('fs'), path=require('path');
     const A=window.__WARD7; A.skipUI(true); A.seed(4242); A.settings.quality=3; A.forceQC(); A.start();
     A.cheats.freeze = false;
     // 見通せる場所を探して、そこへ追跡者を置き続ける（歩かせるため毎フレーム戻す）
-    const spot = A.findLOSSpot(A.player.x, A.player.z, 4.5, 7.0);
-    window.__G = spot;
+    /* 追跡者は自分で歩かせる。座標を毎フレーム書き換えると、本編が
+       自分で計算する moved が 0 になり、歩容が止まって立ち姿勢しか
+       撮れない（一度それで「脚が動いていない」と誤読した）。
+       こちらは動かず、カメラだけ追跡者へ向ける。 */
+    A.cheats.invisible = !!+(new URLSearchParams(location.search).get('patrol'));
+    window.__G = null;
     setInterval(()=>{
-      const h=A.hunter, s=window.__G; if(!s) return;
-      h.mode='chase';
-      // カメラの正面 5m 付近を左右に往復させて、横から歩きが見えるようにする
-      const t=performance.now()*0.0006;
-      h.x = s.x + Math.sin(t)*1.6; h.z = s.z;
-      h.yaw = Math.cos(t) > 0 ? Math.PI/2 : -Math.PI/2;
-      // カメラを追跡者へ向ける（向けないと画面に入らない）
-      const pl=A.player;
+      const h=A.hunter, pl=A.player;
+      if(!A.cheats.invisible){ h.memT = 5; h.lastSeen = {x:pl.x, z:pl.z}; }  // 走りを見る
       pl.yaw = Math.atan2(-(h.x-pl.x), -(h.z-pl.z));
-      pl.viewYaw = pl.yaw; pl.pitch = -0.06;
+      pl.viewYaw = pl.yaw; pl.pitch = -0.10;
+      pl.vx = pl.vz = 0;
       A.settings.quality=3;
+      window.__G = {x:+h.x.toFixed(1), z:+h.z.toFixed(1), mode:h.mode,
+                    walkK:+h.walkK.toFixed(2), run:+h.gaitRun.toFixed(2)};
     }, 16);
   });
   const n=+(process.argv[3]||4), gap=+(process.argv[4]||700);
