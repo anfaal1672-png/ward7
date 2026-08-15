@@ -8246,6 +8246,13 @@ function updateHunter(dt, info){
   wantW = wantW*wantW*(3 - 2*wantW);
   hunter.walkK = lerp(hunter.walkK, wantW, 1 - Math.pow(0.004, dt));
   var walkK = hunter.walkK;
+  /* 股関節の角度。腕（対側の脚と組む）が先に使うので、脚より前で出す。
+     ここを脚の側に置いたまま腕から参照したら、var の巻き上げで
+     undefined を掛けることになり、腕の回転が NaN になって画面から
+     消えていた（実測：reach は 1.15 まで正しく送られているのに
+     armL.up.rotation.x が NaN）。 */
+  var hipL  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph,     rk) * walkK;
+  var hipR  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph+0.5, rk) * walkK;
 
   hunter.twitchT -= dt;
   if(hunter.twitchT <= 0){
@@ -8358,8 +8365,6 @@ function updateHunter(dt, info){
   /* 脚。位相 0 が踵接地。右脚は半周期ずらす。
      移動していないときは表を引かず、立ち姿勢へ寄せる（その場で
      脚だけが動き続けると、床の上を滑っているように見える）。 */
-  var hipL  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph,     rk) * walkK;
-  var hipR  = gaitMix(GAIT_HIP_W,  GAIT_HIP_R,  ph+0.5, rk) * walkK;
   var kneL  = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph,     rk) * walkK - 0.10;
   var kneR  = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph+0.5, rk) * walkK - 0.10;
   var ankL  = gaitMix(GAIT_ANK_W,  GAIT_ANK_R,  ph,     rk) * walkK;
