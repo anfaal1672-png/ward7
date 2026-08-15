@@ -1892,10 +1892,21 @@ function texCeil(size){
     var sh2 = missing ? 0.18 : (0.92 + rnd()*0.16);
     g.fillStyle = 'rgb('+Math.floor(44*sh2)+','+Math.floor(48*sh2)+','+Math.floor(46*sh2)+')';
     g.fillRect(cx*tileC, cy*tileC, tileC, tileC);
-    // T バーの骨組み。細い明るい線が格子になる
-    g.strokeStyle = missing ? 'rgba(8,9,8,0.9)' : 'rgba(126,130,122,0.34)';
-    g.lineWidth = Math.max(1, size/340);
+    /* T バーの骨組み。明るい線を 1 本引いていたが、これは順番が逆だった。
+       システム天井のバーは板と同じ塗りで、目に見えるのは「板とバーの間の
+       溝に落ちる影」のほう。明るい線にすると、暗い病棟でも格子だけが
+       白く浮いてワイヤーフレームを重ねたように見える（床の目地で同じ
+       間違いを直したのと同じ話）。暗い溝を引き、その内側にだけ細い
+       ハイライトを添える。 */
+    var lw = Math.max(1, size/340);
+    g.strokeStyle = missing ? 'rgba(8,9,8,0.9)' : 'rgba(16,18,17,0.62)';
+    g.lineWidth = lw;
     g.strokeRect(cx*tileC + 0.5, cy*tileC + 0.5, tileC - 1, tileC - 1);
+    if(!missing){
+      g.strokeStyle = 'rgba(118,122,114,0.20)';
+      g.lineWidth = Math.max(1, lw*0.6);
+      g.strokeRect(cx*tileC + lw + 0.5, cy*tileC + lw + 0.5, tileC - lw*2 - 1, tileC - lw*2 - 1);
+    }
   }
   for(var i=0;i<60;i++){
     var px=rnd()*size, py=rnd()*size, rr=rnd()*size*0.25;
