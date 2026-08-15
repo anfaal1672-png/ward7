@@ -9852,6 +9852,24 @@ function runSelfTest(){
     }
     t('足音から測る距離が単調', mono);
   })();
+  /* 追跡者の全ジョイントが有限値であること。
+     腕の回転が NaN になって画面から腕が丸ごと消えていたのに、79 項目の
+     どれにも引っかからなかった（var の巻き上げで undefined を掛けていた）。
+     NaN の回転は行列を壊して枝ごと描画されなくなるので、絵を見ても
+     「そこに無い」としか分からず、数値を狙って測るまで見つからない。
+     姿勢を 1 度進めてから、位置・回転・拡大のすべてを見る。 */
+  (function(){
+    if(!hunter.parts || !hunter.group) return;
+    var bad = [], seen = 0;
+    hunter.group.traverse(function(o){
+      seen++;
+      var v = [o.position.x,o.position.y,o.position.z,
+               o.rotation.x,o.rotation.y,o.rotation.z,
+               o.scale.x,o.scale.y,o.scale.z];
+      for(var i=0;i<v.length;i++) if(!isFinite(v[i])){ bad.push(o.name || ('#'+seen)); break; }
+    });
+    t('追跡者のジョイントが全て有限値（' + seen + ' 個）', bad.length === 0);
+  })();
 
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
