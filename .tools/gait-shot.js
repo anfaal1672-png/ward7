@@ -27,6 +27,11 @@ const fs=require('fs'), path=require('path');
     setInterval(()=>{
       const h=A.hunter, pl=A.player;
       if(!A.cheats.invisible){ h.memT = 5; h.lastSeen = {x:pl.x, z:pl.z}; }  // 走りを見る
+      /* こちらが追跡者の横へ回る。追跡者を待っていると、行き止まりで
+         滑り続けて（stuckT の回避が働く）いつまでも画角に入らない。
+         横 5m・少し後ろに立てば、歩容が横から読める。 */
+      const a2 = h.yaw + Math.PI*0.5;
+      pl.x = h.x - Math.sin(a2)*5.0; pl.z = h.z - Math.cos(a2)*5.0;
       pl.yaw = Math.atan2(-(h.x-pl.x), -(h.z-pl.z));
       pl.viewYaw = pl.yaw; pl.pitch = -0.10;
       pl.vx = pl.vz = 0;
