@@ -9432,8 +9432,13 @@ function runSelfTest(){
         }
       });
     }
-    scan(hunter.group); scan(viewScene); scan(world.walls);
-    t('頂点属性に NaN が無い', meshes > 10 && bad === 0);
+    /* 走査は追跡者・腕・壁だけにしていたが、法線が NaN になるのは
+       computeVertexNormals を通る全ての形（什器・拾得物・扉・非常口・
+       病衣・髪）で起こりうる。iOS では NaN の法線を持つ部品が丸ごと
+       描かれないので、一箇所でも残っていれば実機で物が消える。
+       シーン全体を見る。 */
+    scan(scene); scan(viewScene);
+    t('頂点属性に NaN が無い', meshes > 50 && bad === 0);
   })();
 
   // --- 区画表示板 ---
