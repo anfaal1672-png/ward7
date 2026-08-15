@@ -8225,6 +8225,13 @@ function updateHunter(dt, info){
   var hStride = (hunter.mode === 'chase') ? 0.95 : 1.5;
   hunter.bob += (moved / hStride) * Math.PI;
   var sw = Math.sin(hunter.bob), cw = Math.cos(hunter.bob);
+  /* 歩容の位相。0 が踵接地。腕も脚もここから引くので、いちばん先に出す。 */
+  var ph = hunter.bob / TAU;
+  var HIPT = chasing ? GAIT_HIP_R : GAIT_HIP_W;
+  var KNET = chasing ? GAIT_KNEE_R : GAIT_KNEE_W;
+  var ANKT = chasing ? GAIT_ANK_R : GAIT_ANK_W;
+  // 止まっているときは表を引かない（その場で脚が動くと床を滑って見える）
+  var walkK = clamp(moved / Math.max(1e-5, dt) / 1.2, 0, 1);
 
   hunter.twitchT -= dt;
   if(hunter.twitchT <= 0){
@@ -8249,7 +8256,7 @@ function updateHunter(dt, info){
   P.spine.rotation.x = lean + Math.sin(hunter.bob*0.5)*0.03;
   P.spine.rotation.z = Math.sin(now*0.79)*0.035;
   P.spine.scale.y = 1 + Math.sin(now*1.21 + Math.sin(now*0.43)*2)*0.024;  // 呼吸ではない伸縮
-  P.spine.position.y = P.baseY - lean*0.18 - Math.abs(cw)*0.035;
+  P.spine.position.y = P.baseY - lean*0.18;   // 上下の揺れは歩容側で足す
 
   // 首が伸びる。頭は縮尺を打ち消して大きさを保つ
   var stretch = 1 + (chasing ? 0.34 : 0.06) * (0.5 + 0.5*Math.sin(now*0.63));
@@ -8307,8 +8314,12 @@ function updateHunter(dt, info){
   // 腕：追跡中は即応、それ以外は本体から遅れて動く（人形のように）
   var reachOut = chasing ? 1.15 : 0.15;
   var lagK = 1 - Math.pow(chasing ? 0.002 : 0.4, dt);
-  P.armL.up.rotation.x = lerp(P.armL.up.rotation.x, -sw*0.7 - reachOut, lagK) + (rnd()-0.5)*1.3*gl;
-  P.armR.up.rotation.x = lerp(P.armR.up.rotation.x,  sw*0.7 - reachOut, lagK) + (rnd()-0.5)*1.3*gl;
+  /* 腕は対側の脚と組む（左腕は右脚と一緒に前へ出る）。
+     sw を使っていたときは脚と 4 分の 1 周期ずれていて、走っているのに
+     腕と脚の組が合っていなかった。歩容と同じ位相から引く。 */
+  var swA = gaitKey(HIPT, ph+0.5)*walkK, swB = gaitKey(HIPT, ph)*walkK;
+  P.armL.up.rotation.x = lerp(P.armL.up.rotation.x, swA*0.62 - reachOut, lagK) + (rnd()-0.5)*1.3*gl;
+  P.armR.up.rotation.x = lerp(P.armR.up.rotation.x, swB*0.62 - reachOut, lagK) + (rnd()-0.5)*1.3*gl;
   P.armL.up.rotation.z =  0.16 + (chasing?0.1:0) + hunter.twitch*0.3;
   P.armR.up.rotation.z = -0.16 - (chasing?0.1:0) - hunter.twitch*0.3;
   P.armL.fore.rotation.x = lerp(P.armL.fore.rotation.x, -0.5 - Math.abs(sw)*0.3 + (chasing?0.25:0), lagK);
@@ -8316,10 +8327,32 @@ function updateHunter(dt, info){
   P.armL.hand.rotation.x = Math.sin(now*4.3)*0.3;
   P.armR.hand.rotation.x = Math.sin(now*4.3 + 1.7)*0.3;
 
-  P.legL.thigh.rotation.x =  sw*0.92;
-  P.legR.thigh.rotation.x = -sw*0.92;
-  P.legL.shin.rotation.x = -Math.max(0, sw)*1.05 - 0.12;
-  P.legR.shin.rotation.x = -Math.max(0, -sw)*1.05 - 0.12;
+  /* 脚。位相 0 が踵接地。右脚は半周期ずらす。
+     移動していないときは表を引かず、立ち姿勢へ寄せる（その場で
+     脚だけが動き続けると、床の上を滑っているように見える）。 */
+  var hipL  = gaitKey(HIPT, ph)      * walkK;
+  var hipR  = gaitKey(HIPT, ph+0.5)  * walkK;
+  var kneL  = gaitKey(KNET, ph)      * walkK - 0.10;
+  var kneR  = gaitKey(KNET, ph+0.5)  * walkK - 0.10;
+  var ankL  = gaitKey(ANKT, ph)      * walkK;
+  var ankR  = gaitKey(ANKT, ph+0.5)  * walkK;
+  P.legL.thigh.rotation.x = hipL;
+  P.legR.thigh.rotation.x = hipR;
+  P.legL.shin.rotation.x  = kneL;
+  P.legR.shin.rotation.x  = kneR;
+  // 足首。ここが動くだけで「地面を蹴っている」が出る
+  if(P.legL.foot) P.legL.foot.rotation.x = ankL;
+  if(P.legR.foot) P.legR.foot.rotation.x = ankR;
+  /* 骨盤。体重が片脚に乗るたび、遊脚側の腰が落ちて上体が傾く。
+     上下は 1 歩に 1 回ではなく 2 回（両脚支持でいちばん低い）。 */
+  var pelvis = -(0.5 + 0.5*Math.cos(ph*2*TAU)) * (chasing ? 0.052 : 0.030) * walkK;
+  var list   = Math.sin(ph*TAU) * (chasing ? 0.075 : 0.048) * walkK;
+  /* 接地の当たり。踵が着く一瞬だけ体を沈めると、初めて体重が出る。
+     位相 0 と 0.5 に鋭い山を立てる（8 乗で幅を絞る）。 */
+  var strike = Math.pow(Math.max(0, Math.cos(ph*2*TAU)), 8) * (chasing ? 0.026 : 0.014) * walkK;
+  P.spine.position.y += pelvis - strike;
+  P.spine.rotation.z += list;
+  P.spine.rotation.y += Math.sin(ph*TAU) * (chasing ? 0.10 : 0.06) * walkK;   // 骨盤のひねり
 
   /* 病衣の裾は髪より重い。遅れを大きく、戻りを鈍くする。
      歩幅（sw）に合わせて前後へ振れ、走ると後ろへ流れる。 */
@@ -8518,6 +8551,39 @@ var voxPrevMode = 'patrol', voxT = 0, voxIdleT = 5;
 function resetHunterVox(){
   voxPrevMode = 'patrol'; voxT = 0; voxIdleT = 4 + Math.random()*5;
 }
+/* --- 歩容 -----------------------------------------------------------------
+   これまで腿を sin 一本で振っていた。そのため
+     ・立脚と遊脚が同じ長さ・同じ速さ（人は立脚 60% / 遊脚 40%）
+     ・膝が「前へ出した側だけ曲がる」単純な折れ方
+     ・足首が一度も動かない（foot ジョイントはあるのに未使用だった）
+     ・接地の瞬間に何も起きない＝体重が乗らない
+   の 4 つが同時に起きて、棒を交互に振っているように見えていた。
+   歩行周期の節目を表に書き、位相で引く。表は [位相, 角度] の昇順で、
+   端は巻き戻して繋ぐ。位相 0 が接地（踵接地）で、足音もそこで鳴る
+   （bob は 1 歩ぶんで π 進み、stepAcc も同じ moved で駆動しているため）。 */
+function gaitKey(tbl, ph){
+  ph -= Math.floor(ph);
+  var n = tbl.length, i;
+  for(i=0;i<n;i++) if(tbl[i][0] > ph) break;
+  var a = tbl[(i-1+n)%n], b = tbl[i%n];
+  var t0 = a[0], t1 = b[0];
+  if(i === 0) t0 -= 1;
+  if(i === n) t1 += 1;
+  var u = (ph - t0) / Math.max(1e-4, t1 - t0);
+  u = u*u*(3 - 2*u);
+  return a[1] + (b[1] - a[1])*u;
+}
+/* 歩き。0=踵接地 → 0.15 荷重で膝がたわむ → 0.35 立脚中期（膝は伸びる）
+   → 0.58 蹴り出し（足首が伸び切る） → 0.72 遊脚で膝が深く折れる
+   → 0.90 振り出し切って接地へ戻る。 */
+var GAIT_HIP_W   = [[0.00, 0.52],[0.20, 0.28],[0.45,-0.08],[0.60,-0.40],[0.78, 0.10],[0.92, 0.46]];
+var GAIT_KNEE_W  = [[0.00,-0.10],[0.12,-0.32],[0.35,-0.06],[0.58,-0.28],[0.72,-1.15],[0.88,-0.42]];
+var GAIT_ANK_W   = [[0.00, 0.16],[0.10,-0.02],[0.40,-0.14],[0.56,-0.42],[0.66, 0.14],[0.90, 0.10]];
+// 走り。立脚が短く、膝は深く折れ、蹴り出しが強い
+var GAIT_HIP_R   = [[0.00, 0.72],[0.16, 0.34],[0.34,-0.30],[0.46,-0.62],[0.66, 0.20],[0.86, 0.70]];
+var GAIT_KNEE_R  = [[0.00,-0.30],[0.10,-0.62],[0.30,-0.30],[0.46,-0.55],[0.62,-1.70],[0.84,-0.60]];
+var GAIT_ANK_R   = [[0.00, 0.10],[0.08,-0.10],[0.30,-0.22],[0.44,-0.55],[0.58, 0.20],[0.84, 0.14]];
+
 function updateHunterVox(dt, info, hs){
   // 追跡者がまだ出ていない間は、状態だけ追って声は出さない
   if(!hs){ voxPrevMode = hunter.mode; return; }
