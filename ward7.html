@@ -8444,6 +8444,16 @@ function updateHunter(dt, info){
   var kneR  = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph+0.5, rk) * walkK - 0.10;
   var ankL  = gaitMix(GAIT_ANK_W,  GAIT_ANK_R,  ph,     rk) * walkK;
   var ankR  = gaitMix(GAIT_ANK_W,  GAIT_ANK_R,  ph+0.5, rk) * walkK;
+  /* 立ち姿。歩容の表は止まると全部 0 に落ちるので、両足を揃えた棒立ちに
+     なっていた。人は片脚に体重を預け、反対の腰が下がり、片足がやや前へ
+     出る。止まっているぶん（1-walkK）だけその形へ寄せ、ごくゆっくり
+     重心を移す（同じ姿勢で固まっていると、それはそれで人形に見える）。 */
+  var idle = 1 - walkK;
+  var shift = Math.sin(now*0.31) * 0.5 + 0.5;            // 0..1 をゆっくり往復
+  hipL += idle * (0.13 - 0.18*shift);
+  hipR += idle * (-0.05 + 0.18*shift);
+  kneL += idle * (-0.04 - 0.10*(1-shift));
+  kneR += idle * (-0.04 - 0.10*shift);
   P.legL.thigh.rotation.x = hipL;
   P.legR.thigh.rotation.x = hipR;
   P.legL.shin.rotation.x  = kneL;
@@ -8454,7 +8464,8 @@ function updateHunter(dt, info){
   /* 骨盤。体重が片脚に乗るたび、遊脚側の腰が落ちて上体が傾く。
      上下は 1 歩に 1 回ではなく 2 回（両脚支持でいちばん低い）。 */
   var pelvis = -(0.5 + 0.5*Math.cos(ph*2*TAU)) * (0.030 + 0.022*rk) * walkK;
-  var list   = Math.sin(ph*TAU) * (0.048 + 0.027*rk) * walkK;
+  var list   = Math.sin(ph*TAU) * (0.048 + 0.027*rk) * walkK
+             + idle * (0.030 - 0.060*shift);            // 体重を預けた側へ腰が落ちる
   /* 接地の当たり。踵が着く一瞬だけ体を沈めると、初めて体重が出る。
      位相 0 と 0.5 に鋭い山を立てる（8 乗で幅を絞る）。 */
   var strike = Math.pow(Math.max(0, Math.cos(ph*2*TAU)), 8) * (0.014 + 0.012*rk) * walkK;
