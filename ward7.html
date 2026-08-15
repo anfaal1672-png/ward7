@@ -4356,9 +4356,16 @@ function buildWorld(){
         var nc2 = cellToWorld(nx2, ny2);
         var amb = 0.40 * gridOcc((px2 + nc2.x)/2, (pz2 + nc2.z)/2, x, y);
         var ao2 = clamp(1 - vy - edge - amb, 0.16, 1);
+        /* 根元の汚れ。暗さは vy で落としてあるが色は白いままだったので、
+           壁がどこまでも清潔なタイルに見えていた。人の出入りする建物の
+           壁は、モップ水と靴の跳ねで根元 30cm ほどが黄土色に染まる。
+           赤は残し、緑と青だけ引くと、暗さと別に「汚れている」が出る。 */
+        var db = Math.exp(-py2/0.30);
         // 区画の色調を掛ける。描画の回数は増えない
         var zt = zoneTint(x, y);
-        wcol.push(ao2*zt[0], ao2*zt[1], ao2*zt[2]);
+        wcol.push(ao2*zt[0],
+                  ao2*zt[1]*(1 - 0.10*db),
+                  ao2*zt[2]*(1 - 0.17*db));
       }
       for(var r2=0; r2<WROW-1; r2++) for(var c4=0; c4<WCOL-1; c4++){
         var a2 = base + r2*WCOL + c4, b2 = a2+1, c5 = a2+WCOL, d2 = c5+1;
