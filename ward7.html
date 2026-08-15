@@ -6267,15 +6267,22 @@ function buildHunter(){
   var gn = QC.detail ? 11 : 7;
   for(var gi=0; gi<gn; gi++){
     var ga = (gi/gn)*TAU;
+    /* 短冊 1 枚の曲率半径が 0.062m なのに、それを並べている胴の半径は
+       0.155m あった。体の丸みの半分以下の弧を、しかも体表から浮かせた
+       位置に置いていたので、布が胴を包まず「腰に板が何枚か刺さっている」
+       ように見えていた。殴打で上体をひねると、その板が一緒に振り回されて
+       腰から謎の物体が生えているように読める。
+       弧の半径を胴に合わせ、回転の中心も胴の中心に置く。裾へ向けて
+       少し広がらせると、布として垂れて見える。 */
     var gpv = new THREE.Group();
-    gpv.position.set(Math.sin(ga)*0.155, 0.30, Math.cos(ga)*0.115);
+    gpv.position.set(0, 0.30, 0);
     gpv.rotation.y = ga;
     spine.add(gpv);
     var glen = 0.42 + ((gi*7)%5)*0.075;          // 裾の長さを不揃いに
-    var strip = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, glen, 5, 1, true,
-                                                          -0.9, 1.8), gownMat);
-    strip.position.set(0, -glen/2, 0.012);
-    strip.rotation.y = Math.PI;
+    var gArc = TAU/gn * 0.86;                    // 隣と少し隙間をあける
+    var strip = new THREE.Mesh(new THREE.CylinderGeometry(0.138, 0.168, glen, 6, 1, true,
+                                                          -gArc/2, gArc), gownMat);
+    strip.position.set(0, -glen/2, 0);
     gpv.add(strip);
     gown.push(gpv);
   }
