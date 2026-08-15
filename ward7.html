@@ -6368,32 +6368,44 @@ function buildHunter(){
       chain(fg, wr, dv, Math.sqrt(dv[0]*dv[0] + dv[1]*dv[1] + dv[2]*dv[2]), 0.0125, 0.0115);
       KNU.push(kn);
     }
+    /* 指の丸め。走っているときは獲物へ伸ばした鉤爪、歩いているときは
+       力の抜けた半握り。角度 1 つで決まるので、同じ手を丸め違いで 2 体
+       作り、姿勢側で見せ分ける（指に関節を持たせると 5 本 × 3 節 ×
+       左右で 30 個のジョイントが増え、結合ジオメトリの利点が消える）。 */
+    function digits(dst, curl){
     for(var f2=0; f2<4; f2++){
       // 中指・薬指が長い。長さの順序は 中 > 薬 > 示 > 小
       var scl = [0.90, 1.0, 0.96, 0.80][f2];
       var seg = [0.070*scl, 0.050*scl, 0.036*scl];
       var rad = [0.0118, 0.0100, 0.0080, 0.0062];
-      var a = 0.34 + f2*0.03, p = KNU[f2];
+      var a = 0.34 + f2*0.03 + curl*0.55, p = KNU[f2];
       for(var k=0; k<3; k++){
-        p = chain(fg, p, [0, -Math.cos(a), Math.sin(a)], seg[k], rad[k], rad[k+1]);
-        a += 0.44;                                   // 節ごとに内へ丸める
+        p = chain(dst, p, [0, -Math.cos(a), Math.sin(a)], seg[k], rad[k], rad[k+1]);
+        a += 0.44 + curl*0.30;                       // 節ごとに内へ丸める
       }
       // 爪。伸びきって尖っている
-      fg.push({ type:'cyl', rt:0.0016, rb:0.0058, h:0.020,
+      dst.push({ type:'cyl', rt:0.0016, rb:0.0058, h:0.020,
                 x:p[0], y:p[1]-Math.cos(a)*0.010, z:p[2]+Math.sin(a)*0.010,
                 rx:Math.PI - a });
     }
     // 親指。体側（内側）へ回り込ませる。外へ張ると手が熊手に戻る
     var tp = [-0.030*sx, -0.030, 0.004];
-    var ta = 0.95;
+    var ta = 0.95 + curl*0.45;
     for(var k2=0; k2<3; k2++){
-      tp = chain(fg, tp, [-0.34*sx, -Math.cos(ta), Math.sin(ta)],
+      tp = chain(dst, tp, [-0.34*sx, -Math.cos(ta), Math.sin(ta)],
                  [0.056, 0.044, 0.032][k2], [0.0135, 0.0110, 0.0088][k2],
                  [0.0110, 0.0088, 0.0070][k2]);
-      ta += 0.40;
+      ta += 0.40 + curl*0.26;
     }
-    hand.add(new THREE.Mesh(mergeBoxes(fg), skin));
-    return { up:up, fore:fore, hand:hand };
+    }
+    var fgOpen = fg.slice(), fgCurl = fg.slice();
+    digits(fgOpen, 0);
+    digits(fgCurl, 1);
+    var mOpen = new THREE.Mesh(mergeBoxes(fgOpen), skin);
+    var mCurl = new THREE.Mesh(mergeBoxes(fgCurl), skin);
+    mCurl.visible = false;
+    hand.add(mOpen); hand.add(mCurl);
+    return { up:up, fore:fore, hand:hand, open:mOpen, curl:mCurl };
   }
   var armL = arm(-1), armR = arm(1);
 
@@ -8413,6 +8425,15 @@ function updateHunter(dt, info){
   var elbR = elbW + (-1.05 - elbW + Math.abs(swB)*0.28) * hunter.gaitRun;
   P.armL.fore.rotation.x = lerp(P.armL.fore.rotation.x, elbL, lagK);
   P.armR.fore.rotation.x = lerp(P.armR.fore.rotation.x, elbR, lagK);
+  /* 手の形。走って追いかけているあいだは獲物へ伸ばした鉤爪、
+     歩いているあいだは力の抜けた半握り。丸め違いの手を 2 体作って
+     見せ分ける（指に関節を足すと左右で 30 個増える）。
+     切り替えは gaitRun の中ほどで、走り出しの姿勢が変わる瞬間と揃う。 */
+  var claw = hunter.gaitRun > 0.5;
+  if(P.armL.open){
+    P.armL.open.visible = P.armR.open.visible = claw;
+    P.armL.curl.visible = P.armR.curl.visible = !claw;
+  }
   P.armL.hand.rotation.x = Math.sin(now*4.3)*0.3;
   P.armR.hand.rotation.x = Math.sin(now*4.3 + 1.7)*0.3;
 
