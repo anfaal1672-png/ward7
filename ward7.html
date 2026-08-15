@@ -8459,6 +8459,24 @@ function updateHunter(dt, info){
 
     // 頭は打つ側の肩越しに、標的を見据えたまま
     P.head.rotation.y += -sg*(0.30*wind - 0.42*hit);
+
+    /* 踏み込み。ここまで殴打は腰から上だけで、脚は歩容の表を引いたまま
+       だった。人が殴るときに力を出しているのは後ろ脚の蹴りと前脚の
+       突っ張りで、上半身はそれを伝えているにすぎない。下が無いので、
+       腕だけが宙で振れて体重が乗らなかった。
+       打つ腕と反対の脚を前に出す（右で殴るなら左足を踏み込む）。 */
+    var LEAD = (hunter.punchArm > 0) ? P.legL : P.legR;
+    var REAR = (hunter.punchArm > 0) ? P.legR : P.legL;
+    // ため：重心を後ろへ預け、後ろ膝をたたむ
+    // 打ち：前脚を出して着き、後ろ脚は蹴って伸び切る
+    LEAD.thigh.rotation.x = lerp(lerp(LEAD.thigh.rotation.x,  0.30, wind),  0.62, hit);
+    LEAD.shin.rotation.x  = lerp(lerp(LEAD.shin.rotation.x,  -0.55, wind), -0.18, hit);
+    REAR.thigh.rotation.x = lerp(lerp(REAR.thigh.rotation.x, -0.10, wind), -0.52, hit);
+    REAR.shin.rotation.x  = lerp(lerp(REAR.shin.rotation.x,  -0.60, wind), -0.30, hit);
+    if(LEAD.foot) LEAD.foot.rotation.x = lerp(lerp(LEAD.foot.rotation.x,  0.10, wind),  0.02, hit);
+    if(REAR.foot) REAR.foot.rotation.x = lerp(lerp(REAR.foot.rotation.x, -0.05, wind), -0.45, hit);
+    // 沈み込み。踏み込んだぶん腰が落ちる
+    P.spine.position.y -= 0.020*wind + 0.052*hit;
     P.head.rotation.x += -0.16*wind + 0.22*hit;
     P.jaw.rotation.x = Math.max(P.jaw.rotation.x, 0.55*wind + 0.95*hit);
   }else{
