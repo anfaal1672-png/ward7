@@ -3859,7 +3859,10 @@ function buildViewModel(){
       });
     }
   })();
-  addSkin(sweepGeo(foreSt, 14, 1, 0));
+  /* 前腕は腕でいちばん面積の大きい面なのに、分割が 14 固定だった
+     （25.7 度ごと）。指の 12 分割は太さ 1.5cm、前腕は 8cm あるので、
+     同じ分割数でも輪郭の角は 5 倍大きく出る。最高品質だけ上げる。 */
+  addSkin(sweepGeo(foreSt, QC.detail ? 22 : 14, 1, 0));
 
   /* ---- 包帯 ---- */
   // 前腕に巻いた包帯。手首側から前腕半ばまで、少しずつ角度を変えて重ねる
@@ -3885,7 +3888,7 @@ function buildViewModel(){
       { p:[px-dx/dl*w, py-dy/dl*w - tilt*0.004, pz-dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:ub },
       { p:[px, py, pz], rx:rx, ry:ry, up:[ub[0]+tilt, ub[1], ub[2]] },
       { p:[px+dx/dl*w, py+dy/dl*w + tilt*0.004, pz+dz/dl*w], rx:rx*0.99, ry:ry*0.99, up:ub }
-    ], 12, 0, 0));
+    ], QC.detail ? 20 : 12, 0, 0));
   }
   // 巻き終わりのほつれ
   var loose = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.030, 0.016), band);
