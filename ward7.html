@@ -3626,6 +3626,7 @@ function buildViewModel(){
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(ind);
     geo.computeVertexNormals();
+    fixNormals(geo);            // 蓋の頂点で法線がゼロ長になり NaN になる
     return geo;
   }
 
@@ -3653,7 +3654,7 @@ function buildViewModel(){
       pa.setXY(i, x*k, y*k);
       changed++;
     }
-    if(changed){ pa.needsUpdate = true; geo.computeVertexNormals(); }
+    if(changed){ pa.needsUpdate = true; geo.computeVertexNormals(); fixNormals(geo); }
     return geo;
   }
 
@@ -3985,6 +3986,32 @@ function buildViewModel(){
    髪も配管も羽根板も白っぽく出ていた原因。sRGB で書いて線形へ直す。 */
 function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
 
+/* three r128 の computeVertexNormals は、最後に normalizeNormals で
+   n = 1/sqrt(x²+y²+z²) を掛ける。ゼロ長を守っていないので、隣接面の法線が
+   ちょうど打ち消し合う頂点（蓋の頂点まわりや、退化した三角形しか持たない
+   頂点）では 1/0=Infinity × 0 = NaN になる。
+   NaN の法線は照明の計算をすべて NaN にする。デスクトップのドライバは
+   そのまま何か描いてしまうが、iOS の WebGL は断片ごと捨てるため、その
+   部品だけが消える。実測：追跡者の胴に 40 頂点、四肢の骨に各 6 頂点。
+   実機（iPhone/Safari）で「頭と手と衣服と足だけ見える」と報告された症状の
+   正体がこれ。壊れた法線を、原点から外向きの方向で置き換える。 */
+function fixNormals(g){
+  var na = g.attributes.normal, pa = g.attributes.position;
+  if(!na || !pa) return 0;
+  var a = na.array, p = pa.array, n = na.count, bad = 0;
+  for(var i=0;i<n;i++){
+    var x = a[i*3], y = a[i*3+1], z = a[i*3+2];
+    if(isFinite(x) && isFinite(y) && isFinite(z) && (x*x+y*y+z*z) > 1e-12) continue;
+    bad++;
+    var px = p[i*3], py = p[i*3+1], pz = p[i*3+2];
+    var L = Math.sqrt(px*px + py*py + pz*pz);
+    if(L > 1e-9){ a[i*3] = px/L; a[i*3+1] = py/L; a[i*3+2] = pz/L; }
+    else { a[i*3] = 0; a[i*3+1] = 1; a[i*3+2] = 0; }
+  }
+  if(bad) na.needsUpdate = true;
+  return bad;
+}
+
 function loftGeo(rows, R, rad, opts){
   opts = opts || {};
   var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
@@ -4097,6 +4124,7 @@ function loftGeo(rows, R, rad, opts){
     g.setIndex(ind);
     g.computeVertexNormals();
   }
+  fixNormals(g);
   g.computeBoundingSphere();
   return g;
 }
@@ -5418,7 +5446,7 @@ function buildWorld(){
     bg2.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
     bg2.setAttribute('uv',       new THREE.Float32BufferAttribute(bu, 2));
     bg2.setIndex(bi);
-    bg2.computeVertexNormals();
+    bg2.computeVertexNormals(); fixNormals(bg2);
     /* 乗算合成にすると、透明な縁まで黒を掛けてしまって板の四角が出る
        （TEX.shadow は「黒の不透明度」で描いてあるので、色ではなく
        alpha で効かせるのが正しい）。追跡者の影と同じ通常合成にする。 */
@@ -5988,7 +6016,7 @@ function buildHunter(){
     var g2 = loftGeo(boneRows(r2, len, QC.detail ? 15 : 9), BSEG, null,
                      { capA:r2*0.42, capB:r2*0.10, uvPerM:SKIN_UV });
     g2.scale(1, -1, 1);
-    g2.computeVertexNormals();
+    g2.computeVertexNormals(); fixNormals(g2);
     var m2 = new THREE.Mesh(g2, mat || skin);
     m2.userData.loft = true;
     return m2;
@@ -6088,7 +6116,7 @@ function buildHunter(){
     var dg = new THREE.BufferGeometry();
     dg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     dg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    dg.setIndex(ind); dg.computeVertexNormals();
+    dg.setIndex(ind); dg.computeVertexNormals(); fixNormals(dg);
     return new THREE.Mesh(dg, stain);
   }
 
@@ -6451,6 +6479,12 @@ function buildHunter(){
     pupL:pupL, pupR:pupR, eyeMatL:eyeL_, eyeMatR:eyeR_, glowL:glowL, glowR:glowR,
     strands:strands, gown:gown, skin:skin, baseY:(0.02 + THIGH + SOLE)
   };
+  /* 組み上がった全メッシュに対して、最後にもう一度だけ法線を検める。
+     途中の各所で守ってはいるが、部品の作り方は 6 通りあり、どれかを
+     増やしたときに漏れる。ここで一度掛けておけば、作り方が増えても
+     NaN の法線が実機へ出ていくことはない。 */
+  var nanFix = 0;
+  g.traverse(function(o){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
   scene.add(g); scene.add(sh);
   g.visible = false; sh.visible = false;
 }
@@ -9319,6 +9353,29 @@ function runSelfTest(){
   });
   t('全ての隠れ場所に到達可能', hidesOK);
   t('隠れ場所が設置されている', world.hides.length >= 3);
+  /* 頂点属性に NaN が無いこと。
+     three r128 の normalizeNormals はゼロ長を守っておらず、蓋の頂点まわりで
+     法線が NaN になる。NaN の法線は照明を NaN にし、iOS の WebGL では
+     その部品ごと描かれない（実機で「頭と手と衣服と足だけ見える」と報告
+     された症状の正体）。デスクトップでは何か描けてしまうので、絵を見て
+     いるだけでは気づけない。数で押さえる。 */
+  (function(){
+    var bad = 0, meshes = 0;
+    function scan(root){
+      if(!root) return;
+      root.traverse(function(o){
+        if(!o.isMesh || !o.geometry) return;
+        meshes++;
+        var at = o.geometry.attributes;
+        for(var k in at){
+          var arr = at[k].array;
+          for(var i=0;i<arr.length;i++) if(!isFinite(arr[i])){ bad++; break; }
+        }
+      });
+    }
+    scan(hunter.group); scan(viewScene); scan(world.walls);
+    t('頂点属性に NaN が無い', meshes > 10 && bad === 0);
+  })();
 
   // --- 区画表示板 ---
   var DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];   // EDIRS は buildWorld のローカルなのでここで持つ
