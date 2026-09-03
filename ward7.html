@@ -4012,6 +4012,14 @@ function fixNormals(g){
   return bad;
 }
 
+/* シーン全体の法線を検める。fixNormals をぶら下がっている形すべてに掛ける。 */
+function sanitizeNormals(root){
+  var bad = 0;
+  if(!root) return 0;
+  root.traverse(function(o){ if(o.isMesh && o.geometry) bad += fixNormals(o.geometry); });
+  return bad;
+}
+
 function loftGeo(rows, R, rad, opts){
   opts = opts || {};
   var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
@@ -7380,6 +7388,16 @@ function startGame(){
   resetHunterVox();
   buildInfo = buildWorld();
   buildHunter();
+  /* 法線の最終検め。
+     生成の各所で fixNormals を通してはいるが、形の作り方は 6 通りあり、
+     どれかを増やしたときに漏れる。漏れると iOS の WebGL がその部品を
+     丸ごと描かない（実機で「頭と手と衣服と足だけ見える」と報告された
+     不具合の正体がこれ。デスクトップのドライバは何か描いてしまうので、
+     絵を見ても気づけない）。
+     ここで一度シーン全体を掃けば、どの経路で作られた形でも NaN の法線が
+     GPU へ出ていくことはない。1 面につき 1 回、実測 3ms 以下。 */
+  sanitizeNormals(scene);
+  sanitizeNormals(viewScene);
   placeHunter(buildInfo.reach, buildInfo.start);
 
   var sw = cellToWorld(buildInfo.start.x, buildInfo.start.y);
