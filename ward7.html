@@ -8568,6 +8568,20 @@ function updateHunter(dt, info){
     B.up.rotation.z   -= sg*(0.20*wind + 0.16*hit);
     B.fore.rotation.x += -0.55*wind - 0.65*hit;
 
+    /* 脚で打つ。腕だけを振っていたので、上体も脚も棒立ちのまま拳が
+       前へ出るだけだった。実際の打撃は後脚で床を蹴り、前膝が曲がって
+       体重が前へ乗る。踏み込みと沈み込みを足す。
+       前へ出るのは打つ腕と反対の脚（対側）。 */
+    var fL = (hunter.punchArm > 0) ? P.legL : P.legR;   // 踏み込む脚
+    var bL = (hunter.punchArm > 0) ? P.legR : P.legL;   // 蹴る脚
+    var step = wind*0.28 + hit*1.0;
+    fL.thigh.rotation.x += step*0.38;
+    fL.shin.rotation.x  -= step*0.34;
+    bL.thigh.rotation.x -= step*0.30;
+    bL.shin.rotation.x  -= step*0.12;
+    if(fL.foot) fL.foot.rotation.x += step*0.18;
+    if(bL.foot) bL.foot.rotation.x -= step*0.30;        // 後脚は爪先で蹴る
+    P.spine.position.y -= step*0.055;                   // 沈み込む
     // 頭は打つ側の肩越しに、標的を見据えたまま
     P.head.rotation.y += -sg*(0.30*wind - 0.42*hit);
 
