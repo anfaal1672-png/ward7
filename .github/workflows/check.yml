@@ -15,5 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: 源と ward7.html の一致・構文
+          cache: npm
+      - run: npm ci
+      - name: 源と ward7.html・three.min.js の一致・構文
         run: npm run check

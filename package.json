@@ -5,5 +5,12 @@
     "build": "node game/build.mjs",
     "check": "node game/build.mjs --check && node .tools/extract.js ward7.html /tmp/ward7-check.js && node --check /tmp/ward7-check.js",
     "selftest": "node .tools/stq.js \"$PWD/ward7.html\""
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^26.1.0"
+  },
+  "dependencies": {
+    "three": "0.186.1"
   }
 }

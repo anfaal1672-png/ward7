@@ -34,7 +34,7 @@ function startGame(){
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;   // PCFSoft は r180 で消え、黙って PCF に落ちる
   flashlight.castShadow = !!QC.shadows;
   if(QC.shadows){
     flashlight.shadow.mapSize.width = 1024;

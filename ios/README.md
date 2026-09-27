@@ -23,7 +23,7 @@ GitHub Actions の **iOS ipa** を実行する（`workflow_dispatch`、または
 ```sh
 brew install xcodegen
 cd ios
-cp ../ward7.html Resources/ward7.html
+cp ../ward7.html ../three.min.js Resources/
 python3 make_icon.py Resources/Assets.xcassets/AppIcon.appiconset
 xcodegen generate
 xcodebuild -project Ward7.xcodeproj -scheme Ward7 -configuration Release \
@@ -40,7 +40,7 @@ zip -qry Ward7-unsigned.ipa Payload
 | `Sources/AppDelegate.swift` | 全画面 WebView。慣性スクロール・ゴムバンド・ピンチ拡大を止める。音・振動・画面の橋渡し |
 | `project.yml` | XcodeGen の設定。`pbxproj` は手書きせず生成する |
 | `make_icon.py` | アイコンを手続きで描く。画像ファイルを置かないため |
-| `Resources/` | ビルド時に `ward7.html` とアイコンが入る（リポジトリには置かない） |
+| `Resources/` | ビルド時に `ward7.html`・`three.min.js`・アイコンが入る（リポジトリには置かない） |
 
 `ward7.html` とアイコンは CI が用意するので、リポジトリには画像も HTML の
 複製も置いていない。「外部アセット 0」というゲーム側の方針を包装でも崩さない。

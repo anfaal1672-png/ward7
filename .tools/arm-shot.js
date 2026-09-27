@@ -34,7 +34,7 @@ const path = require('path');
   page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
   await page.route('**/three.min.js', r =>
     r.fulfill({ status: 200, contentType: 'application/javascript',
-                body: fs.readFileSync(path.join(__dirname, 'three.min.js'), 'utf8') }));
+                body: fs.readFileSync(path.join(__dirname, '..', 'three.min.js'), 'utf8') }));
 
   await page.goto('file://' + file + '?debug=1', { waitUntil: 'load' });
   await page.waitForFunction('!!window.__WARD7', { timeout: 20000 });

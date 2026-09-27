@@ -379,7 +379,17 @@ function buildPost(){
     minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat, stencilBuffer: false, depthBuffer: true
   });
-  postRT.texture.encoding = THREE.sRGBEncoding;   // 本編と同じ発色でRTに描く
+  postRT.texture.colorSpace = THREE.SRGBColorSpace;   // 本編と同じ発色でRTに描く
+  /* r155 以降の three はトーンマップと sRGB 化を画面へ描くときにしか掛けず、
+     RT には線形のまま書く。そのまま r186 に上げたら、ここを通る高画質側だけ
+     画面が 1/4 の明るさ（平均輝度 57.9 → 15.9）に沈んだ。
+     three が「画面と同じ扱い」をする目印が isXRRenderTarget で、立てると
+     r128 と同じく ACES と sRGB を掛けて書く。
+     ただし sRGB の RT は GPU が書くときにもう一度符号化し、読むときに戻す。
+     それを避けて入れ物は素の RGBA8 にする。これで「符号化済みの値を 8bit で
+     持ち、そのまま読む」という r128 の流れと 1 対 1 になる（平均輝度 58.0、r128 は 57.9）。 */
+  postRT.isXRRenderTarget = true;
+  postRT.texture.internalFormat = 'RGBA8';
 
   postScene = new THREE.Scene();
   postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -638,11 +648,11 @@ function buildViewModel(){
   var skinTex = new THREE.CanvasTexture(texSkin(QC.tex >= 512 ? 512 : 256));
   skinTex.wrapS = skinTex.wrapT = THREE.RepeatWrapping;
   skinTex.repeat.set(1.6, 1.6);
-  skinTex.encoding = THREE.sRGBEncoding;
+  skinTex.colorSpace = THREE.SRGBColorSpace;
   var gauzeTex = new THREE.CanvasTexture(texGauze(QC.tex >= 512 ? 256 : 128));
   gauzeTex.wrapS = gauzeTex.wrapT = THREE.RepeatWrapping;
   gauzeTex.repeat.set(2.2, 1);
-  gauzeTex.encoding = THREE.sRGBEncoding;
+  gauzeTex.colorSpace = THREE.SRGBColorSpace;
 
   /* 腕は toneMapped:false で本編のトーンマップを外れていた。
      背景だけ ACES と最終合成を通り、手だけ素の値で出るので、
@@ -683,7 +693,7 @@ function buildViewModel(){
      アルミの地金（0.32 前後）にする。中間調が出て、初めて筒に見える。 */
   var lampTex = new THREE.CanvasTexture(texLampMetal(QC.tex >= 512 ? 512 : 256));
   lampTex.wrapS = lampTex.wrapT = THREE.RepeatWrapping;
-  lampTex.encoding = THREE.sRGBEncoding;
+  lampTex.colorSpace = THREE.SRGBColorSpace;
   var lampR = new THREE.CanvasTexture(roughFrom(lampTex.image, 0.30, 0.62));
   lampR.wrapS = lampR.wrapT = THREE.RepeatWrapping;
   var lampN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(lampTex.image, 1.1)) : null;
@@ -702,7 +712,7 @@ function buildViewModel(){
      細かくきらめいて、手が触れている場所がはっきりする。 */
   var knurlTex = new THREE.CanvasTexture(texKnurl(QC.tex >= 512 ? 512 : 256));
   knurlTex.wrapS = knurlTex.wrapT = THREE.RepeatWrapping;
-  knurlTex.encoding = THREE.sRGBEncoding;
+  knurlTex.colorSpace = THREE.SRGBColorSpace;
   var knurlN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(knurlTex.image, 2.6)) : null;
   if(knurlN) knurlN.wrapS = knurlN.wrapT = THREE.RepeatWrapping;
   var knurlM = regEnvMat(new THREE.MeshStandardMaterial({

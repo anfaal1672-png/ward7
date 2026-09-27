@@ -49,7 +49,7 @@ function buildEnvMap(){
   try{
     var tx = new THREE.CanvasTexture(texEnvPano());
     tx.mapping = THREE.EquirectangularReflectionMapping;
-    tx.encoding = THREE.sRGBEncoding;
+    tx.colorSpace = THREE.SRGBColorSpace;
     var pm = new THREE.PMREMGenerator(renderer);
     pm.compileEquirectangularShader();
     envRT = pm.fromEquirectangular(tx);
@@ -118,7 +118,7 @@ function buildTextures(){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
-    t.encoding = THREE.sRGBEncoding;
+    t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
     return t;
   }
@@ -143,7 +143,7 @@ function buildTextures(){
   TEX.zone = [];
   for(var zi=0; zi<ZONE_LETTERS.length; zi++){
     var zt = new THREE.CanvasTexture(texZone(ZONE_LETTERS[zi]));
-    zt.encoding = THREE.sRGBEncoding;
+    zt.colorSpace = THREE.SRGBColorSpace;
     TEX.zone.push(zt);
   }
   TEX.arrow = new THREE.CanvasTexture(texArrow());
@@ -170,7 +170,7 @@ function buildTextures(){
 
   /* 壁の痕跡。透明度を持つので繰り返さない（1 枚 1 か所に貼る）。 */
   TEX.decal = new THREE.CanvasTexture(texDecals(Math.max(256, s)));
-  TEX.decal.encoding = THREE.sRGBEncoding;
+  TEX.decal.colorSpace = THREE.SRGBColorSpace;
 
   /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
      繰り返しは地の絵に合わせないと目地とずれる。 */

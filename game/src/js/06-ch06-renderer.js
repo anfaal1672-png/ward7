@@ -52,7 +52,7 @@ try{
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 /* 既定の露出。1.18 のままだと画面平均が 53.6 まで落ちて、明るい部屋で
    スマホを見たときに何も見えない懸念があった。1.34 で 65.4——元の 104 より

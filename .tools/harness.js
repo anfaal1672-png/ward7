@@ -131,7 +131,7 @@ window.cancelAnimationFrame = () => {};
 Object.defineProperty(window, 'performance', { value: { now: () => harnessTime * 1000 }, configurable: true });
 
 // --- three.js -------------------------------------------------------------
-const threeSrc = fs.readFileSync(path.join(__dirname, 'three.min.js'), 'utf8');
+const threeSrc = fs.readFileSync(path.join(__dirname, '..', 'three.min.js'), 'utf8');
 window.self = window;
 window.eval(threeSrc);
 const THREE = window.THREE;

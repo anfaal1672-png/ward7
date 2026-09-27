@@ -8,7 +8,7 @@ const fs=require('fs'), path=require('path'), http=require('http');
   const file=process.argv[2]||'/home/user/ward7/ward7.html';
   const srv=http.createServer((q,r)=>{
     if(q.url.includes('three.min.js')){ r.writeHead(200,{'content-type':'application/javascript'});
-      return r.end(fs.readFileSync(path.join(__dirname,'three.min.js'))); }
+      return r.end(fs.readFileSync(path.join(__dirname,'..','three.min.js'))); }
     r.writeHead(200,{'content-type':'text/html'}); r.end(fs.readFileSync(file));
   }).listen(0);
   const url='http://127.0.0.1:'+srv.address().port+'/ward7.html';
@@ -17,7 +17,7 @@ const fs=require('fs'), path=require('path'), http=require('http');
   const p=await b.newPage({viewport:{width:390,height:844}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.route('**/three.min.js',r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   const ready=()=>p.waitForFunction('!!window.__WARD7',{timeout:30000});
   await p.goto(url); await ready();
   // 設定を変えて保存させる（sens は既定 1.0）

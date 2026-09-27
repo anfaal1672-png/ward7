@@ -24,6 +24,13 @@ ls .tools | wc -l     # 58 前後
 単一ファイルのブラウザゲーム `ward7.html`（約 12,300 行）。
 病棟からカルテを集めて脱出するホラー。AI 観戦モード（ボット）を内蔵。
 
+> **2026-09-27 更新**：設計指示書（`docs/DESIGN.md`）で下の制約のうち
+> 「単一ファイル」「three.js r128」「外部アセット 0」は外した。
+> `ward7.html` は `game/src/` から `node game/build.mjs` で組み立て、
+> three.js は package.json で固定した版（0.186.1）を `three.min.js` へ束ねて同梱する。
+> r128 の見え方は光と色の計算を旧来へ戻して保っている（第 1 章 THREE_LEGACY_LIGHTS）。
+> 詳しくは `game/README.md`。
+
 **動かせない制約（守ること）**
 
 - 単一ファイル。外部依存は CDN の three.js r128 のみ。ビルド無し

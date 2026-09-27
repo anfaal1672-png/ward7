@@ -6,6 +6,40 @@ var lerp  = function(a,b,t){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
 var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
 
+/* three.js の版差を吸収する（r128 → r186）。
+   画も明るさも r128 で一つずつ撮って合わせてきたので、版を上げても
+   見え方を変えないことを先に保証し、そのうえで必要なところから直していく。
+
+   1) 色管理：r152 から Color に書いた値は sRGB とみなされ線形へ変換される。
+      このゲームは SRGB(hex) で自分で線形にしてから渡しているので、
+      変換が二重に掛かる。r128 と同じく「書いた値をそのまま使う」に戻す。
+   2) 光：r155 で旧来の光（legacy lights）が消えた。旧来は光の色に π を掛け、
+      距離の減衰は pow(1 - d/distance, decay) だった。新しい減衰は
+      1/d^decay で、同じ数値を入れると近くは眩しく遠くは暗くなる。
+      光の強さを読み書きしている箇所が 30 近くあり、そのうちいくつかは
+      強さの値そのものを閾値に使っているので（自己診断を含む）、
+      値の側ではなく光の計算の側を旧来に戻す。 */
+THREE.ColorManagement.enabled = false;
+var THREE_LEGACY_LIGHTS = (function(){
+  var src = THREE.ShaderChunk.lights_pars_begin, n = 0;
+  function sub(a, b){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
+  sub('vec3 irradiance = ambientLightColor;', 'vec3 irradiance = ambientLightColor * PI;');
+  sub('light.color = directionalLight.color;', 'light.color = directionalLight.color * PI;');
+  sub('vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );',
+      'vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight ) * PI;');
+  // 点光源とスポットはどちらもこの関数を通る。π もここで掛ける
+  var re = /float getDistanceAttenuation\([^)]*\) \{[\s\S]*?return distanceFalloff;\s*\}/;
+  if(re.test(src)){
+    src = src.replace(re,
+      'float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {\n' +
+      '\tif ( cutoffDistance > 0.0 && decayExponent > 0.0 ) return PI * pow( saturate( - lightDistance / cutoffDistance + 1.0 ), decayExponent );\n' +
+      '\treturn PI;\n}');
+    n++;
+  }
+  THREE.ShaderChunk.lights_pars_begin = src;
+  return n === 4;                       // 自己診断で確かめる。版を上げて文面が変わると false
+})();
+
 /* 振動。iPhone の Safari は navigator.vibrate を持たず、これまで iPhone では
    一度も震えていなかった。iOS アプリの中では WKWebView からネイティブへ
    渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。

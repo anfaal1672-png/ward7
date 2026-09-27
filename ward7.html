@@ -580,7 +580,7 @@
 
 <div id="dbg" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.min.js"></script>
 <script>
 (function(){
 'use strict';
@@ -628,6 +628,40 @@ var clamp = function(v,a,b){ return v<a?a:(v>b?b:v); };
 var lerp  = function(a,b,t){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
 var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
+
+/* three.js の版差を吸収する（r128 → r186）。
+   画も明るさも r128 で一つずつ撮って合わせてきたので、版を上げても
+   見え方を変えないことを先に保証し、そのうえで必要なところから直していく。
+
+   1) 色管理：r152 から Color に書いた値は sRGB とみなされ線形へ変換される。
+      このゲームは SRGB(hex) で自分で線形にしてから渡しているので、
+      変換が二重に掛かる。r128 と同じく「書いた値をそのまま使う」に戻す。
+   2) 光：r155 で旧来の光（legacy lights）が消えた。旧来は光の色に π を掛け、
+      距離の減衰は pow(1 - d/distance, decay) だった。新しい減衰は
+      1/d^decay で、同じ数値を入れると近くは眩しく遠くは暗くなる。
+      光の強さを読み書きしている箇所が 30 近くあり、そのうちいくつかは
+      強さの値そのものを閾値に使っているので（自己診断を含む）、
+      値の側ではなく光の計算の側を旧来に戻す。 */
+THREE.ColorManagement.enabled = false;
+var THREE_LEGACY_LIGHTS = (function(){
+  var src = THREE.ShaderChunk.lights_pars_begin, n = 0;
+  function sub(a, b){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
+  sub('vec3 irradiance = ambientLightColor;', 'vec3 irradiance = ambientLightColor * PI;');
+  sub('light.color = directionalLight.color;', 'light.color = directionalLight.color * PI;');
+  sub('vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );',
+      'vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight ) * PI;');
+  // 点光源とスポットはどちらもこの関数を通る。π もここで掛ける
+  var re = /float getDistanceAttenuation\([^)]*\) \{[\s\S]*?return distanceFalloff;\s*\}/;
+  if(re.test(src)){
+    src = src.replace(re,
+      'float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {\n' +
+      '\tif ( cutoffDistance > 0.0 && decayExponent > 0.0 ) return PI * pow( saturate( - lightDistance / cutoffDistance + 1.0 ), decayExponent );\n' +
+      '\treturn PI;\n}');
+    n++;
+  }
+  THREE.ShaderChunk.lights_pars_begin = src;
+  return n === 4;                       // 自己診断で確かめる。版を上げて文面が変わると false
+})();
 
 /* 振動。iPhone の Safari は navigator.vibrate を持たず、これまで iPhone では
    一度も震えていなかった。iOS アプリの中では WKWebView からネイティブへ
@@ -2523,7 +2557,7 @@ try{
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 /* 既定の露出。1.18 のままだと画面平均が 53.6 まで落ちて、明るい部屋で
    スマホを見たときに何も見えない懸念があった。1.34 で 65.4——元の 104 より
@@ -2676,7 +2710,7 @@ function buildEnvMap(){
   try{
     var tx = new THREE.CanvasTexture(texEnvPano());
     tx.mapping = THREE.EquirectangularReflectionMapping;
-    tx.encoding = THREE.sRGBEncoding;
+    tx.colorSpace = THREE.SRGBColorSpace;
     var pm = new THREE.PMREMGenerator(renderer);
     pm.compileEquirectangularShader();
     envRT = pm.fromEquirectangular(tx);
@@ -2745,7 +2779,7 @@ function buildTextures(){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
-    t.encoding = THREE.sRGBEncoding;
+    t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
     return t;
   }
@@ -2770,7 +2804,7 @@ function buildTextures(){
   TEX.zone = [];
   for(var zi=0; zi<ZONE_LETTERS.length; zi++){
     var zt = new THREE.CanvasTexture(texZone(ZONE_LETTERS[zi]));
-    zt.encoding = THREE.sRGBEncoding;
+    zt.colorSpace = THREE.SRGBColorSpace;
     TEX.zone.push(zt);
   }
   TEX.arrow = new THREE.CanvasTexture(texArrow());
@@ -2797,7 +2831,7 @@ function buildTextures(){
 
   /* 壁の痕跡。透明度を持つので繰り返さない（1 枚 1 か所に貼る）。 */
   TEX.decal = new THREE.CanvasTexture(texDecals(Math.max(256, s)));
-  TEX.decal.encoding = THREE.sRGBEncoding;
+  TEX.decal.colorSpace = THREE.SRGBColorSpace;
 
   /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
      繰り返しは地の絵に合わせないと目地とずれる。 */
@@ -3207,7 +3241,17 @@ function buildPost(){
     minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat, stencilBuffer: false, depthBuffer: true
   });
-  postRT.texture.encoding = THREE.sRGBEncoding;   // 本編と同じ発色でRTに描く
+  postRT.texture.colorSpace = THREE.SRGBColorSpace;   // 本編と同じ発色でRTに描く
+  /* r155 以降の three はトーンマップと sRGB 化を画面へ描くときにしか掛けず、
+     RT には線形のまま書く。そのまま r186 に上げたら、ここを通る高画質側だけ
+     画面が 1/4 の明るさ（平均輝度 57.9 → 15.9）に沈んだ。
+     three が「画面と同じ扱い」をする目印が isXRRenderTarget で、立てると
+     r128 と同じく ACES と sRGB を掛けて書く。
+     ただし sRGB の RT は GPU が書くときにもう一度符号化し、読むときに戻す。
+     それを避けて入れ物は素の RGBA8 にする。これで「符号化済みの値を 8bit で
+     持ち、そのまま読む」という r128 の流れと 1 対 1 になる（平均輝度 58.0、r128 は 57.9）。 */
+  postRT.isXRRenderTarget = true;
+  postRT.texture.internalFormat = 'RGBA8';
 
   postScene = new THREE.Scene();
   postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -3466,11 +3510,11 @@ function buildViewModel(){
   var skinTex = new THREE.CanvasTexture(texSkin(QC.tex >= 512 ? 512 : 256));
   skinTex.wrapS = skinTex.wrapT = THREE.RepeatWrapping;
   skinTex.repeat.set(1.6, 1.6);
-  skinTex.encoding = THREE.sRGBEncoding;
+  skinTex.colorSpace = THREE.SRGBColorSpace;
   var gauzeTex = new THREE.CanvasTexture(texGauze(QC.tex >= 512 ? 256 : 128));
   gauzeTex.wrapS = gauzeTex.wrapT = THREE.RepeatWrapping;
   gauzeTex.repeat.set(2.2, 1);
-  gauzeTex.encoding = THREE.sRGBEncoding;
+  gauzeTex.colorSpace = THREE.SRGBColorSpace;
 
   /* 腕は toneMapped:false で本編のトーンマップを外れていた。
      背景だけ ACES と最終合成を通り、手だけ素の値で出るので、
@@ -3511,7 +3555,7 @@ function buildViewModel(){
      アルミの地金（0.32 前後）にする。中間調が出て、初めて筒に見える。 */
   var lampTex = new THREE.CanvasTexture(texLampMetal(QC.tex >= 512 ? 512 : 256));
   lampTex.wrapS = lampTex.wrapT = THREE.RepeatWrapping;
-  lampTex.encoding = THREE.sRGBEncoding;
+  lampTex.colorSpace = THREE.SRGBColorSpace;
   var lampR = new THREE.CanvasTexture(roughFrom(lampTex.image, 0.30, 0.62));
   lampR.wrapS = lampR.wrapT = THREE.RepeatWrapping;
   var lampN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(lampTex.image, 1.1)) : null;
@@ -3530,7 +3574,7 @@ function buildViewModel(){
      細かくきらめいて、手が触れている場所がはっきりする。 */
   var knurlTex = new THREE.CanvasTexture(texKnurl(QC.tex >= 512 ? 512 : 256));
   knurlTex.wrapS = knurlTex.wrapT = THREE.RepeatWrapping;
-  knurlTex.encoding = THREE.sRGBEncoding;
+  knurlTex.colorSpace = THREE.SRGBColorSpace;
   var knurlN = QC.normalMaps ? new THREE.CanvasTexture(normalFrom(knurlTex.image, 2.6)) : null;
   if(knurlN) knurlN.wrapS = knurlN.wrapT = THREE.RepeatWrapping;
   var knurlM = regEnvMat(new THREE.MeshStandardMaterial({
@@ -7480,7 +7524,7 @@ function startGame(){
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;   // PCFSoft は r180 で消え、黙って PCF に落ちる
   flashlight.castShadow = !!QC.shadows;
   if(QC.shadows){
     flashlight.shadow.mapSize.width = 1024;
@@ -9484,6 +9528,10 @@ function updateDbg(){
 function runSelfTest(){
   var out = [], ok = true;
   function t(name, cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
+
+  // three.js を上げたときに光の計算が旧来へ戻せているか（第 1 章）
+  t('three.js の光を旧来の計算へ戻せた', THREE_LEGACY_LIGHTS === true);
+  t('色管理が切れている（SRGB() と二重に掛からない）', THREE.ColorManagement.enabled === false);
 
   var g = world.grid;
   t('grid 生成サイズ', g.length === GW*GH);

@@ -5,7 +5,7 @@ const fs=require('fs'), path=require('path');
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:600,height:600}});
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.goto('file://'+process.argv[2]+'?debug=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   const data = await p.evaluate(async(which)=>{

@@ -15,6 +15,9 @@
 | `src/js/NN-chMM-*.js` | `<script>` の中身を章ごとに。NN は並び順、MM は章番号（20 起動 が最後に来るため一致しない） |
 | `src/js/order.json` | 連結の順番 |
 | `split.mjs` | 一度だけ使った切り出し。記録のために残す |
+| `vendor/three-global.js` | three.js を `window.THREE` として出す入口。`three.min.js` に束ねられる |
+
+`npm ci` を先に 1 度（esbuild・jsdom・three が入る）。
 
 組み立ては「並べて繋ぐ」だけで、全体を `(function(){ 'use strict'; ... })();`
 で包む。章どうしは今も同じ関数スコープの変数を共有している。

@@ -6,7 +6,7 @@ const fs=require('fs'), path=require('path');
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.goto('file://'+process.argv[2]+'?debug=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   const r = await p.evaluate(async(seed)=>{

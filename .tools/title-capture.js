@@ -9,7 +9,7 @@ const fs=require('fs'), path=require('path');
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.goto('file://'+process.argv[2],{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.waitForTimeout(+(process.argv[4]||3000));

@@ -26,7 +26,7 @@ const path = require('path');
   // three.js は手元の r128 を返す（回線に依存させない）
   await page.route('**/three.min.js', r =>
     r.fulfill({ status: 200, contentType: 'application/javascript',
-                body: fs.readFileSync(path.join(__dirname, 'three.min.js'), 'utf8') }));
+                body: fs.readFileSync(path.join(__dirname, '..', 'three.min.js'), 'utf8') }));
 
   await page.goto('file://' + file + '?debug=1', { waitUntil: 'load' });
   await page.waitForFunction('!!window.__WARD7', { timeout: 20000 });

@@ -5,6 +5,10 @@ function runSelfTest(){
   var out = [], ok = true;
   function t(name, cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
 
+  // three.js を上げたときに光の計算が旧来へ戻せているか（第 1 章）
+  t('three.js の光を旧来の計算へ戻せた', THREE_LEGACY_LIGHTS === true);
+  t('色管理が切れている（SRGB() と二重に掛からない）', THREE.ColorManagement.enabled === false);
+
   var g = world.grid;
   t('grid 生成サイズ', g.length === GW*GH);
   // 外周は必ず壁
