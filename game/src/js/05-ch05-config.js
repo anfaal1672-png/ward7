@@ -26,7 +26,7 @@ var settings = {
   gamma: 1.0       // 画面の明るさ
 };
 try{
-  var saved = JSON.parse(localStorage.getItem('ward7.settings') || 'null');
+  var saved = JSON.parse(Store.get('ward7.settings') || 'null');
   if(saved && typeof saved === 'object'){
     if(typeof saved.quality==='number') settings.quality = clamp(saved.quality|0,0,3);
     if(typeof saved.sens==='number')    settings.sens = clamp(saved.sens,0.3,2.5);
@@ -44,7 +44,7 @@ try{
 var RECS = [null, null, null];
 function blankRec(){ return { runs:0, wins:0, best:0, noHit:false, most:0 }; }
 try{
-  var rr = JSON.parse(localStorage.getItem('ward7.recs') || 'null');
+  var rr = JSON.parse(Store.get('ward7.recs') || 'null');
   for(var ri2=0; ri2<3; ri2++){
     var r0 = (rr && rr[ri2]) ? rr[ri2] : blankRec();
     RECS[ri2] = {
@@ -55,7 +55,7 @@ try{
   }
 }catch(e){ for(var ri3=0; ri3<3; ri3++) RECS[ri3] = blankRec(); }
 function saveRecs(){
-  try{ localStorage.setItem('ward7.recs', JSON.stringify(RECS)); }catch(e){}
+  Store.set('ward7.recs', JSON.stringify(RECS));
 }
 /* 1 回ぶんを記録する。won=脱出したか、hits=被弾回数 */
 function recordRun(won, hits){
@@ -79,12 +79,12 @@ function recLine(d){
 }
 
 function saveSettings(){
-  try{ localStorage.setItem('ward7.settings', JSON.stringify(settings)); }catch(e){}
+  Store.set('ward7.settings', JSON.stringify(settings));
 }
 
 // 端末性能から初期品質を推定（保存値がなければ）
 (function(){
-  try{ if(localStorage.getItem('ward7.settings')) return; }catch(e){}
+  try{ if(Store.get('ward7.settings')) return; }catch(e){}
   var mem = navigator.deviceMemory || 4;
   var cores = navigator.hardwareConcurrency || 4;
   if(mem <= 3 || cores <= 4) settings.quality = 0;
@@ -144,10 +144,10 @@ var CHEAT_ACTS = [
 var cheats = {}, cheatUsed = false;
 CHEATS.forEach(function(c){ cheats[c.k] = false; });
 try{
-  var sc = JSON.parse(localStorage.getItem('ward7.cheats') || 'null');
+  var sc = JSON.parse(Store.get('ward7.cheats') || 'null');
   if(sc && typeof sc === 'object') CHEATS.forEach(function(c){ cheats[c.k] = !!sc[c.k]; });
 }catch(e){}
-function saveCheats(){ try{ localStorage.setItem('ward7.cheats', JSON.stringify(cheats)); }catch(e){} }
+function saveCheats(){ Store.set('ward7.cheats', JSON.stringify(cheats)); }
 function anyCheat(){
   for(var i=0;i<CHEATS.length;i++) if(cheats[CHEATS[i].k]) return true;
   return false;

@@ -22,6 +22,14 @@ try{
   bootedOK = true;
   state = STATE.TITLE;
   showPanel('title');
+  /* 消えた記録を写しから戻す（第 1 章 Store）。戻したら一度だけ読み直して
+     設定と記録を最初から当て直す。二度目は戻すものが無いので繰り返さない */
+  Store.recover(function(restored){
+    if(!restored) return;
+    try{ if(sessionStorage.getItem('ward7.restored')) return;
+         sessionStorage.setItem('ward7.restored', '1'); }catch(e){ return; }
+    location.reload();
+  });
   blackout(true, true);
   requestAnimationFrame(loop);
 

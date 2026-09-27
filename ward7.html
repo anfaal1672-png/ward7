@@ -646,6 +646,74 @@ function haptic(pat){
    そのまま鍵が掛かるのがいちばん興ざめ。遊んでいる間だけ持つ。
    ページが隠れるとブラウザが勝手に手放すので、戻ったら取り直す。
    iOS アプリでは isIdleTimerDisabled で同じことをしている。 */
+/* 保存。localStorage は同期で読めるので起動時の設定読みに向くが、
+   Safari は 7 日間サイトを開かないと消すことがある（追跡防止の上限）。
+   記録と設定が黙って消えるのを防ぐため、書くたびに IndexedDB へ写しを取り、
+   起動時に localStorage が空で写しだけ残っていれば戻して一度だけ読み直す。
+   あわせて navigator.storage.persist() で消されにくくしてもらう。
+   IndexedDB も使えない環境（プライベートモード等）では黙って諦める。 */
+var Store = (function(){
+  var DB = 'ward7', OS = 'kv', dbp = null;
+  function db(){
+    if(dbp) return dbp;
+    dbp = new Promise(function(res, rej){
+      if(!window.indexedDB){ rej(); return; }
+      var rq = indexedDB.open(DB, 1);
+      rq.onupgradeneeded = function(){ rq.result.createObjectStore(OS); };
+      rq.onsuccess = function(){ res(rq.result); };
+      rq.onerror = function(){ rej(rq.error); };
+    });
+    dbp.catch(function(){});
+    return dbp;
+  }
+  function mirror(k, v){
+    db().then(function(d){
+      var tx = d.transaction(OS, 'readwrite');
+      if(v === null) tx.objectStore(OS).delete(k); else tx.objectStore(OS).put(v, k);
+    }).catch(function(){});
+  }
+  function get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function set(k, v){
+    try{ localStorage.setItem(k, v); }catch(e){}
+    mirror(k, v);
+  }
+  /* 起動時に一度。戻したものがあれば true で done を呼ぶ */
+  function recover(done){
+    try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){}); }catch(e){}
+    db().then(function(d){
+      var tx = d.transaction(OS, 'readonly'), os = tx.objectStore(OS);
+      var rq = os.getAllKeys ? os.getAllKeys() : null;
+      if(!rq){ done(false); return; }
+      rq.onsuccess = function(){
+        var keys = rq.result || [], left = keys.length, restored = false;
+        // 写しを取る前から遊んでいた人の分。localStorage にしか無いものを写す
+        try{
+          for(var i=0; i<localStorage.length; i++){
+            var lk = localStorage.key(i);
+            if(lk && lk.indexOf('ward7.') === 0 && keys.indexOf(lk) < 0) mirror(lk, get(lk));
+          }
+        }catch(e){}
+        if(!left){ done(false); return; }
+        keys.forEach(function(k){
+          var g = os.get(k);
+          g.onsuccess = function(){
+            var have = get(k);
+            if(have === null && typeof g.result === 'string'){
+              try{ localStorage.setItem(k, g.result); restored = get(k) === g.result || restored; }catch(e){}
+            }else if(have !== null && have !== g.result){
+              mirror(k, have);                   // 写しが古い。こちらが正
+            }
+            if(--left === 0) done(restored);
+          };
+          g.onerror = function(){ if(--left === 0) done(restored); };
+        });
+      };
+      rq.onerror = function(){ done(false); };
+    }).catch(function(){ done(false); });
+  }
+  return { get:get, set:set, recover:recover };
+})();
+
 var wakeLock = null, wakeWant = false;
 function keepAwake(on){
   wakeWant = !!on;
@@ -2270,7 +2338,7 @@ var settings = {
   gamma: 1.0       // 画面の明るさ
 };
 try{
-  var saved = JSON.parse(localStorage.getItem('ward7.settings') || 'null');
+  var saved = JSON.parse(Store.get('ward7.settings') || 'null');
   if(saved && typeof saved === 'object'){
     if(typeof saved.quality==='number') settings.quality = clamp(saved.quality|0,0,3);
     if(typeof saved.sens==='number')    settings.sens = clamp(saved.sens,0.3,2.5);
@@ -2288,7 +2356,7 @@ try{
 var RECS = [null, null, null];
 function blankRec(){ return { runs:0, wins:0, best:0, noHit:false, most:0 }; }
 try{
-  var rr = JSON.parse(localStorage.getItem('ward7.recs') || 'null');
+  var rr = JSON.parse(Store.get('ward7.recs') || 'null');
   for(var ri2=0; ri2<3; ri2++){
     var r0 = (rr && rr[ri2]) ? rr[ri2] : blankRec();
     RECS[ri2] = {
@@ -2299,7 +2367,7 @@ try{
   }
 }catch(e){ for(var ri3=0; ri3<3; ri3++) RECS[ri3] = blankRec(); }
 function saveRecs(){
-  try{ localStorage.setItem('ward7.recs', JSON.stringify(RECS)); }catch(e){}
+  Store.set('ward7.recs', JSON.stringify(RECS));
 }
 /* 1 回ぶんを記録する。won=脱出したか、hits=被弾回数 */
 function recordRun(won, hits){
@@ -2323,12 +2391,12 @@ function recLine(d){
 }
 
 function saveSettings(){
-  try{ localStorage.setItem('ward7.settings', JSON.stringify(settings)); }catch(e){}
+  Store.set('ward7.settings', JSON.stringify(settings));
 }
 
 // 端末性能から初期品質を推定（保存値がなければ）
 (function(){
-  try{ if(localStorage.getItem('ward7.settings')) return; }catch(e){}
+  try{ if(Store.get('ward7.settings')) return; }catch(e){}
   var mem = navigator.deviceMemory || 4;
   var cores = navigator.hardwareConcurrency || 4;
   if(mem <= 3 || cores <= 4) settings.quality = 0;
@@ -2388,10 +2456,10 @@ var CHEAT_ACTS = [
 var cheats = {}, cheatUsed = false;
 CHEATS.forEach(function(c){ cheats[c.k] = false; });
 try{
-  var sc = JSON.parse(localStorage.getItem('ward7.cheats') || 'null');
+  var sc = JSON.parse(Store.get('ward7.cheats') || 'null');
   if(sc && typeof sc === 'object') CHEATS.forEach(function(c){ cheats[c.k] = !!sc[c.k]; });
 }catch(e){}
-function saveCheats(){ try{ localStorage.setItem('ward7.cheats', JSON.stringify(cheats)); }catch(e){} }
+function saveCheats(){ Store.set('ward7.cheats', JSON.stringify(cheats)); }
 function anyCheat(){
   for(var i=0;i<CHEATS.length;i++) if(cheats[CHEATS[i].k]) return true;
   return false;
@@ -12311,6 +12379,14 @@ try{
   bootedOK = true;
   state = STATE.TITLE;
   showPanel('title');
+  /* 消えた記録を写しから戻す（第 1 章 Store）。戻したら一度だけ読み直して
+     設定と記録を最初から当て直す。二度目は戻すものが無いので繰り返さない */
+  Store.recover(function(restored){
+    if(!restored) return;
+    try{ if(sessionStorage.getItem('ward7.restored')) return;
+         sessionStorage.setItem('ward7.restored', '1'); }catch(e){ return; }
+    location.reload();
+  });
   blackout(true, true);
   requestAnimationFrame(loop);
 
