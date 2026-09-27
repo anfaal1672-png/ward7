@@ -33,7 +33,7 @@ function startGame(){
      夜勤は毎回違う種 */
   var rdef = runDef();
   rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : (rdef.seed !== null ? rdef.seed : ((Date.now() ^ (Math.random()*1e9))))) & 0x7fffffff);
+                   : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;

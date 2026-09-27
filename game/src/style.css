@@ -412,3 +412,10 @@
 
   /* パッド・キーボードで動かしているときの居場所。指で押すときには出ない */
   .panel button:focus-visible, .panel input:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+  /* 左手持ち：ボタンを左側へ。right で置いている物を left へ写す */
+  body.lefty #bLight{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bBack{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bHold{left:calc(96px + var(--sal));right:auto}
+  body.lefty #bUse{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bThrow{left:calc(92px + var(--sal));right:auto}

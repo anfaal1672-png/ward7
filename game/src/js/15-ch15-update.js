@@ -467,7 +467,7 @@ function updatePlayer(dt){
           var hdd = Math.sqrt(hdx*hdx + hdz*hdz);
           if(hdd < DIFF[settings.diff].sight &&
              hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
-            if(!cheats.ghostHide) player.hideSeen = true;
+            if(!cheats.ghostHide && !settings.safeHide) player.hideSeen = true;
             hunter.lastSeen = { x:near.obj.x, z:near.obj.z };
             if(hunter.mode !== 'chase') hunter.mode = 'hunt';
             toast('見られた', 2.6);
@@ -780,7 +780,7 @@ function updateHunter(dt, info){
             var idd = Math.sqrt(idx0*idx0 + idz0*idz0);
             if(idd < insD){ insD = idd; insP = H0; }
           }
-          if(insP && !cheats.invisible){
+          if(insP && !cheats.invisible && !settings.safeHide){
             hunter.inspect = insP; hunter.inspectT = 0;
             hunter.lastSeen = { x:insP.x, z:insP.z };
           }else{

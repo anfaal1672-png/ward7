@@ -402,9 +402,10 @@ var Audio2 = (function(){
   }
   function stinger(){
     if(!ready) return;
+    var soft = settings.softScare ? 0.35 : 1;   // 恐怖の調整（第 13 章）
     var t = ctx.currentTime;
     var g = ctx.createGain(); g.connect(master);
-    env(g, t, 0.01, 1.5, 0.3);
+    env(g, t, 0.01, 1.5, 0.3 * soft);
     [196, 207, 277, 370].forEach(function(f){
       var o = ctx.createOscillator(); o.type='sawtooth';
       o.frequency.setValueAtTime(f, t);
@@ -415,6 +416,7 @@ var Audio2 = (function(){
   }
   function scream(){
     if(!ready) return;
+    var soft = settings.softScare ? 0.35 : 1;   // 恐怖の調整（第 13 章）
     var t = ctx.currentTime;
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
     var f = ctx.createBiquadFilter(); f.type='bandpass'; f.Q.value=1.1;
@@ -422,14 +424,14 @@ var Audio2 = (function(){
     f.frequency.exponentialRampToValueAtTime(180, t+1.2);
     var g = ctx.createGain();
     n.connect(f); f.connect(g); g.connect(master);
-    env(g, t, 0.008, 1.3, 0.5);
+    env(g, t, 0.008, 1.3, 0.5 * soft);
     n.start(t); n.stop(t+1.5);
 
     var o = ctx.createOscillator(); o.type='sawtooth';
     o.frequency.setValueAtTime(620, t);
     o.frequency.exponentialRampToValueAtTime(70, t+1.0);
     var og = ctx.createGain(); o.connect(og); og.connect(master);
-    env(og, t, 0.01, 1.1, 0.28);
+    env(og, t, 0.01, 1.1, 0.28 * soft);
     o.start(t); o.stop(t+1.3);
   }
   /* 追跡者の声（一発物）。
@@ -691,7 +693,7 @@ var Audio2 = (function(){
   function shriek(dist, pan){
     if(!ready) return;
     var t = ctx.currentTime, dur = 1.5;
-    var att = 7 / (7 + dist);
+    var att = 7 / (7 + dist) * (settings.softScare ? 0.35 : 1);
     var out = ctx.createGain(); out.gain.value = 0.0001;
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.55 * att, t + 0.06);

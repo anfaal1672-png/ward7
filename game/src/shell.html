@@ -195,7 +195,32 @@
       <button type="button" data-l="en" aria-pressed="false">English</button>
     </div>
   </div>
+  <div class="sect">恐怖の調整</div>
+  <div class="field">
+    <label>隠れ場所は安全 <span id="valSH">オフ</span></label>
+    <div class="seg" id="segSH" role="group" aria-label="隠れ場所は安全">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">あれが隠れ場所を点検せず、入るところを見られても引き出されない。</p>
+  </div>
+  <div class="field">
+    <label>驚かしを弱める <span id="valSS">オフ</span></label>
+    <div class="seg" id="segSS" role="group" aria-label="驚かしを弱める">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。</p>
+  </div>
   <div class="sect">操作</div>
+  <div class="field">
+    <label>左手持ち <span id="valLH">オフ</span></label>
+    <div class="seg" id="segLH" role="group" aria-label="左手持ち">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
+  </div>
   <div class="field">
     <label for="sens">視点感度 <span id="valS">1.0</span></label>
     <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1">

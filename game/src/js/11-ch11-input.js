@@ -52,7 +52,8 @@ function onPointerDown(e){
     return;
   }
   var half = window.innerWidth/2;
-  if(e.clientX < half && stickId === null){
+  var stickSide = settings.lefty ? (e.clientX >= half) : (e.clientX < half);   // 左手持ちでは右半分がスティック
+  if(stickSide && stickId === null){
     stickId = e.pointerId;
     stickOrigin.x = e.clientX; stickOrigin.y = e.clientY;
     setStickVisual(true, e.clientX, e.clientY, 0, 0);

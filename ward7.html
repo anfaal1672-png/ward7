@@ -423,6 +423,13 @@
 
   /* パッド・キーボードで動かしているときの居場所。指で押すときには出ない */
   .panel button:focus-visible, .panel input:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+  /* 左手持ち：ボタンを左側へ。right で置いている物を left へ写す */
+  body.lefty #bLight{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bBack{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bHold{left:calc(96px + var(--sal));right:auto}
+  body.lefty #bUse{left:calc(20px + var(--sal));right:auto}
+  body.lefty #bThrow{left:calc(92px + var(--sal));right:auto}
 </style>
 </head>
 <body>
@@ -608,7 +615,32 @@
       <button type="button" data-l="en" aria-pressed="false">English</button>
     </div>
   </div>
+  <div class="sect">恐怖の調整</div>
+  <div class="field">
+    <label>隠れ場所は安全 <span id="valSH">オフ</span></label>
+    <div class="seg" id="segSH" role="group" aria-label="隠れ場所は安全">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">あれが隠れ場所を点検せず、入るところを見られても引き出されない。</p>
+  </div>
+  <div class="field">
+    <label>驚かしを弱める <span id="valSS">オフ</span></label>
+    <div class="seg" id="segSS" role="group" aria-label="驚かしを弱める">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。</p>
+  </div>
   <div class="sect">操作</div>
+  <div class="field">
+    <label>左手持ち <span id="valLH">オフ</span></label>
+    <div class="seg" id="segLH" role="group" aria-label="左手持ち">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
+  </div>
   <div class="field">
     <label for="sens">視点感度 <span id="valS">1.0</span></label>
     <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1">
@@ -1045,6 +1077,11 @@ var EN = {
   'プレイテスト':'Playtest', '記録を書き出す':'Export log', '記録をクリップボードに写した':'Log copied to clipboard',
   'どこで捕まったか・どの章で何分かかったか・動作の重さを、この端末の中だけに残す。外へは送らない。':
     'Keeps where you were caught, how long each chapter took and how heavy the game ran, on this device only. Nothing is sent anywhere.',
+  '恐怖の調整':'Fear settings', '隠れ場所は安全':'Hiding spots are safe', '驚かしを弱める':'Softer scares', '左手持ち':'Left-handed',
+  'あれが隠れ場所を点検せず、入るところを見られても引き出されない。':'It never checks hiding spots, and won\u2019t pull you out even if it saw you go in.',
+  '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
+  '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
+  '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
   '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
@@ -1630,9 +1667,10 @@ var Audio2 = (function(){
   }
   function stinger(){
     if(!ready) return;
+    var soft = settings.softScare ? 0.35 : 1;   // 恐怖の調整（第 13 章）
     var t = ctx.currentTime;
     var g = ctx.createGain(); g.connect(master);
-    env(g, t, 0.01, 1.5, 0.3);
+    env(g, t, 0.01, 1.5, 0.3 * soft);
     [196, 207, 277, 370].forEach(function(f){
       var o = ctx.createOscillator(); o.type='sawtooth';
       o.frequency.setValueAtTime(f, t);
@@ -1643,6 +1681,7 @@ var Audio2 = (function(){
   }
   function scream(){
     if(!ready) return;
+    var soft = settings.softScare ? 0.35 : 1;   // 恐怖の調整（第 13 章）
     var t = ctx.currentTime;
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
     var f = ctx.createBiquadFilter(); f.type='bandpass'; f.Q.value=1.1;
@@ -1650,14 +1689,14 @@ var Audio2 = (function(){
     f.frequency.exponentialRampToValueAtTime(180, t+1.2);
     var g = ctx.createGain();
     n.connect(f); f.connect(g); g.connect(master);
-    env(g, t, 0.008, 1.3, 0.5);
+    env(g, t, 0.008, 1.3, 0.5 * soft);
     n.start(t); n.stop(t+1.5);
 
     var o = ctx.createOscillator(); o.type='sawtooth';
     o.frequency.setValueAtTime(620, t);
     o.frequency.exponentialRampToValueAtTime(70, t+1.0);
     var og = ctx.createGain(); o.connect(og); og.connect(master);
-    env(og, t, 0.01, 1.1, 0.28);
+    env(og, t, 0.01, 1.1, 0.28 * soft);
     o.start(t); o.stop(t+1.3);
   }
   /* 追跡者の声（一発物）。
@@ -1919,7 +1958,7 @@ var Audio2 = (function(){
   function shriek(dist, pan){
     if(!ready) return;
     var t = ctx.currentTime, dur = 1.5;
-    var att = 7 / (7 + dist);
+    var att = 7 / (7 + dist) * (settings.softScare ? 0.35 : 1);
     var out = ctx.createGain(); out.gain.value = 0.0001;
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.55 * att, t + 0.06);
@@ -3119,8 +3158,14 @@ var CHAPTERS = [
   { n:7, name:'第七病棟', seed:0x57A01, patients:[2,3,3], blackout:false, vents:4, reflect:true,
     intro:'最初の病棟に戻ってきた。出口の場所を思い出す。ここを抜けたところで、すべてが終わる。' }
 ];
+/* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
+   同じ日なら誰が遊んでも同じ病棟。日が変われば別の病棟 */
 var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
-  intro:'毎回違う病棟。物語とは別に、何度でも。' };
+  intro:'日替わりの病棟。今日の夜勤は、今日だけ。' };
+function nightSeed(){
+  var d = new Date(), k = d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+  return ((k * 2654435761) ^ 0x57A7) >>> 0;
+}
 /* いま遊んでいる回。RUN.ch は CHAPTERS の添字、夜勤は -1 */
 var RUN = { ch:0 };
 function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
@@ -3156,7 +3201,10 @@ var settings = {
   cues: false,     // 音の方向表示
   lang: LANG,      // 'ja' / 'en'（第 1b 章。端末の言語が既定）
   hrtf: true,      // 立体音響：ヘッドホン（HRTF）/ スピーカー（左右だけ）
-  tele: false      // プレイテストの記録（端末の中だけ。第 17 章）
+  tele: false,     // プレイテストの記録（端末の中だけ。第 17 章）
+  safeHide: false, // 恐怖の調整：隠れ場所は安全（点検されない・入るのを見られても引き出されない）
+  softScare: false,// 恐怖の調整：叫び・金切り声を弱める
+  lefty: false     // 左手持ち：スティックとボタンの左右を入れ替える
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -3175,6 +3223,7 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
+    ['safeHide','softScare','lefty'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
@@ -8358,7 +8407,8 @@ function onPointerDown(e){
     return;
   }
   var half = window.innerWidth/2;
-  if(e.clientX < half && stickId === null){
+  var stickSide = settings.lefty ? (e.clientX >= half) : (e.clientX < half);   // 左手持ちでは右半分がスティック
+  if(stickSide && stickId === null){
     stickId = e.pointerId;
     stickOrigin.x = e.clientX; stickOrigin.y = e.clientY;
     setStickVisual(true, e.clientX, e.clientY, 0, 0);
@@ -9253,6 +9303,13 @@ function syncSettingsUI(){
     b.setAttribute('aria-pressed', ((+b.dataset.t === 1) === settings.tele) ? 'true' : 'false');
   });
   $('valT').textContent = settings.tele ? 'オン' : 'オフ';
+  [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty']].forEach(function(e){
+    Array.prototype.forEach.call($(e[0]).children, function(b){
+      b.setAttribute('aria-pressed', ((+b.dataset.v === 1) === !!settings[e[2]]) ? 'true' : 'false');
+    });
+    $(e[1]).textContent = settings[e[2]] ? 'オン' : 'オフ';
+  });
+  document.body.classList.toggle('lefty', !!settings.lefty);
   teleLoad(); $('teleN').textContent = TELE.ev.length ? '（いま ' + TELE.ev.length + ' 件）' : '';
   Audio2.setHRTF(settings.hrtf);
   $('gam').value = settings.gamma;
@@ -9426,6 +9483,11 @@ Array.prototype.forEach.call($('segT').children, function(b){
   b.addEventListener('click', function(){ settings.tele = (+b.dataset.t === 1); syncSettingsUI(); saveSettings(); });
 });
 $('btnTeleOut').addEventListener('click', teleExport);
+[['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty']].forEach(function(e){
+  Array.prototype.forEach.call($(e[0]).children, function(b){
+    b.addEventListener('click', function(){ settings[e[1]] = (+b.dataset.v === 1); syncSettingsUI(); saveSettings(); });
+  });
+});
 /* 立体音響の切り替えは、次に病棟へ入ったときの音から効く（持続音のバスは入るときに作る） */
 Array.prototype.forEach.call($('segH').children, function(b){
   b.addEventListener('click', function(){ settings.hrtf = (+b.dataset.h === 1); syncSettingsUI(); saveSettings(); });
@@ -9576,7 +9638,7 @@ function startGame(){
      夜勤は毎回違う種 */
   var rdef = runDef();
   rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : (rdef.seed !== null ? rdef.seed : ((Date.now() ^ (Math.random()*1e9))))) & 0x7fffffff);
+                   : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -10162,7 +10224,7 @@ function updatePlayer(dt){
           var hdd = Math.sqrt(hdx*hdx + hdz*hdz);
           if(hdd < DIFF[settings.diff].sight &&
              hasSight(world.grid, player.x, player.z, hunter.x, hunter.z)){
-            if(!cheats.ghostHide) player.hideSeen = true;
+            if(!cheats.ghostHide && !settings.safeHide) player.hideSeen = true;
             hunter.lastSeen = { x:near.obj.x, z:near.obj.z };
             if(hunter.mode !== 'chase') hunter.mode = 'hunt';
             toast('見られた', 2.6);
@@ -10475,7 +10537,7 @@ function updateHunter(dt, info){
             var idd = Math.sqrt(idx0*idx0 + idz0*idz0);
             if(idd < insD){ insD = idd; insP = H0; }
           }
-          if(insP && !cheats.invisible){
+          if(insP && !cheats.invisible && !settings.safeHide){
             hunter.inspect = insP; hunter.inspectT = 0;
             hunter.lastSeen = { x:insP.x, z:insP.z };
           }else{

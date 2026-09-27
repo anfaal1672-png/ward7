@@ -41,8 +41,14 @@ var CHAPTERS = [
   { n:7, name:'第七病棟', seed:0x57A01, patients:[2,3,3], blackout:false, vents:4, reflect:true,
     intro:'最初の病棟に戻ってきた。出口の場所を思い出す。ここを抜けたところで、すべてが終わる。' }
 ];
+/* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
+   同じ日なら誰が遊んでも同じ病棟。日が変われば別の病棟 */
 var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
-  intro:'毎回違う病棟。物語とは別に、何度でも。' };
+  intro:'日替わりの病棟。今日の夜勤は、今日だけ。' };
+function nightSeed(){
+  var d = new Date(), k = d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+  return ((k * 2654435761) ^ 0x57A7) >>> 0;
+}
 /* いま遊んでいる回。RUN.ch は CHAPTERS の添字、夜勤は -1 */
 var RUN = { ch:0 };
 function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
@@ -78,7 +84,10 @@ var settings = {
   cues: false,     // 音の方向表示
   lang: LANG,      // 'ja' / 'en'（第 1b 章。端末の言語が既定）
   hrtf: true,      // 立体音響：ヘッドホン（HRTF）/ スピーカー（左右だけ）
-  tele: false      // プレイテストの記録（端末の中だけ。第 17 章）
+  tele: false,     // プレイテストの記録（端末の中だけ。第 17 章）
+  safeHide: false, // 恐怖の調整：隠れ場所は安全（点検されない・入るのを見られても引き出されない）
+  softScare: false,// 恐怖の調整：叫び・金切り声を弱める
+  lefty: false     // 左手持ち：スティックとボタンの左右を入れ替える
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -97,6 +106,7 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
+    ['safeHide','softScare','lefty'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・

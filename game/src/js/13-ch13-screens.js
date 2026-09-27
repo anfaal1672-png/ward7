@@ -122,6 +122,13 @@ function syncSettingsUI(){
     b.setAttribute('aria-pressed', ((+b.dataset.t === 1) === settings.tele) ? 'true' : 'false');
   });
   $('valT').textContent = settings.tele ? 'オン' : 'オフ';
+  [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty']].forEach(function(e){
+    Array.prototype.forEach.call($(e[0]).children, function(b){
+      b.setAttribute('aria-pressed', ((+b.dataset.v === 1) === !!settings[e[2]]) ? 'true' : 'false');
+    });
+    $(e[1]).textContent = settings[e[2]] ? 'オン' : 'オフ';
+  });
+  document.body.classList.toggle('lefty', !!settings.lefty);
   teleLoad(); $('teleN').textContent = TELE.ev.length ? '（いま ' + TELE.ev.length + ' 件）' : '';
   Audio2.setHRTF(settings.hrtf);
   $('gam').value = settings.gamma;
@@ -295,6 +302,11 @@ Array.prototype.forEach.call($('segT').children, function(b){
   b.addEventListener('click', function(){ settings.tele = (+b.dataset.t === 1); syncSettingsUI(); saveSettings(); });
 });
 $('btnTeleOut').addEventListener('click', teleExport);
+[['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty']].forEach(function(e){
+  Array.prototype.forEach.call($(e[0]).children, function(b){
+    b.addEventListener('click', function(){ settings[e[1]] = (+b.dataset.v === 1); syncSettingsUI(); saveSettings(); });
+  });
+});
 /* 立体音響の切り替えは、次に病棟へ入ったときの音から効く（持続音のバスは入るときに作る） */
 Array.prototype.forEach.call($('segH').children, function(b){
   b.addEventListener('click', function(){ settings.hrtf = (+b.dataset.h === 1); syncSettingsUI(); saveSettings(); });
