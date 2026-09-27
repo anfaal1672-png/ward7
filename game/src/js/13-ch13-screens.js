@@ -308,10 +308,12 @@ function doResume(){
   state = STATE.PLAY;
   showPanel(null);
   Audio2.resume();
+  keepAwake(true);
   input.fwd = input.side = 0; stickId = null; lookId = null; setStickVisual(false);
 }
 function toTitle(){
   state = STATE.TITLE;
+  keepAwake(false);
   // 遊んだ後のワールドをそのまま情景に使う。建て直すと待たされる
   if(world.grid){
     titleCam.x = player.x; titleCam.z = player.z; titleCam.yaw = player.yaw; titleCam.t = 0;
@@ -330,6 +332,7 @@ function toTitle(){
 
 document.addEventListener('visibilitychange', function(){
   if(document.hidden && state === STATE.PLAY) doPause();
+  if(!document.hidden && wakeWant) keepAwake(true);   // 隠れた間に手放されている
 });
 window.addEventListener('blur', function(){ if(state === STATE.PLAY) doPause(); });
 

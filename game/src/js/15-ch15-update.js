@@ -279,7 +279,7 @@ function updatePlayer(dt){
         player.got++;
         $('numGot').textContent = player.got;
         Audio2.pickup();
-        if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){}
+        haptic(30);
         showNote(player.got - 1);
         if(player.got >= player.need){
           world.exit.open = true;
@@ -1243,7 +1243,7 @@ function updateHunter(dt, info){
     player.shake = 1.4; player.hurtT = 0.5;
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
     Audio2.hurt();
-    if(navigator.vibrate) try{ navigator.vibrate(120); }catch(e){}
+    haptic(120);
     // 少し弾き飛ばす
     var kx = player.x - hunter.x, kz = player.z - hunter.z;
     var kl = Math.max(0.001, Math.sqrt(kx*kx+kz*kz));

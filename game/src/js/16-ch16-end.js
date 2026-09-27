@@ -6,7 +6,7 @@ function doDeath(){
   state = STATE.DEAD;
   recordRun(false, player.hits||0);   // 演出を待たずにこの場で書く
   Audio2.scream();
-  if(navigator.vibrate) try{ navigator.vibrate([200,80,300]); }catch(e){}
+  haptic([200,80,300]);
   // 顔面アップ演出
   var t0 = performance.now();
   var dur = 1500;

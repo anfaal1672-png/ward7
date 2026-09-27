@@ -82,7 +82,7 @@ function onPointerMove(e){
     if(wantRunNow !== stickRunning){
       stickRunning = wantRunNow;
       stickEl.classList.toggle('run', wantRunNow);
-      if(wantRunNow && navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+      if(wantRunNow) haptic(12);
     }
     input.run = wantRunNow;
     stickIn.run = wantRunNow;

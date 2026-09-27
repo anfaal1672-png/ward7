@@ -30,6 +30,11 @@ var Audio2 = (function(){
     if(ready) return true;
     var AC = window.AudioContext || window.webkitAudioContext;
     if(!AC) return false;
+    /* iPhone の消音スイッチが入っていると、Safari は Web Audio を黙らせる。
+       ホラーは音が半分なので、音楽アプリと同じ「再生」の扱いを頼む
+       （iOS 17 以降の Safari。無い環境では何も起きない）。
+       iOS アプリ側でも AVAudioSession を playback にしてある。 */
+    try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
     try{ ctx = new AC(); }catch(e){ return false; }
     master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
 

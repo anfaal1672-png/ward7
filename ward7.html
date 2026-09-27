@@ -629,6 +629,37 @@ var lerp  = function(a,b,t){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
 var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
 
+/* 振動。iPhone の Safari は navigator.vibrate を持たず、これまで iPhone では
+   一度も震えていなかった。iOS アプリの中では WKWebView からネイティブへ
+   渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。
+   pat は ms の数、または [鳴る, 休む, 鳴る, ...] の配列（vibrate と同じ形）。 */
+function haptic(pat){
+  try{
+    var h = window.webkit && window.webkit.messageHandlers &&
+            window.webkit.messageHandlers.ward7haptic;
+    if(h){ h.postMessage(pat); return; }
+    if(navigator.vibrate) navigator.vibrate(pat);
+  }catch(e){}
+}
+
+/* 画面の自動消灯を止める。暗い廊下で息を殺している間に画面が暗くなり、
+   そのまま鍵が掛かるのがいちばん興ざめ。遊んでいる間だけ持つ。
+   ページが隠れるとブラウザが勝手に手放すので、戻ったら取り直す。
+   iOS アプリでは isIdleTimerDisabled で同じことをしている。 */
+var wakeLock = null, wakeWant = false;
+function keepAwake(on){
+  wakeWant = !!on;
+  try{
+    if(!on){ if(wakeLock){ wakeLock.release(); wakeLock = null; } return; }
+    if(wakeLock || !navigator.wakeLock || document.hidden) return;
+    navigator.wakeLock.request('screen').then(function(l){
+      wakeLock = l;
+      l.addEventListener('release', function(){ if(wakeLock === l) wakeLock = null; });
+      if(!wakeWant){ l.release(); }
+    }).catch(function(){});
+  }catch(e){}
+}
+
 function mulberry32(a){
   return function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -675,6 +706,11 @@ var Audio2 = (function(){
     if(ready) return true;
     var AC = window.AudioContext || window.webkitAudioContext;
     if(!AC) return false;
+    /* iPhone の消音スイッチが入っていると、Safari は Web Audio を黙らせる。
+       ホラーは音が半分なので、音楽アプリと同じ「再生」の扱いを頼む
+       （iOS 17 以降の Safari。無い環境では何も起きない）。
+       iOS アプリ側でも AVAudioSession を playback にしてある。 */
+    try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
     try{ ctx = new AC(); }catch(e){ return false; }
     master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
 
@@ -6706,7 +6742,7 @@ function onPointerMove(e){
     if(wantRunNow !== stickRunning){
       stickRunning = wantRunNow;
       stickEl.classList.toggle('run', wantRunNow);
-      if(wantRunNow && navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+      if(wantRunNow) haptic(12);
     }
     input.run = wantRunNow;
     stickIn.run = wantRunNow;
@@ -7312,10 +7348,12 @@ function doResume(){
   state = STATE.PLAY;
   showPanel(null);
   Audio2.resume();
+  keepAwake(true);
   input.fwd = input.side = 0; stickId = null; lookId = null; setStickVisual(false);
 }
 function toTitle(){
   state = STATE.TITLE;
+  keepAwake(false);
   // 遊んだ後のワールドをそのまま情景に使う。建て直すと待たされる
   if(world.grid){
     titleCam.x = player.x; titleCam.z = player.z; titleCam.yaw = player.yaw; titleCam.t = 0;
@@ -7334,6 +7372,7 @@ function toTitle(){
 
 document.addEventListener('visibilitychange', function(){
   if(document.hidden && state === STATE.PLAY) doPause();
+  if(!document.hidden && wakeWant) keepAwake(true);   // 隠れた間に手放されている
 });
 window.addEventListener('blur', function(){ if(state === STATE.PLAY) doPause(); });
 
@@ -7350,6 +7389,7 @@ function startGame(){
   Audio2.init();
   Audio2.setVol(settings.vol);
   Audio2.resume();
+  keepAwake(true);
 
   var d = DIFF[settings.diff];
 
@@ -7756,7 +7796,7 @@ function updatePlayer(dt){
         player.got++;
         $('numGot').textContent = player.got;
         Audio2.pickup();
-        if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){}
+        haptic(30);
         showNote(player.got - 1);
         if(player.got >= player.need){
           world.exit.open = true;
@@ -8720,7 +8760,7 @@ function updateHunter(dt, info){
     player.shake = 1.4; player.hurtT = 0.5;
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
     Audio2.hurt();
-    if(navigator.vibrate) try{ navigator.vibrate(120); }catch(e){}
+    haptic(120);
     // 少し弾き飛ばす
     var kx = player.x - hunter.x, kz = player.z - hunter.z;
     var kl = Math.max(0.001, Math.sqrt(kx*kx+kz*kz));
@@ -9079,7 +9119,7 @@ function doDeath(){
   state = STATE.DEAD;
   recordRun(false, player.hits||0);   // 演出を待たずにこの場で書く
   Audio2.scream();
-  if(navigator.vibrate) try{ navigator.vibrate([200,80,300]); }catch(e){}
+  haptic([200,80,300]);
   // 顔面アップ演出
   var t0 = performance.now();
   var dur = 1500;

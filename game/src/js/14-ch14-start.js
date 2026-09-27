@@ -11,6 +11,7 @@ function startGame(){
   Audio2.init();
   Audio2.setVol(settings.vol);
   Audio2.resume();
+  keepAwake(true);
 
   var d = DIFF[settings.diff];
 
