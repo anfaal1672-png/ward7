@@ -2,7 +2,7 @@
    設定を書く → localStorage を消す（Safari の 7 日消去の再現）→ 読み直す →
    設定が戻っているか。http で開く（file:// は IndexedDB の扱いがブラウザで違う）。
    使い方: node store-check.js <html の絶対パス> */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path'), http=require('http');
 (async()=>{
   const file=process.argv[2]||'/home/user/ward7/ward7.html';
@@ -12,7 +12,7 @@ const fs=require('fs'), path=require('path'), http=require('http');
     r.writeHead(200,{'content-type':'text/html'}); r.end(fs.readFileSync(file));
   }).listen(0);
   const url='http://127.0.0.1:'+srv.address().port+'/ward7.html';
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

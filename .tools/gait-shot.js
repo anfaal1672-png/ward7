@@ -1,10 +1,10 @@
 /* 歩容を見るための撮影。追跡者をカメラの正面に置き、横から見えるように
    プレイヤーを動かさずに歩かせる。位相をずらして 4 枚撮る。
    使い方: node gait-shot.js <html> [枚数] [間隔ms] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280},deviceScaleFactor:2});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

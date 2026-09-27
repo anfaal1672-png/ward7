@@ -4,7 +4,7 @@
    出した状態と消した状態の差でマスクを取ろうとしたが、粒子ノイズ・埃・
    ランプのちらつきで画面の 81% が「差あり」になって使えなかった。
    腕とランプを消して、投影した胴の周りだけを測る。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 const grab = `(()=>new Promise(res=>{ requestAnimationFrame(()=>{
   const cv=document.querySelector('canvas');
@@ -15,7 +15,7 @@ const grab = `(()=>new Promise(res=>{ requestAnimationFrame(()=>{
 });}))()`;
 (async()=>{
   const file=process.argv[2], q=+(process.argv[3]||3), out=process.argv[4], dist=+(process.argv[5]||3.5);
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});

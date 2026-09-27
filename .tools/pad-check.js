@@ -1,10 +1,10 @@
 /* ゲームパッド（設計指示書 第 12.2 節）。navigator.getGamepads を差し替え、
    左スティックで進む・右スティックで向きが変わる・X でランプ・Start で一時停止 を見る。
    使い方: node pad-check.js <html> */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:844,height:390}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

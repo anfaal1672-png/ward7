@@ -1,10 +1,10 @@
 /* タイトル画面のキャンバスは Playwright のスクリーンショットに合成されない。
    readPixels では中身が取れるので、その配列を 2D キャンバスへ描き戻して
    PNG にする（上下が逆なので反転する）。これで実機を待たずに確認できる。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

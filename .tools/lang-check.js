@@ -1,10 +1,10 @@
 /* 英語（設計指示書 第 14 章）。英語を選んだ状態で主な画面を開き、
    見えている文字に日本語が残っていないかを数える。
    使い方: node lang-check.js <html> [タイトルの png] [ゲーム中の png] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2, locale:'en-US'});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

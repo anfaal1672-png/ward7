@@ -1,9 +1,9 @@
 /* 手続きテクスチャを 1 枚の PNG に落とす。__WARD7.texGen を使う。
    使い方: node texshow.js <html> <wall|floor> <out.png> [size] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:600,height:600}});
   await p.route('**/three.min.js',r=>r.fulfill({status:200,contentType:'application/javascript',

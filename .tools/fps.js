@@ -3,7 +3,7 @@
    ・同じ環境での作業前／作業後の比（＝退行していないか）
    ・JS 側の更新にかかる時間（実機でも効く）
    は意味のある数字として取れる。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const file=process.argv[2], q=+(process.argv[3]||3), N=+(process.argv[4]||180);
@@ -11,7 +11,7 @@ const fs=require('fs'), path=require('path');
      dpr=3 のときだけ現れる負荷（描く画素が 9 倍）を見落とす。
      例: node fps.js <html> 3 180 390 844 3 */
   const VW=+(process.argv[5]||720), VH=+(process.argv[6]||1280), DSF=+(process.argv[7]||1);
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:VW,height:VH}, deviceScaleFactor:DSF});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

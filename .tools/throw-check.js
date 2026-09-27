@@ -2,10 +2,10 @@
    - 瓶が置かれている / 拾える / 投げると割れて、聞こえる距離の追跡者が割れた場所へ向かう
    - 忍び足で動くと player.sneaking が立つ
    使い方: node throw-check.js <html> [png] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2, hasTouch:true});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

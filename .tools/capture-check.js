@@ -1,10 +1,10 @@
 /* 捕獲と振りほどき・包帯（設計指示書 第 5.3・5.5 節）。
    通常難易度で：掴まれる → 0.7 秒動けない → 弾かれる → 表示が「あと 1 回」
    包帯を拾う → 「あと 2 回」に戻る。使い方: node capture-check.js <html> [png] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

@@ -19,3 +19,26 @@ jobs:
       - run: npm ci
       - name: 源と ward7.html・three.min.js の一致・構文
         run: npm run check
+
+  # 実ブラウザ（Chromium + SwiftShader）での自己診断と、遊びの確認。
+  # ハーネス（jsdom）はシェーダを通さないので、ここでしか見えない壊れ方がある（.tools/README）。
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: 自己診断（4 段階の品質）
+        run: node .tools/stq.js "$PWD/ward7.html"
+      - name: 章・物語・捕獲・投擲・保存・パッド・英語
+        run: |
+          for t in chapter-check story-check capture-check throw-check store-check pad-check; do
+            echo "== $t"; node .tools/$t.js "$PWD/ward7.html"
+          done
+          node .tools/lang-check.js "$PWD/ward7.html" | tee /tmp/lang.txt
+          ! grep -E "残り [1-9]" /tmp/lang.txt

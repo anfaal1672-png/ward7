@@ -1,5 +1,5 @@
-const {chromium}=require('/opt/node22/lib/node_modules/playwright');const fs=require('fs');
-(async()=>{const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+const {chromium, EXEC}=require('./pw.js');const fs=require('fs');
+(async()=>{const b=await chromium.launch({executablePath:EXEC,
   args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
 const p=await b.newPage({viewport:{width:720,height:1280}});
 await p.route('**/three.min.js',r=>r.fulfill({status:200,contentType:'application/javascript',body:fs.readFileSync('/home/user/ward7/three.min.js','utf8')}));

@@ -3,10 +3,10 @@
    2) 第2章：患者が壁際に立つ。灯りを顔に向けると振り向いて叫び、あれが呼ばれる
    3) 第3章：停電。電源を戻すまで非常口が使えない
    使い方: node chapter-check.js <html> [患者の png] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

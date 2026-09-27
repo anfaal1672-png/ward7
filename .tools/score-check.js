@@ -2,10 +2,10 @@
    追跡者を目の前に置いて追跡させ → 見えない所へ移して追跡を切り、
    段が 3 → 下がる と 8 秒の静寂（resting）に入ることを見る。
    使い方: node score-check.js <html> */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox','--autoplay-policy=no-user-gesture-required']});
   const p=await b.newPage({viewport:{width:390,height:844}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push(m.text()); });

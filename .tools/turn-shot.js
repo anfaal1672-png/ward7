@@ -2,11 +2,11 @@
    静止させて姿勢だけ測る手が使えない。追跡者の少し前・左（右）に lastSeen を
    置き続けると、本編の経路追従がそのまま一定の角速度の旋回になる。
    カメラは斜め上後方から。使い方: node turn-shot.js <html> <左1|右-1> [枚数] [間隔] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const side = +(process.argv[3] || 1);
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280},deviceScaleFactor:2});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

@@ -1,9 +1,9 @@
 /* タイトルの UI を撮る。キャンバスは合成されないので黒く写るが、
    文字と余白の配置はこれで確認できる。3D の中身は title-capture.js。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844}, deviceScaleFactor:2});
   await p.route('**/three.min.js',r=>r.fulfill({status:200,contentType:'application/javascript',

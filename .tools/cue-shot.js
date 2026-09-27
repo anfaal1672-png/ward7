@@ -1,9 +1,9 @@
 /* 音の方向表示（設定 cues）を撮る。ボットに遊ばせ、追跡者の足音で
    表示が出た瞬間に撮る。使い方: node cue-shot.js <html> [png] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

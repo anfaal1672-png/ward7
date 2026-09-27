@@ -1,11 +1,11 @@
 /* 脱出の演出を撮る。プレイヤーを非常口の手前へ運び、扉を開けて doWin を通す。
    使い方: node .tools/win-shot.js <html> [接頭辞] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs');
 (async()=>{
   const file=process.argv[2]||'/home/user/ward7/ward7.html';
   const pre=process.argv[3]||'win';
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));

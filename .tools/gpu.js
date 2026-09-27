@@ -1,7 +1,7 @@
 /* 実ブラウザ・実 WebGL で起動して、シェーダのコンパイルと描画を確かめる。
    スタブの harness はシェーダを一切コンパイルしないので、GLSL の間違いは
    そこを素通りしてしまう。ここだけが本物の GPU を通る検証。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,7 +10,7 @@ const path = require('path');
   const quality = process.argv[3] !== undefined ? +process.argv[3] : 3;
   const shot = process.argv[4] || null;
   const browser = await chromium.launch({
-    executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    executablePath:EXEC,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
            '--ignore-gpu-blocklist', '--enable-webgl', '--no-sandbox']
   });
