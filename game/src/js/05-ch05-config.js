@@ -75,7 +75,8 @@ var settings = {
   fov: 0,          // 視野角の上乗せ（度）
   motion: 1.0,     // 画面の揺れ 0..1
   flash: 1.0,      // 点滅の強さ 0..1
-  cues: false      // 音の方向表示
+  cues: false,     // 音の方向表示
+  lang: LANG       // 'ja' / 'en'（第 1b 章。端末の言語が既定）
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -91,6 +92,7 @@ try{
     if(typeof saved.motion==='number')  settings.motion = clamp(saved.motion,0,1);
     if(typeof saved.flash==='number')   settings.flash = clamp(saved.flash,0,1);
     if(typeof saved.cues==='boolean')   settings.cues = saved.cues;
+    if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・

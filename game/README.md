@@ -13,6 +13,7 @@
 | `src/shell.html` | HTML の骨。`<!--@style-->` と `<!--@script-->` に中身が入る |
 | `src/style.css` | `<style>` の中身 |
 | `src/js/NN-chMM-*.js` | `<script>` の中身を章ごとに。NN は並び順、MM は章番号（20 起動 が最後に来るため一致しない） |
+| `src/js/01b-i18n.js` | 英語。画面に入った文字を訳す（第 14 章）。章番号の付かない追加の章 |
 | `src/js/order.json` | 連結の順番 |
 | `split.mjs` | 一度だけ使った切り出し。記録のために残す |
 | `vendor/three-global.js` | three.js を `window.THREE` として出す入口。`three.min.js` に束ねられる |

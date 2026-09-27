@@ -1,6 +1,7 @@
 [
   "00-ch00-boot.js",
   "01-ch01-util.js",
+  "01b-i18n.js",
   "02-ch02-audio.js",
   "03-ch03-textures.js",
   "04-ch04-maze.js",

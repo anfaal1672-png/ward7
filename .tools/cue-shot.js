@@ -10,7 +10,7 @@ const fs=require('fs'), path=require('path');
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
     body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.addInitScript(()=>{ try{ localStorage.setItem('ward7.settings',
-    JSON.stringify({quality:1, diff:1, gamma:1, invert:false, cues:true, motion:0.3, flash:0, fov:6})); }catch(e){} });
+    JSON.stringify({quality:1, diff:1, gamma:1, invert:false, cues:true, motion:0.3, flash:0, fov:6, lang:'ja'})); }catch(e){} });
   await p.goto('file://'+process.argv[2],{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.botOn(true); A.start(); });

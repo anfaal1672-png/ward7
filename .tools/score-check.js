@@ -11,7 +11,7 @@ const fs=require('fs'), path=require('path');
   const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push(m.text()); });
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
     body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
-  await p.addInitScript(()=>{ try{ localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:1})); }catch(e){} });
+  await p.addInitScript(()=>{ try{ localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:1, lang:'ja'})); }catch(e){} });
   await p.goto('file://'+process.argv[2],{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.start(); A.cheats.pacifist = true; });

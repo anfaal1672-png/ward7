@@ -111,6 +111,9 @@ function syncSettingsUI(){
     b.setAttribute('aria-pressed', ((+b.dataset.c===1) === settings.cues) ? 'true':'false');
   });
   $('valC').textContent = settings.cues ? 'オン' : 'オフ';
+  Array.prototype.forEach.call($('segL').children, function(b){
+    b.setAttribute('aria-pressed', (b.dataset.l === settings.lang) ? 'true' : 'false');
+  });
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
   paintCalib();
@@ -277,6 +280,15 @@ $('gam').addEventListener('input', function(){
   paintCalib();
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
+});
+/* 言語を変えたら読み直す。訳は文字が画面に入る瞬間に掛けているので、
+   すでに出ている英語を日本語へ戻す手段を持たない（持つ必要もない） */
+Array.prototype.forEach.call($('segL').children, function(b){
+  b.addEventListener('click', function(){
+    if(b.dataset.l === settings.lang) return;
+    settings.lang = b.dataset.l; saveSettings();
+    setTimeout(function(){ location.reload(); }, 80);
+  });
 });
 $('fovA').addEventListener('input', function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
 $('motion').addEventListener('input', function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });

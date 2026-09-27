@@ -11,7 +11,7 @@ const fs=require('fs'), path=require('path');
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
     body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.addInitScript(()=>{
-    try{ localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:0})); }catch(e){}
+    try{ localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:0, lang:'ja'})); }catch(e){}
     window.__pad = { axes:[0,0,0,0], buttons:Array.from({length:17},()=>({pressed:false,value:0})) };
     navigator.getGamepads = ()=>[{ connected:true, mapping:'standard', axes:window.__pad.axes, buttons:window.__pad.buttons }];
   });

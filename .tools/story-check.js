@@ -11,7 +11,7 @@ async function run(b, html, lampOn, linked, shot){
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
     body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.addInitScript((lk)=>{ try{
-    localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:1}));
+    localStorage.setItem('ward7.settings', JSON.stringify({quality:0, diff:1, lang:'ja'}));
     localStorage.setItem('ward7.journal', JSON.stringify({notes:{0:1,3:1,9:1,17:1},
       letters:{0:1,1:1,2:1,3:1,4:1,5:1,6:1}, linked:lk, endings:{}}));
   }catch(e){} }, linked);
