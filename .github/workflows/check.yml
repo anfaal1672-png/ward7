@@ -1,0 +1,19 @@
+# ward7.html は game/src から組み立てる。手で ward7.html だけを直すと
+# 源と食い違い、次に組み立てた人の変更で黙って消える。それを CI で止める。
+name: check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 源と ward7.html の一致・構文
+        run: npm run check

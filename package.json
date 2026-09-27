@@ -1,0 +1,9 @@
+{
+  "name": "ward7",
+  "private": true,
+  "scripts": {
+    "build": "node game/build.mjs",
+    "check": "node game/build.mjs --check && node .tools/extract.js ward7.html /tmp/ward7-check.js && node --check /tmp/ward7-check.js",
+    "selftest": "node .tools/stq.js \"$PWD/ward7.html\""
+  }
+}

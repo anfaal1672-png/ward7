@@ -8629,14 +8629,19 @@ function updateHunter(dt, info){
   // 殴打モーションの再生中は動かさない（打撃の姿勢と喧嘩するため）
   if(hunter.stunT > 0 && hunter.swingT <= 0){
     var stunK = clamp(hunter.stunT / 0.85, 0, 1);
-    P.spine.rotation.x -= stunK * 0.5;
+    // 0.5 ではのけぞりが強すぎ、胴が後ろへ折れて見えた
+    P.spine.rotation.x -= stunK * 0.28;
     P.head.rotation.x  -= stunK * 0.45;
-    // 突き出した腕が伸びきったまま垂れ、もう一方は遅れて落ちる
+    // 突き出した腕が伸びきったまま垂れ、もう一方は遅れて落ちる。
+    // 基準姿勢から引くと、打ち抜いた直後の腕（up.x≒-1.62）がさらに
+    // 持ち上がって頭上（-2.77rad）で固まっていた。骨は -Y 向きなので
+    // rotation.x≒0 が「垂れている」。そこへ寄せる。
     var SA = (hunter.punchArm > 0) ? P.armR : P.armL;
     var SB = (hunter.punchArm > 0) ? P.armL : P.armR;
-    SA.up.rotation.x -= stunK * 1.15;
-    SA.fore.rotation.x += stunK * 0.55;
-    SB.up.rotation.x -= stunK * 0.45;
+    SA.up.rotation.x   = lerp(SA.up.rotation.x,   0.14,  stunK);
+    SA.fore.rotation.x = lerp(SA.fore.rotation.x, -0.28, stunK);
+    SB.up.rotation.x   = lerp(SB.up.rotation.x,   0.14,  stunK*0.7);
+    SB.fore.rotation.x = lerp(SB.fore.rotation.x, -0.28, stunK*0.7);
     SA.up.rotation.z += hunter.punchArm * stunK * 0.30;
     SB.up.rotation.z -= hunter.punchArm * stunK * 0.42;
     P.jaw.rotation.x = Math.max(P.jaw.rotation.x, stunK * 1.0);
