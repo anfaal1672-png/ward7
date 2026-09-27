@@ -90,6 +90,17 @@ function syncSettingsUI(){
   });
   $('valD').textContent = ['オフ','敵のみ','完全'][settings.detect];
   $('chartGoal').textContent = 'カルテ' + DIFF[settings.diff].records + '枚 → 非常口';
+  // 章。開いていない章は押せない（夜勤はいつでも）
+  Array.prototype.forEach.call($('segCh').children, function(b){
+    var c = +b.dataset.ch;
+    var open = c < 0 || c < PROGRESS.unlocked;
+    b.disabled = !open;
+    b.style.opacity = open ? '' : '0.35';
+    b.setAttribute('aria-pressed', (c === RUN.ch) ? 'true' : 'false');
+  });
+  var rd = runDef();
+  $('chDesc').textContent = (RUN.ch >= 0 ? '第' + rd.n + '章 ' + rd.name + '　' : '夜勤　') + rd.intro +
+    (RUN.ch >= 0 && PROGRESS.cleared[rd.n] ? '（抜けた）' : '');
   $('fovA').value = settings.fov;
   $('valF').textContent = (settings.fov > 0 ? '+' : (settings.fov < 0 ? '' : '±')) + settings.fov;
   $('motion').value = settings.motion;
@@ -295,7 +306,17 @@ $('btnHunt').addEventListener('click', function(){ playAs = 'hunter'; BOT.on = t
 $('btnResume').addEventListener('click', function(){ doResume(); });
 $('btnQuit').addEventListener('click', function(){ toTitle(); });
 $('btnRetry').addEventListener('click', function(){ startGame(); });
-$('btnAgain').addEventListener('click', function(){ startGame(); });
+/* 章を抜けたあとの「もう一度」は「次の章へ」に変わる（第 16 章 doWin が文字を差し替える） */
+$('btnAgain').addEventListener('click', function(){
+  if(RUN.ch >= 0 && RUN.nextCh !== undefined && RUN.nextCh !== null){ RUN.ch = RUN.nextCh; RUN.nextCh = null; }
+  startGame();
+});
+Array.prototype.forEach.call($('segCh').children, function(b){
+  b.addEventListener('click', function(){
+    if(b.disabled) return;
+    RUN.ch = +b.dataset.ch; syncSettingsUI();
+  });
+});
 $('btnDeadTitle').addEventListener('click', function(){ toTitle(); });
 $('btnWinTitle').addEventListener('click', function(){ toTitle(); });
 

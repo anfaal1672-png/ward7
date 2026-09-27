@@ -27,7 +27,7 @@ function clearWorld(){
   scene.add(world.group);
   world.props = []; world.records = []; world.batteries = []; world.bottles = []; world.bandages = [];
   world.lamps = []; world.exit = null; world.hides = [];
-  world.key = null; world.lockDoor = null; world.lever = null; world.power = false;
+  world.key = null; world.lockDoor = null; world.lever = null; world.power = false; world.blackout = false;
   world.zones = []; world.exitField = null; world.nav = null;
 }
 

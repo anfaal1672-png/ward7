@@ -657,7 +657,36 @@ var Audio2 = (function(){
     env(og, t, 0.002, 0.12, 0.35);
     o.start(t); o.stop(t + 0.2);
   }
-  return { setScore:setScore, glass:glass, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 患者の叫び（第 9 章 updatePatients）。女の声に寄せた鋸歯を 2 つの共鳴
+     （900 / 2600 Hz）に通し、上ずってから崩れる。息の雑音を上に敷く */
+  function shriek(dist, pan){
+    if(!ready) return;
+    var t = ctx.currentTime, dur = 1.5;
+    var att = 7 / (7 + dist);
+    var out = ctx.createGain(); out.gain.value = 0.0001;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.55 * att, t + 0.06);
+    out.gain.setTargetAtTime(0.0001, t + dur*0.7, 0.18);
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if(pn){ pn.pan.value = clamp(pan, -1, 1); out.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
+    else out.connect(master);
+    var o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(560, t);
+    o.frequency.exponentialRampToValueAtTime(1040, t + 0.35);
+    o.frequency.exponentialRampToValueAtTime(610, t + dur);
+    var vib = ctx.createOscillator(); vib.frequency.value = 7.5;
+    var vg = ctx.createGain(); vg.gain.value = 38; vib.connect(vg); vg.connect(o.frequency);
+    [900, 2600].forEach(function(f, i){
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 5 + i*3;
+      var g = ctx.createGain(); g.gain.value = i ? 0.5 : 1;
+      o.connect(bp); bp.connect(g); g.connect(out);
+    });
+    var n = noiseSrc(); var nf = ctx.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 2400;
+    var ng = ctx.createGain(); ng.gain.value = 0.22; n.connect(nf); nf.connect(ng); ng.connect(out);
+    o.start(t); vib.start(t); n.start(t);
+    o.stop(t + dur + 0.4); vib.stop(t + dur + 0.4); n.stop(t + dur + 0.4);
+  }
+  return { setScore:setScore, glass:glass, shriek:shriek, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,

@@ -1,4 +1,5 @@
 /* 手帳と結末（設計指示書 第 11.3・20.1 節）を実ブラウザで確かめる。
+   結末は夜勤か最後の章でだけ起きるので、夜勤で走らせる。
    1) 私信を全部読んだ手帳を仕込み、妹の 3 通を指で選んで結びつく
    2) 灯りを消したまま非常口を抜けると「退院」、点けたままなら「脱出」
    使い方: node story-check.js <html> [手帳の png] */
@@ -30,7 +31,7 @@ async function run(b, html, lampOn, linked, shot){
     linkRes = {wrong, right, saved};
     await p.click('#btnJournalBack');
   }
-  await p.evaluate((lampOn)=>{ const A=window.__WARD7; A.seed(77); A.start();
+  await p.evaluate((lampOn)=>{ const A=window.__WARD7; A.run.ch = -1; A.seed(77); A.start();
     const pl=A.player, w=A.world; pl.got=pl.need; pl.hasKey=true; w.endgame=true; if(w.exit) w.exit.open=true;
     if(w.exit){ pl.x=w.exit.x; pl.z=w.exit.z; }
     pl.lamp=lampOn; }, lampOn);

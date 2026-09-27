@@ -280,9 +280,14 @@ function updatePlayer(dt){
   var reticle = $('reticle'), useBtn = $('bUse');
   if($('bHold').style.display === 'none' && player.hiding) $('bHold').style.display = 'flex';
   if($('bHold').style.display !== 'none' && !player.hiding) $('bHold').style.display = 'none';
-  var canUse = !!near && !(near.type==='exit' && !world.exit.open)
+  // 停電の章は電源を戻すまで非常口が開かない（第 5 章 CHAPTERS.blackout）
+  var dead = world.blackout && !world.power;
+  var canUse = !!near && !(near.type==='exit' && (!world.exit.open || dead))
                       && !(near.type==='lock' && !player.hasKey);
-  if(near && near.type==='exit' && !world.exit.open){
+  if(near && near.type==='exit' && world.exit.open && dead){
+    useBtn.classList.add('dim'); reticle.classList.remove('act');
+    useBtn.textContent = '停電';
+  }else if(near && near.type==='exit' && !world.exit.open){
     useBtn.classList.add('dim'); reticle.classList.remove('act');
     useBtn.textContent = '施錠';
   }else if(near && near.type==='lock' && !player.hasKey){
@@ -319,7 +324,8 @@ function updatePlayer(dt){
           world.exit.sign.color.setHex(0x6fbfa8);
           world.exitLight.color.setHex(0x6fbfa8);
           world.exitLight.intensity = 1.6;
-          $('objSub').textContent = player.hasKey ? '非常口へ走れ' : '鍵を探して非常口へ';
+          $('objSub').textContent = (world.blackout && !world.power) ? '電源を戻し、非常口へ' :
+                                    (player.hasKey ? '非常口へ走れ' : '鍵を探して非常口へ');
           Audio2.unlock();
           toast('非常口が開いた', 3);
           setTimeout(function(){
@@ -1472,6 +1478,7 @@ function updateEnv(dt, info){
       var fl = 0.55 + 0.45*Math.sin(lampFlick*7 + L.flick) * (Math.sin(lampFlick*2.3+L.flick)>0.7?1:0.25);
       fl = lerp(0.62, fl, settings.flash);          // 点滅の強さ（設定）
       var inten = dd < 22 ? (1.5*fl*(world.power ? 2.0 : 1)) : 0;
+      if(world.blackout && !world.power) inten = 0;           // 非常回路が落ちている
       lightPool[i].position.set(L.x, WALL_H-0.35, L.z);
       lightPool[i].intensity = inten;
       L.mesh.material.color.setRGB(1, 0.72*fl+0.2, 0.35*fl+0.15);

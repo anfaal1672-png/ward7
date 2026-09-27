@@ -82,8 +82,18 @@ function doWin(){
   /* 結末（設計指示書 第 20.1 節）。三通を結びつけた者が、灯りを消したまま
      扉を抜けたときだけ、もう一つの結末になる。灯りを点けたまま出れば
      いつもの脱出。チートの回・ボット・追う側では結末を数えない。 */
-  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter');
+  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter') && (RUN.ch < 0 || isFinalChapter());
   var endingB = story && JOURNAL.linked && !player.lamp;
+  /* 章を抜けた。次の章を開き、「もう一度」を「次の章へ」に変える */
+  RUN.nextCh = null;
+  if(RUN.ch >= 0 && playAs !== 'hunter' && !BOT.on && !cheatUsed){
+    PROGRESS.cleared[runDef().n] = 1;
+    if(RUN.ch + 1 < CHAPTERS.length){
+      PROGRESS.unlocked = Math.max(PROGRESS.unlocked, RUN.ch + 2);
+      RUN.nextCh = RUN.ch + 1;
+    }
+    saveProgress();
+  }
   if(story){ JOURNAL.endings[endingB ? 'B' : 'A'] = 1; saveJournal(); }
   var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
   recordRun(true, player.hits||0);
@@ -121,7 +131,9 @@ function doWin(){
     renderer.toneMappingExposure = exposureNow();
     Audio2.stopAmbient();
     $('winEyebrow').textContent = endingB ? 'Released' : 'Discharged';
-    $('winTitle').textContent = endingB ? '退院' : '脱出';
+    $('winTitle').textContent = endingB ? '退院' : (RUN.ch >= 0 && !story ? '第' + runDef().n + '章 完' : '脱出');
+    $('btnAgain').textContent = (RUN.nextCh !== null && RUN.nextCh !== undefined)
+      ? '次の章へ　第' + CHAPTERS[RUN.nextCh].n + '章 ' + CHAPTERS[RUN.nextCh].name : 'もう一度';
     $('winStory').textContent = !story ? '' : (endingB ? ENDING_B : ENDING_A);
     $('winStats').innerHTML =
       (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +

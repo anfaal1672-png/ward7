@@ -907,3 +907,151 @@ function placeHunter(reach, startC){
   hunter.group.position.set(hunter.x, 0, hunter.z);
 }
 
+
+/* --- 徘徊する患者（設計指示書 第 5.4 節・第 9.1 節） ------------------------
+   壁を向いて立ったまま動かない。所見 05-01 の「全員が同じ方向を向いて
+   座っている」を、そのまま病棟に置く。
+   襲ってはこない。ただし灯りを顔に向けられる・すぐそばを走られる・
+   触れるほど寄られると振り向いて叫び、叫び声のした場所へあれを呼ぶ。
+   体は追跡者を組み上げた直後（まだ一度も動かしていない静止姿勢）を
+   写し取り、材質ごとに 1 つのメッシュへ畳む。40 部品を毎回 40 回描くと
+   iPhone の描画予算（第 7.2 節：最低端末で 150）をこれだけで食い潰す。 */
+var patients = [];
+var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
+var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
+var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
+var patientMats = {};
+function patientMat(m){
+  if(patientMats[m.uuid]) return patientMats[m.uuid];
+  var c = m.clone();
+  if(c.color) c.color.multiplyScalar(0.72);          // 追跡者より灰色がかって見えるように
+  if(c.emissive){ c.emissive.setRGB(0, 0, 0); c.emissiveIntensity = 0; }
+  patientMats[m.uuid] = c;
+  return c;
+}
+function bakeFigure(src){
+  src.updateMatrixWorld(true);
+  var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
+  var byMat = {}, keys = [];
+  src.traverseVisible(function(o){
+    if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
+    var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    var n = g.attributes.position.count;
+    // 畳むには属性の組が揃っていないといけない。無い物は埋め、余計な物は捨てる
+    if(!g.attributes.normal) g.computeVertexNormals();
+    if(!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n*2), 2));
+    if(!g.attributes.color){ var one = new Float32Array(n*3); one.fill(1);
+      g.setAttribute('color', new THREE.Float32BufferAttribute(one, 3)); }
+    Object.keys(g.attributes).forEach(function(k){
+      if(k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k); });
+    g.morphAttributes = {};
+    var key = o.material.uuid;
+    if(!byMat[key]){ byMat[key] = { mat:o.material, list:[] }; keys.push(key); }
+    byMat[key].list.push(g);
+  });
+  var out = new THREE.Group();
+  keys.forEach(function(k){
+    var merged = THREE.BufferGeometryUtils.mergeGeometries(byMat[k].list, false);
+    byMat[k].list.forEach(function(g){ g.dispose(); });
+    if(!merged) return;
+    fixNormals(merged);
+    out.add(new THREE.Mesh(merged, patientMat(byMat[k].mat)));
+  });
+  return out;
+}
+function clearPatients(){
+  patients.forEach(function(p){ if(p.group.parent) p.group.parent.remove(p.group);
+    p.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); });
+  patients = [];
+  Object.keys(patientMats).forEach(function(k){ patientMats[k].dispose(); });
+  patientMats = {};
+}
+function buildPatients(info, n){
+  clearPatients();
+  if(!n || !hunter.group) return;
+  var g = world.grid, field = info.field;
+  // 置き場所は間取りから作った別の乱数で引く（ゲームの rnd を引くと展開が変わる）
+  var br = mulberry32(((info.reach.length * 2246822519) ^ (info.start.x * 3266489917) ^ (info.start.y * 668265263)) >>> 0 || 3);
+  var cand = info.reach.filter(function(c){
+    if(field[idx(c.x, c.y)] < 9) return false;                         // 開始地点の近くには置かない
+    if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
+    var walls = 0;
+    for(var k=0; k<4; k++){ var nx = c.x + [1,-1,0,0][k], ny = c.y + [0,0,1,-1][k];
+      if(!inBounds(nx, ny) || g[idx(nx, ny)] !== 0) walls++; }
+    return walls >= 2;                                                   // 行き止まりや曲がり角の壁際
+  });
+  var fig = bakeFigure(hunter.group);
+  var usedP = {};
+  for(var i=0; i<n && cand.length; i++){
+    var c = cand.splice((br() * cand.length) | 0, 1)[0];
+    var key = c.x + ',' + c.y; if(usedP[key]) continue; usedP[key] = 1;
+    // 壁のある向きを探し、そちらへ向けて壁際に立たせる
+    var dirs = [];
+    for(var k2=0; k2<4; k2++){ var wx = c.x + [1,-1,0,0][k2], wy = c.y + [0,0,1,-1][k2];
+      if(!inBounds(wx, wy) || g[idx(wx, wy)] !== 0) dirs.push(k2); }
+    var dk = dirs[(br() * dirs.length) | 0];
+    var ddx = [1,-1,0,0][dk], ddz = [0,0,1,-1][dk];
+    var w = cellToWorld(c.x, c.y);
+    var px = w.x + ddx * (CELL*0.5 - 0.55), pz = w.z + ddz * (CELL*0.5 - 0.55);
+    // 追跡者の前は -Z ではなく +Z 向き（yaw=atan2(dx,dz)）で組んである
+    var yaw0 = Math.atan2(ddx, ddz);
+    var grp = new THREE.Group();
+    fig.children.forEach(function(m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
+    grp.position.set(px, 0, pz);
+    grp.rotation.y = yaw0;
+    grp.scale.setScalar(0.93 + br()*0.05);
+    scene.add(grp);
+    patients.push({ group:grp, x:px, z:pz, yaw0:yaw0, yaw:yaw0, state:'idle', t:0, cool:0, ph:br()*TAU });
+  }
+  fig.children.forEach(function(m){ m.geometry.dispose(); });
+}
+function updatePatients(dt){
+  for(var i=0; i<patients.length; i++){
+    var p = patients[i];
+    var dx = player.x - p.x, dz = player.z - p.z, d = Math.sqrt(dx*dx + dz*dz);
+    // 触れられるほど寄っても、すり抜けはしない
+    if(d < 0.42 && d > 0.0001 && !player.hiding){
+      player.x = p.x + dx/d*0.42; player.z = p.z + dz/d*0.42;
+    }
+    p.cool = Math.max(0, p.cool - dt);
+    p.t += dt;
+    var face = Math.atan2(dx, dz);
+    if(p.state === 'idle'){
+      p.yaw = p.yaw0;
+      if(p.cool <= 0 && d < PATIENT_NOTICE && !player.hiding && !cheats.invisible &&
+         hasSight(world.grid, player.x, player.z, p.x, p.z)){
+        var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+        var lit = player.lamp && ((-dx/d)*fx + (-dz/d)*fz) > 0.93;         // 灯りを顔に向けた
+        if(lit || (player.running && d < 3.2) || d < 1.4){ p.state = 'turn'; p.t = 0; }
+      }
+    }else if(p.state === 'turn'){
+      p.yaw = lerpAngle(p.yaw0, face, clamp(p.t / 0.35, 0, 1));
+      if(p.t >= 0.35){
+        p.state = 'stare'; p.t = 0; p.cool = PATIENT_COOL;
+        var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+        Audio2.shriek(d, clamp(((p.x-player.x)*rx + (p.z-player.z)*rz) / Math.max(1, d), -1, 1));
+        player.sanity = clamp(player.sanity - 8, 0, 100);
+        player.shake = Math.max(player.shake, 0.5);
+        haptic(60);
+        // 叫び声のした場所へ呼ぶ。見て追っている最中なら何も変わらない
+        if(!cheats.invisible && hunter.spawnGrace <= 0 && hunter.mode !== 'chase'){
+          hunter.mode = 'hunt'; hunter.lastSeen = { x:p.x, z:p.z }; hunter.repathT = 0; hunter.inspect = null;
+        }
+        if(settings.cues) soundCue('叫び声', d, true);
+      }
+    }else if(p.state === 'stare'){
+      p.yaw = lerpAngle(p.yaw, face, 1 - Math.pow(0.02, dt));
+      if(p.t >= PATIENT_STARE){ p.state = 'back'; p.t = 0; p.from = p.yaw; }
+    }else if(p.state === 'back'){
+      p.yaw = lerpAngle(p.from, p.yaw0, clamp(p.t / 1.4, 0, 1));
+      if(p.t >= 1.4) p.state = 'idle';
+    }
+    // 揺れ。立ったまま、わずかに前後へ
+    p.group.rotation.set(Math.sin(p.t*0.6 + p.ph)*0.025, p.yaw, Math.sin(p.t*0.43 + p.ph)*0.018);
+  }
+}
+function lerpAngle(a, b, t){
+  var dd = ((b - a + Math.PI*3) % TAU) - Math.PI;
+  return a + dd * t;
+}

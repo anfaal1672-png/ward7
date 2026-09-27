@@ -106,6 +106,13 @@
       <button type="button" data-diff="1" aria-pressed="true">通常</button>
       <button type="button" data-diff="2" aria-pressed="false">絶望</button>
     </div>
+    <div class="seg" id="segCh" role="group" aria-label="章" style="margin-top:10px">
+      <button type="button" data-ch="0" aria-pressed="true">一 西棟</button>
+      <button type="button" data-ch="1" aria-pressed="false">二 東棟</button>
+      <button type="button" data-ch="2" aria-pressed="false">三 管理棟</button>
+      <button type="button" data-ch="-1" aria-pressed="false">夜勤</button>
+    </div>
+    <p class="hint" id="chDesc" style="max-width:min(420px,86vw);text-align:center"></p>
     <button class="btn primary" id="btnStart" type="button" style="margin-top:16px">病棟に入る</button>
     <!-- 副次の入口は 2 列に畳む。同じ幅で 5 つ縦に並べると、
          どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->

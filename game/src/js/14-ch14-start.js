@@ -29,8 +29,11 @@ function startGame(){
   /* 検証で「同じ間取りを両方の版で走らせる」ために種を固定できるようにする。
      間取りの当たり外れが変更の効果より大きく、毎回別の間取りだと n=16 では
      被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
+  /* 物語の章は種を固定する（第 6.1 節）。検証用の forcedSeed はそれより優先。
+     夜勤は毎回違う種 */
+  var rdef = runDef();
   rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : ((Date.now() ^ (Math.random()*1e9)))) & 0x7fffffff);
+                   : (rdef.seed !== null ? rdef.seed : ((Date.now() ^ (Math.random()*1e9))))) & 0x7fffffff);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -61,6 +64,8 @@ function startGame(){
   sanitizeNormals(scene);
   sanitizeNormals(viewScene);
   placeHunter(buildInfo.reach, buildInfo.start);
+  buildPatients(buildInfo, rdef.patients[clamp(settings.diff|0, 0, 2)] | 0);
+  world.blackout = !!rdef.blackout;
 
   var sw = cellToWorld(buildInfo.start.x, buildInfo.start.y);
   player.x = sw.x; player.z = sw.z;
@@ -95,6 +100,7 @@ function startGame(){
   $('numAll').textContent = d.records;
   $('numGot').textContent = '0';
   $('objSub').textContent = 'カルテを探せ';
+  if(rdef.n) toast('第' + rdef.n + '章　' + rdef.name, 3.2);
   $('bLight').classList.add('hot');
   $('bUse').classList.add('dim');
   $('hurt').style.opacity = '0';

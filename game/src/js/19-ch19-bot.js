@@ -236,6 +236,9 @@ function botScan(){
     botRemember('鍵', world.key.x, world.key.z, world.key);
   if(world.lockDoor && !world.lockDoor.open && botCanSee(world.lockDoor.x, world.lockDoor.z))
     botRemember('施錠扉', world.lockDoor.x, world.lockDoor.z, world.lockDoor);
+  // 停電の章（第 5 章 CHAPTERS.blackout）では、電源の操作盤も覚えておく
+  if(world.blackout && world.lever && botCanSee(world.lever.x, world.lever.z))
+    botRemember('電源', world.lever.x, world.lever.z, world.lever);
   /* 非常口だけは見え方が違う。扉の脇に赤い誘導灯（PointLight）が点いていて、
      ランプを消していても暗い廊下の先に赤い光として見える。
      botCanSee は「ランプが消えていれば 6.5m・視野 ±62 度」なので、
@@ -727,6 +730,14 @@ function botChooseGoal(){
       }
       return { kind:'施錠扉', x:t.x, z:t.z, obj:t.ref };
     }
+  }
+  /* 停電の章は、電源を戻すまで非常口が開かない。戻すと大きな音で居場所が
+     漏れるので、出口の場所が分かってから戻しに行く（知らないうちに戻すと
+     呼び寄せたまま探し回ることになる） */
+  if(world.blackout && !world.power){
+    if(botNearest('非常口') && (t = botNearest('電源'))) return { kind:'電源', x:t.x, z:t.z, obj:t.ref };
+    if((t = botNearest('電源')) && !botNearest('非常口')) return { kind:'探索', x:null, z:null };
+    if(!botNearest('電源')) return { kind:'探索', x:null, z:null };
   }
   if((t = botNearest('非常口'))) return { kind:'非常口', x:t.x, z:t.z, obj:t.ref };
   if(BOT.signHint && (player.time - BOT.signHint.t) < 25){

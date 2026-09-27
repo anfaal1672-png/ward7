@@ -54,6 +54,7 @@ try{
     propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
+    run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){

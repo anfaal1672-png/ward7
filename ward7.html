@@ -508,6 +508,13 @@
       <button type="button" data-diff="1" aria-pressed="true">通常</button>
       <button type="button" data-diff="2" aria-pressed="false">絶望</button>
     </div>
+    <div class="seg" id="segCh" role="group" aria-label="章" style="margin-top:10px">
+      <button type="button" data-ch="0" aria-pressed="true">一 西棟</button>
+      <button type="button" data-ch="1" aria-pressed="false">二 東棟</button>
+      <button type="button" data-ch="2" aria-pressed="false">三 管理棟</button>
+      <button type="button" data-ch="-1" aria-pressed="false">夜勤</button>
+    </div>
+    <p class="hint" id="chDesc" style="max-width:min(420px,86vw);text-align:center"></p>
     <button class="btn primary" id="btnStart" type="button" style="margin-top:16px">病棟に入る</button>
     <!-- 副次の入口は 2 列に畳む。同じ幅で 5 つ縦に並べると、
          どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->
@@ -1512,7 +1519,36 @@ var Audio2 = (function(){
     env(og, t, 0.002, 0.12, 0.35);
     o.start(t); o.stop(t + 0.2);
   }
-  return { setScore:setScore, glass:glass, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 患者の叫び（第 9 章 updatePatients）。女の声に寄せた鋸歯を 2 つの共鳴
+     （900 / 2600 Hz）に通し、上ずってから崩れる。息の雑音を上に敷く */
+  function shriek(dist, pan){
+    if(!ready) return;
+    var t = ctx.currentTime, dur = 1.5;
+    var att = 7 / (7 + dist);
+    var out = ctx.createGain(); out.gain.value = 0.0001;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.55 * att, t + 0.06);
+    out.gain.setTargetAtTime(0.0001, t + dur*0.7, 0.18);
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if(pn){ pn.pan.value = clamp(pan, -1, 1); out.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
+    else out.connect(master);
+    var o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(560, t);
+    o.frequency.exponentialRampToValueAtTime(1040, t + 0.35);
+    o.frequency.exponentialRampToValueAtTime(610, t + dur);
+    var vib = ctx.createOscillator(); vib.frequency.value = 7.5;
+    var vg = ctx.createGain(); vg.gain.value = 38; vib.connect(vg); vg.connect(o.frequency);
+    [900, 2600].forEach(function(f, i){
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 5 + i*3;
+      var g = ctx.createGain(); g.gain.value = i ? 0.5 : 1;
+      o.connect(bp); bp.connect(g); g.connect(out);
+    });
+    var n = noiseSrc(); var nf = ctx.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 2400;
+    var ng = ctx.createGain(); ng.gain.value = 0.22; n.connect(nf); nf.connect(ng); ng.connect(out);
+    o.start(t); vib.start(t); n.start(t);
+    o.stop(t + dur + 0.4); vib.stop(t + dur + 0.4); n.stop(t + dur + 0.4);
+  }
+  return { setScore:setScore, glass:glass, shriek:shriek, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
@@ -2571,6 +2607,37 @@ var DIFF = [
     learn:2, calm:45 }
 ];
 
+/* 章（設計指示書 第 6.2 節）。物語は章ごとに種を固定し、全員が同じ病棟を歩く
+   （攻略や実況を共有できるように）。夜勤は毎回違う病棟を歩く周回用の遊び方
+   （第 5.7 節）で、これまでのゲームそのもの。
+   patients … 壁を向いて立つ患者の数（難易度順）。灯りを向けると叫び、あれを呼ぶ
+   blackout … 非常回路が落ちている。非常灯は消え、電源を戻すまで非常口が開かない */
+var CHAPTERS = [
+  { n:1, name:'西棟',   seed:0x57A01, patients:[0,0,0], blackout:false,
+    intro:'カルテを集め、非常口から出る。' },
+  { n:2, name:'東棟',   seed:0x57A02, patients:[3,4,5], blackout:false,
+    intro:'大部屋の患者たちは壁を向いて立っている。灯りを向けると騒ぐ。騒げば、あれが来る。' },
+  { n:3, name:'管理棟', seed:0x57A03, patients:[0,1,2], blackout:true,
+    intro:'非常回路が落ちている。電源を戻さなければ非常口は開かない。戻せば、あれに気づかれる。' }
+];
+var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
+  intro:'毎回違う病棟。物語とは別に、何度でも。' };
+/* いま遊んでいる回。RUN.ch は CHAPTERS の添字、夜勤は -1 */
+var RUN = { ch:0 };
+function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
+function isFinalChapter(){ return RUN.ch === CHAPTERS.length - 1; }
+/* 章の進み。どこまで開いたか・どれを抜けたか */
+var PROGRESS = { unlocked:1, cleared:{} };
+try{
+  var pg0 = JSON.parse(Store.get('ward7.progress') || 'null');
+  if(pg0 && typeof pg0 === 'object'){
+    PROGRESS.unlocked = clamp(pg0.unlocked|0, 1, CHAPTERS.length);
+    if(pg0.cleared && typeof pg0.cleared === 'object') PROGRESS.cleared = pg0.cleared;
+  }
+}catch(e){}
+function saveProgress(){ Store.set('ward7.progress', JSON.stringify(PROGRESS)); }
+RUN.ch = clamp(PROGRESS.unlocked - 1, 0, CHAPTERS.length - 1);
+
 /* どちらの側で遊ぶか。'survivor' が従来のゲーム、'hunter' は追う側。
    追う側のときは逃げる側を AI（第19章のボット）が動かす。 */
 var playAs = 'survivor';
@@ -3111,7 +3178,7 @@ function clearWorld(){
   scene.add(world.group);
   world.props = []; world.records = []; world.batteries = []; world.bottles = []; world.bandages = [];
   world.lamps = []; world.exit = null; world.hides = [];
-  world.key = null; world.lockDoor = null; world.lever = null; world.power = false;
+  world.key = null; world.lockDoor = null; world.lever = null; world.power = false; world.blackout = false;
   world.zones = []; world.exitField = null; world.nav = null;
 }
 
@@ -7014,6 +7081,154 @@ function placeHunter(reach, startC){
   hunter.group.position.set(hunter.x, 0, hunter.z);
 }
 
+
+/* --- 徘徊する患者（設計指示書 第 5.4 節・第 9.1 節） ------------------------
+   壁を向いて立ったまま動かない。所見 05-01 の「全員が同じ方向を向いて
+   座っている」を、そのまま病棟に置く。
+   襲ってはこない。ただし灯りを顔に向けられる・すぐそばを走られる・
+   触れるほど寄られると振り向いて叫び、叫び声のした場所へあれを呼ぶ。
+   体は追跡者を組み上げた直後（まだ一度も動かしていない静止姿勢）を
+   写し取り、材質ごとに 1 つのメッシュへ畳む。40 部品を毎回 40 回描くと
+   iPhone の描画予算（第 7.2 節：最低端末で 150）をこれだけで食い潰す。 */
+var patients = [];
+var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
+var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
+var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
+var patientMats = {};
+function patientMat(m){
+  if(patientMats[m.uuid]) return patientMats[m.uuid];
+  var c = m.clone();
+  if(c.color) c.color.multiplyScalar(0.72);          // 追跡者より灰色がかって見えるように
+  if(c.emissive){ c.emissive.setRGB(0, 0, 0); c.emissiveIntensity = 0; }
+  patientMats[m.uuid] = c;
+  return c;
+}
+function bakeFigure(src){
+  src.updateMatrixWorld(true);
+  var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
+  var byMat = {}, keys = [];
+  src.traverseVisible(function(o){
+    if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
+    var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    var n = g.attributes.position.count;
+    // 畳むには属性の組が揃っていないといけない。無い物は埋め、余計な物は捨てる
+    if(!g.attributes.normal) g.computeVertexNormals();
+    if(!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n*2), 2));
+    if(!g.attributes.color){ var one = new Float32Array(n*3); one.fill(1);
+      g.setAttribute('color', new THREE.Float32BufferAttribute(one, 3)); }
+    Object.keys(g.attributes).forEach(function(k){
+      if(k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k); });
+    g.morphAttributes = {};
+    var key = o.material.uuid;
+    if(!byMat[key]){ byMat[key] = { mat:o.material, list:[] }; keys.push(key); }
+    byMat[key].list.push(g);
+  });
+  var out = new THREE.Group();
+  keys.forEach(function(k){
+    var merged = THREE.BufferGeometryUtils.mergeGeometries(byMat[k].list, false);
+    byMat[k].list.forEach(function(g){ g.dispose(); });
+    if(!merged) return;
+    fixNormals(merged);
+    out.add(new THREE.Mesh(merged, patientMat(byMat[k].mat)));
+  });
+  return out;
+}
+function clearPatients(){
+  patients.forEach(function(p){ if(p.group.parent) p.group.parent.remove(p.group);
+    p.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); });
+  patients = [];
+  Object.keys(patientMats).forEach(function(k){ patientMats[k].dispose(); });
+  patientMats = {};
+}
+function buildPatients(info, n){
+  clearPatients();
+  if(!n || !hunter.group) return;
+  var g = world.grid, field = info.field;
+  // 置き場所は間取りから作った別の乱数で引く（ゲームの rnd を引くと展開が変わる）
+  var br = mulberry32(((info.reach.length * 2246822519) ^ (info.start.x * 3266489917) ^ (info.start.y * 668265263)) >>> 0 || 3);
+  var cand = info.reach.filter(function(c){
+    if(field[idx(c.x, c.y)] < 9) return false;                         // 開始地点の近くには置かない
+    if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
+    var walls = 0;
+    for(var k=0; k<4; k++){ var nx = c.x + [1,-1,0,0][k], ny = c.y + [0,0,1,-1][k];
+      if(!inBounds(nx, ny) || g[idx(nx, ny)] !== 0) walls++; }
+    return walls >= 2;                                                   // 行き止まりや曲がり角の壁際
+  });
+  var fig = bakeFigure(hunter.group);
+  var usedP = {};
+  for(var i=0; i<n && cand.length; i++){
+    var c = cand.splice((br() * cand.length) | 0, 1)[0];
+    var key = c.x + ',' + c.y; if(usedP[key]) continue; usedP[key] = 1;
+    // 壁のある向きを探し、そちらへ向けて壁際に立たせる
+    var dirs = [];
+    for(var k2=0; k2<4; k2++){ var wx = c.x + [1,-1,0,0][k2], wy = c.y + [0,0,1,-1][k2];
+      if(!inBounds(wx, wy) || g[idx(wx, wy)] !== 0) dirs.push(k2); }
+    var dk = dirs[(br() * dirs.length) | 0];
+    var ddx = [1,-1,0,0][dk], ddz = [0,0,1,-1][dk];
+    var w = cellToWorld(c.x, c.y);
+    var px = w.x + ddx * (CELL*0.5 - 0.55), pz = w.z + ddz * (CELL*0.5 - 0.55);
+    // 追跡者の前は -Z ではなく +Z 向き（yaw=atan2(dx,dz)）で組んである
+    var yaw0 = Math.atan2(ddx, ddz);
+    var grp = new THREE.Group();
+    fig.children.forEach(function(m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
+    grp.position.set(px, 0, pz);
+    grp.rotation.y = yaw0;
+    grp.scale.setScalar(0.93 + br()*0.05);
+    scene.add(grp);
+    patients.push({ group:grp, x:px, z:pz, yaw0:yaw0, yaw:yaw0, state:'idle', t:0, cool:0, ph:br()*TAU });
+  }
+  fig.children.forEach(function(m){ m.geometry.dispose(); });
+}
+function updatePatients(dt){
+  for(var i=0; i<patients.length; i++){
+    var p = patients[i];
+    var dx = player.x - p.x, dz = player.z - p.z, d = Math.sqrt(dx*dx + dz*dz);
+    // 触れられるほど寄っても、すり抜けはしない
+    if(d < 0.42 && d > 0.0001 && !player.hiding){
+      player.x = p.x + dx/d*0.42; player.z = p.z + dz/d*0.42;
+    }
+    p.cool = Math.max(0, p.cool - dt);
+    p.t += dt;
+    var face = Math.atan2(dx, dz);
+    if(p.state === 'idle'){
+      p.yaw = p.yaw0;
+      if(p.cool <= 0 && d < PATIENT_NOTICE && !player.hiding && !cheats.invisible &&
+         hasSight(world.grid, player.x, player.z, p.x, p.z)){
+        var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+        var lit = player.lamp && ((-dx/d)*fx + (-dz/d)*fz) > 0.93;         // 灯りを顔に向けた
+        if(lit || (player.running && d < 3.2) || d < 1.4){ p.state = 'turn'; p.t = 0; }
+      }
+    }else if(p.state === 'turn'){
+      p.yaw = lerpAngle(p.yaw0, face, clamp(p.t / 0.35, 0, 1));
+      if(p.t >= 0.35){
+        p.state = 'stare'; p.t = 0; p.cool = PATIENT_COOL;
+        var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+        Audio2.shriek(d, clamp(((p.x-player.x)*rx + (p.z-player.z)*rz) / Math.max(1, d), -1, 1));
+        player.sanity = clamp(player.sanity - 8, 0, 100);
+        player.shake = Math.max(player.shake, 0.5);
+        haptic(60);
+        // 叫び声のした場所へ呼ぶ。見て追っている最中なら何も変わらない
+        if(!cheats.invisible && hunter.spawnGrace <= 0 && hunter.mode !== 'chase'){
+          hunter.mode = 'hunt'; hunter.lastSeen = { x:p.x, z:p.z }; hunter.repathT = 0; hunter.inspect = null;
+        }
+        if(settings.cues) soundCue('叫び声', d, true);
+      }
+    }else if(p.state === 'stare'){
+      p.yaw = lerpAngle(p.yaw, face, 1 - Math.pow(0.02, dt));
+      if(p.t >= PATIENT_STARE){ p.state = 'back'; p.t = 0; p.from = p.yaw; }
+    }else if(p.state === 'back'){
+      p.yaw = lerpAngle(p.from, p.yaw0, clamp(p.t / 1.4, 0, 1));
+      if(p.t >= 1.4) p.state = 'idle';
+    }
+    // 揺れ。立ったまま、わずかに前後へ
+    p.group.rotation.set(Math.sin(p.t*0.6 + p.ph)*0.025, p.yaw, Math.sin(p.t*0.43 + p.ph)*0.018);
+  }
+}
+function lerpAngle(a, b, t){
+  var dd = ((b - a + Math.PI*3) % TAU) - Math.PI;
+  return a + dd * t;
+}
 /* =========================================================================
    10. プレイヤー
    ========================================================================= */
@@ -7902,6 +8117,17 @@ function syncSettingsUI(){
   });
   $('valD').textContent = ['オフ','敵のみ','完全'][settings.detect];
   $('chartGoal').textContent = 'カルテ' + DIFF[settings.diff].records + '枚 → 非常口';
+  // 章。開いていない章は押せない（夜勤はいつでも）
+  Array.prototype.forEach.call($('segCh').children, function(b){
+    var c = +b.dataset.ch;
+    var open = c < 0 || c < PROGRESS.unlocked;
+    b.disabled = !open;
+    b.style.opacity = open ? '' : '0.35';
+    b.setAttribute('aria-pressed', (c === RUN.ch) ? 'true' : 'false');
+  });
+  var rd = runDef();
+  $('chDesc').textContent = (RUN.ch >= 0 ? '第' + rd.n + '章 ' + rd.name + '　' : '夜勤　') + rd.intro +
+    (RUN.ch >= 0 && PROGRESS.cleared[rd.n] ? '（抜けた）' : '');
   $('fovA').value = settings.fov;
   $('valF').textContent = (settings.fov > 0 ? '+' : (settings.fov < 0 ? '' : '±')) + settings.fov;
   $('motion').value = settings.motion;
@@ -8107,7 +8333,17 @@ $('btnHunt').addEventListener('click', function(){ playAs = 'hunter'; BOT.on = t
 $('btnResume').addEventListener('click', function(){ doResume(); });
 $('btnQuit').addEventListener('click', function(){ toTitle(); });
 $('btnRetry').addEventListener('click', function(){ startGame(); });
-$('btnAgain').addEventListener('click', function(){ startGame(); });
+/* 章を抜けたあとの「もう一度」は「次の章へ」に変わる（第 16 章 doWin が文字を差し替える） */
+$('btnAgain').addEventListener('click', function(){
+  if(RUN.ch >= 0 && RUN.nextCh !== undefined && RUN.nextCh !== null){ RUN.ch = RUN.nextCh; RUN.nextCh = null; }
+  startGame();
+});
+Array.prototype.forEach.call($('segCh').children, function(b){
+  b.addEventListener('click', function(){
+    if(b.disabled) return;
+    RUN.ch = +b.dataset.ch; syncSettingsUI();
+  });
+});
 $('btnDeadTitle').addEventListener('click', function(){ toTitle(); });
 $('btnWinTitle').addEventListener('click', function(){ toTitle(); });
 
@@ -8198,8 +8434,11 @@ function startGame(){
   /* 検証で「同じ間取りを両方の版で走らせる」ために種を固定できるようにする。
      間取りの当たり外れが変更の効果より大きく、毎回別の間取りだと n=16 では
      被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
+  /* 物語の章は種を固定する（第 6.1 節）。検証用の forcedSeed はそれより優先。
+     夜勤は毎回違う種 */
+  var rdef = runDef();
   rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : ((Date.now() ^ (Math.random()*1e9)))) & 0x7fffffff);
+                   : (rdef.seed !== null ? rdef.seed : ((Date.now() ^ (Math.random()*1e9))))) & 0x7fffffff);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -8230,6 +8469,8 @@ function startGame(){
   sanitizeNormals(scene);
   sanitizeNormals(viewScene);
   placeHunter(buildInfo.reach, buildInfo.start);
+  buildPatients(buildInfo, rdef.patients[clamp(settings.diff|0, 0, 2)] | 0);
+  world.blackout = !!rdef.blackout;
 
   var sw = cellToWorld(buildInfo.start.x, buildInfo.start.y);
   player.x = sw.x; player.z = sw.z;
@@ -8264,6 +8505,7 @@ function startGame(){
   $('numAll').textContent = d.records;
   $('numGot').textContent = '0';
   $('objSub').textContent = 'カルテを探せ';
+  if(rdef.n) toast('第' + rdef.n + '章　' + rdef.name, 3.2);
   $('bLight').classList.add('hot');
   $('bUse').classList.add('dim');
   $('hurt').style.opacity = '0';
@@ -8589,9 +8831,14 @@ function updatePlayer(dt){
   var reticle = $('reticle'), useBtn = $('bUse');
   if($('bHold').style.display === 'none' && player.hiding) $('bHold').style.display = 'flex';
   if($('bHold').style.display !== 'none' && !player.hiding) $('bHold').style.display = 'none';
-  var canUse = !!near && !(near.type==='exit' && !world.exit.open)
+  // 停電の章は電源を戻すまで非常口が開かない（第 5 章 CHAPTERS.blackout）
+  var dead = world.blackout && !world.power;
+  var canUse = !!near && !(near.type==='exit' && (!world.exit.open || dead))
                       && !(near.type==='lock' && !player.hasKey);
-  if(near && near.type==='exit' && !world.exit.open){
+  if(near && near.type==='exit' && world.exit.open && dead){
+    useBtn.classList.add('dim'); reticle.classList.remove('act');
+    useBtn.textContent = '停電';
+  }else if(near && near.type==='exit' && !world.exit.open){
     useBtn.classList.add('dim'); reticle.classList.remove('act');
     useBtn.textContent = '施錠';
   }else if(near && near.type==='lock' && !player.hasKey){
@@ -8628,7 +8875,8 @@ function updatePlayer(dt){
           world.exit.sign.color.setHex(0x6fbfa8);
           world.exitLight.color.setHex(0x6fbfa8);
           world.exitLight.intensity = 1.6;
-          $('objSub').textContent = player.hasKey ? '非常口へ走れ' : '鍵を探して非常口へ';
+          $('objSub').textContent = (world.blackout && !world.power) ? '電源を戻し、非常口へ' :
+                                    (player.hasKey ? '非常口へ走れ' : '鍵を探して非常口へ');
           Audio2.unlock();
           toast('非常口が開いた', 3);
           setTimeout(function(){
@@ -9781,6 +10029,7 @@ function updateEnv(dt, info){
       var fl = 0.55 + 0.45*Math.sin(lampFlick*7 + L.flick) * (Math.sin(lampFlick*2.3+L.flick)>0.7?1:0.25);
       fl = lerp(0.62, fl, settings.flash);          // 点滅の強さ（設定）
       var inten = dd < 22 ? (1.5*fl*(world.power ? 2.0 : 1)) : 0;
+      if(world.blackout && !world.power) inten = 0;           // 非常回路が落ちている
       lightPool[i].position.set(L.x, WALL_H-0.35, L.z);
       lightPool[i].intensity = inten;
       L.mesh.material.color.setRGB(1, 0.72*fl+0.2, 0.35*fl+0.15);
@@ -10105,8 +10354,18 @@ function doWin(){
   /* 結末（設計指示書 第 20.1 節）。三通を結びつけた者が、灯りを消したまま
      扉を抜けたときだけ、もう一つの結末になる。灯りを点けたまま出れば
      いつもの脱出。チートの回・ボット・追う側では結末を数えない。 */
-  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter');
+  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter') && (RUN.ch < 0 || isFinalChapter());
   var endingB = story && JOURNAL.linked && !player.lamp;
+  /* 章を抜けた。次の章を開き、「もう一度」を「次の章へ」に変える */
+  RUN.nextCh = null;
+  if(RUN.ch >= 0 && playAs !== 'hunter' && !BOT.on && !cheatUsed){
+    PROGRESS.cleared[runDef().n] = 1;
+    if(RUN.ch + 1 < CHAPTERS.length){
+      PROGRESS.unlocked = Math.max(PROGRESS.unlocked, RUN.ch + 2);
+      RUN.nextCh = RUN.ch + 1;
+    }
+    saveProgress();
+  }
   if(story){ JOURNAL.endings[endingB ? 'B' : 'A'] = 1; saveJournal(); }
   var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
   recordRun(true, player.hits||0);
@@ -10144,7 +10403,9 @@ function doWin(){
     renderer.toneMappingExposure = exposureNow();
     Audio2.stopAmbient();
     $('winEyebrow').textContent = endingB ? 'Released' : 'Discharged';
-    $('winTitle').textContent = endingB ? '退院' : '脱出';
+    $('winTitle').textContent = endingB ? '退院' : (RUN.ch >= 0 && !story ? '第' + runDef().n + '章 完' : '脱出');
+    $('btnAgain').textContent = (RUN.nextCh !== null && RUN.nextCh !== undefined)
+      ? '次の章へ　第' + CHAPTERS[RUN.nextCh].n + '章 ' + CHAPTERS[RUN.nextCh].name : 'もう一度';
     $('winStory').textContent = !story ? '' : (endingB ? ENDING_B : ENDING_A);
     $('winStats').innerHTML =
       (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +
@@ -10255,6 +10516,7 @@ function loop(now){
       updateHUD(dt, bpm, info);
       updateCue(dt);
       updateThrows(dt);
+      updatePatients(dt);
       updateHint(dt);
       // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
       var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');
@@ -11294,6 +11556,9 @@ function botScan(){
     botRemember('鍵', world.key.x, world.key.z, world.key);
   if(world.lockDoor && !world.lockDoor.open && botCanSee(world.lockDoor.x, world.lockDoor.z))
     botRemember('施錠扉', world.lockDoor.x, world.lockDoor.z, world.lockDoor);
+  // 停電の章（第 5 章 CHAPTERS.blackout）では、電源の操作盤も覚えておく
+  if(world.blackout && world.lever && botCanSee(world.lever.x, world.lever.z))
+    botRemember('電源', world.lever.x, world.lever.z, world.lever);
   /* 非常口だけは見え方が違う。扉の脇に赤い誘導灯（PointLight）が点いていて、
      ランプを消していても暗い廊下の先に赤い光として見える。
      botCanSee は「ランプが消えていれば 6.5m・視野 ±62 度」なので、
@@ -11785,6 +12050,14 @@ function botChooseGoal(){
       }
       return { kind:'施錠扉', x:t.x, z:t.z, obj:t.ref };
     }
+  }
+  /* 停電の章は、電源を戻すまで非常口が開かない。戻すと大きな音で居場所が
+     漏れるので、出口の場所が分かってから戻しに行く（知らないうちに戻すと
+     呼び寄せたまま探し回ることになる） */
+  if(world.blackout && !world.power){
+    if(botNearest('非常口') && (t = botNearest('電源'))) return { kind:'電源', x:t.x, z:t.z, obj:t.ref };
+    if((t = botNearest('電源')) && !botNearest('非常口')) return { kind:'探索', x:null, z:null };
+    if(!botNearest('電源')) return { kind:'探索', x:null, z:null };
   }
   if((t = botNearest('非常口'))) return { kind:'非常口', x:t.x, z:t.z, obj:t.ref };
   if(BOT.signHint && (player.time - BOT.signHint.t) < 25){
@@ -13291,6 +13564,7 @@ try{
     propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
+    run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){

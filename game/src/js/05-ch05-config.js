@@ -18,6 +18,37 @@ var DIFF = [
     learn:2, calm:45 }
 ];
 
+/* 章（設計指示書 第 6.2 節）。物語は章ごとに種を固定し、全員が同じ病棟を歩く
+   （攻略や実況を共有できるように）。夜勤は毎回違う病棟を歩く周回用の遊び方
+   （第 5.7 節）で、これまでのゲームそのもの。
+   patients … 壁を向いて立つ患者の数（難易度順）。灯りを向けると叫び、あれを呼ぶ
+   blackout … 非常回路が落ちている。非常灯は消え、電源を戻すまで非常口が開かない */
+var CHAPTERS = [
+  { n:1, name:'西棟',   seed:0x57A01, patients:[0,0,0], blackout:false,
+    intro:'カルテを集め、非常口から出る。' },
+  { n:2, name:'東棟',   seed:0x57A02, patients:[3,4,5], blackout:false,
+    intro:'大部屋の患者たちは壁を向いて立っている。灯りを向けると騒ぐ。騒げば、あれが来る。' },
+  { n:3, name:'管理棟', seed:0x57A03, patients:[0,1,2], blackout:true,
+    intro:'非常回路が落ちている。電源を戻さなければ非常口は開かない。戻せば、あれに気づかれる。' }
+];
+var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
+  intro:'毎回違う病棟。物語とは別に、何度でも。' };
+/* いま遊んでいる回。RUN.ch は CHAPTERS の添字、夜勤は -1 */
+var RUN = { ch:0 };
+function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
+function isFinalChapter(){ return RUN.ch === CHAPTERS.length - 1; }
+/* 章の進み。どこまで開いたか・どれを抜けたか */
+var PROGRESS = { unlocked:1, cleared:{} };
+try{
+  var pg0 = JSON.parse(Store.get('ward7.progress') || 'null');
+  if(pg0 && typeof pg0 === 'object'){
+    PROGRESS.unlocked = clamp(pg0.unlocked|0, 1, CHAPTERS.length);
+    if(pg0.cleared && typeof pg0.cleared === 'object') PROGRESS.cleared = pg0.cleared;
+  }
+}catch(e){}
+function saveProgress(){ Store.set('ward7.progress', JSON.stringify(PROGRESS)); }
+RUN.ch = clamp(PROGRESS.unlocked - 1, 0, CHAPTERS.length - 1);
+
 /* どちらの側で遊ぶか。'survivor' が従来のゲーム、'hunter' は追う側。
    追う側のときは逃げる側を AI（第19章のボット）が動かす。 */
 var playAs = 'survivor';

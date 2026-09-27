@@ -7,7 +7,7 @@ while [ $i -lt $J ]; do
   SEEDS=""
   k=$i
   while [ $k -lt $N ]; do SEEDS="$SEEDS $((S0+k))"; k=$((k+J)); done
-  WARD7_FILE=$F WARD7_FAST=1 node many.js $D $SEEDS &
+  WARD7_FILE=$F WARD7_FAST=1 WARD7_CH=${WARD7_CH:-} node many.js $D $SEEDS &
   i=$((i+1))
 done
 wait
