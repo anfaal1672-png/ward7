@@ -1,15 +1,21 @@
 /* =========================================================================
    5. 設定・状態
    ========================================================================= */
+/* learn … 同じ隠れ場所を何回使うと、見失った近くでそこを点検しに来るか
+   calm  … 何秒出会わずにいると、演出の頭脳が徘徊をこちらの近くへ寄せるか
+   （設計指示書 第 5.3 節） */
 var DIFF = [
   // chaseMul を掛けた値が追跡速度。プレイヤーの全力疾走は約5.8m/s
   // ※ プレイヤーの基準速度と合わせて全体を1.22倍してあるので、速さの比＝難易度は据え置き
   { key:'静穏',  records:4, hunterSpeed:3.111, sight:16, hearing:10, drain:1.05, dmg:26, batteries:6,
-    chaseMul:1.32, rage:0.366, memory:1.8, batteries2:2 },
+    chaseMul:1.32, rage:0.366, memory:1.8, batteries2:2,
+    learn:4, calm:90 },
   { key:'通常',  records:5, hunterSpeed:3.721, sight:20, hearing:13, drain:1.5,  dmg:38, batteries:5,
-    chaseMul:1.32, rage:0.488, memory:2.4, batteries2:2 },
+    chaseMul:1.32, rage:0.488, memory:2.4, batteries2:2,
+    learn:3, calm:65 },
   { key:'絶望',  records:6, hunterSpeed:4.270, sight:25, hearing:16, drain:2.1,  dmg:52, batteries:4,
-    chaseMul:1.34, rage:0.610, memory:3.2, batteries2:2 }
+    chaseMul:1.34, rage:0.610, memory:3.2, batteries2:2,
+    learn:2, calm:45 }
 ];
 
 /* どちらの側で遊ぶか。'survivor' が従来のゲーム、'hunter' は追う側。
@@ -23,7 +29,12 @@ var settings = {
   invert: false,
   diff: 1,
   detect: 0,       // 0 オフ / 1 敵のみ / 2 完全探知
-  gamma: 1.0       // 画面の明るさ
+  gamma: 1.0,      // 画面の明るさ
+  // アクセシビリティ（設計指示書 第 13 章）
+  fov: 0,          // 視野角の上乗せ（度）
+  motion: 1.0,     // 画面の揺れ 0..1
+  flash: 1.0,      // 点滅の強さ 0..1
+  cues: false      // 音の方向表示
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -35,6 +46,10 @@ try{
     if(typeof saved.diff==='number')    settings.diff = clamp(saved.diff|0,0,2);
     if(typeof saved.detect==='number')  settings.detect = clamp(saved.detect|0,0,2);
     if(typeof saved.gamma==='number')   settings.gamma = clamp(saved.gamma,0.6,1.9);
+    if(typeof saved.fov==='number')     settings.fov = clamp(saved.fov|0,-10,20);
+    if(typeof saved.motion==='number')  settings.motion = clamp(saved.motion,0,1);
+    if(typeof saved.flash==='number')   settings.flash = clamp(saved.flash,0,1);
+    if(typeof saved.cues==='boolean')   settings.cues = saved.cues;
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・

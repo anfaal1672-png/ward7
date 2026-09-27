@@ -337,6 +337,7 @@ function updatePlayer(dt){
         if(al < 0.05){ ax = 1; az = 0; al = 1; }
         near.obj.fromX = ax/al; near.obj.fromZ = az/al;
         player.hiding = near.obj;
+        near.obj.uses = (near.obj.uses || 0) + 1;     // 追跡者が覚える（第 9 章 learn）
         player.vx = player.vz = 0;
         player.yaw = near.obj.yaw;
         // 入るところを見られていたら、隠れても意味がない
@@ -375,11 +376,13 @@ function updatePlayer(dt){
 
   // カメラ
   var spd01 = clamp(vmag/3.0, 0, 1);
-  var bobY = Math.sin(player.bob*2) * (player.running ? 0.052 : 0.028) * spd01;
-  var bobX = Math.cos(player.bob)   * (player.running ? 0.040 : 0.022) * spd01;
+  // 画面の揺れ（設定・第 13 章）。0 で頭の揺れも被弾の揺れも止まる
+  var MO = settings.motion;
+  var bobY = Math.sin(player.bob*2) * (player.running ? 0.052 : 0.028) * spd01 * MO;
+  var bobX = Math.cos(player.bob)   * (player.running ? 0.040 : 0.022) * spd01 * MO;
   var panic = 1 - player.sanity/100;
   player.shake = Math.max(0, player.shake - dt*2.2);
-  var sh = player.shake * 0.06 + panic*0.012;
+  var sh = (player.shake * 0.06 + panic*0.012) * MO;
 
   /* 追う側で遊んでいるときは、このカメラは使わない（第21章が追跡者の頭に置く）。
      ランプもカメラの子なので消し、代わりに逃げる側の分身が世界の中で灯す。 */
@@ -399,10 +402,12 @@ function updatePlayer(dt){
     player.z + (Math.random()-0.5)*sh
   );
   camera.rotation.set(player.pitch, player.viewYaw,
-    Math.sin(player.bob) * (player.running ? 0.019 : 0.010) * spd01 + (Math.random()-0.5)*sh*0.4);
+    Math.sin(player.bob) * (player.running ? 0.019 : 0.010) * spd01 * MO + (Math.random()-0.5)*sh*0.4);
 
   // ランプの明かり
   var flickAmt = player.battery < 22 ? (0.45 + 0.55*Math.abs(Math.sin(performance.now()*0.017))) : 1;
+  // 点滅の強さ（設定）。0 では揺れず、弱った明るさのまま灯る
+  if(flickAmt < 1) flickAmt = lerp(0.72, flickAmt, settings.flash);
 
   // --- 一人称の腕 ---
   if(viewArm){
@@ -616,14 +621,53 @@ function updateHunter(dt, info){
       if(Math.sqrt(lx*lx + lz*lz) < 1.5){
         // 到着しても近くにいれば嗅ぎつけ直す
         // seen を経由させる（隠れて見つかっていない相手を、距離だけで再捕捉しない）
-        if(seen){ hunter.mode = 'chase'; hunter.memT = d.memory * 0.6; }
-        else { hunter.mode = 'patrol'; hunter.lastSeen = null; }
+        if(seen){ hunter.mode = 'chase'; hunter.memT = d.memory * 0.6; hunter.inspect = null; }
+        else if(hunter.inspect){
+          /* 点検。扉を開け、ベッドの下を覗く。ここに居れば見つかる。
+             居なければ、この場所は空だったと覚え直す */
+          hunter.inspectT += dt;
+          if(hunter.inspectT >= HIDE_CHECK_T){
+            var ins = hunter.inspect;
+            Audio2.creak();
+            if(player.hiding === ins && !cheats.invisible && !cheats.ghostHide){
+              player.hideSeen = true;
+              hunter.mode = 'chase'; hunter.memT = d.memory;
+              hunter.lastSeen = { x:player.x, z:player.z };
+              toast('見つかった', 2.2);
+            }else{
+              ins.uses = 0;
+              hunter.mode = 'patrol'; hunter.lastSeen = null;
+            }
+            hunter.inspect = null; hunter.inspectT = 0;
+          }
+        }else{
+          /* 見失った場所の近くに、何度も使われた隠れ場所があれば点検しに行く。
+             こちらが中に居るかどうかは知らない。使われた回数だけを見ている */
+          var insP = null, insD = 5.0;
+          for(var ih=0; ih<world.hides.length; ih++){
+            var H0 = world.hides[ih];
+            if((H0.uses || 0) < d.learn) continue;
+            var idx0 = H0.x - hunter.lastSeen.x, idz0 = H0.z - hunter.lastSeen.z;
+            var idd = Math.sqrt(idx0*idx0 + idz0*idz0);
+            if(idd < insD){ insD = idd; insP = H0; }
+          }
+          if(insP && !cheats.invisible){
+            hunter.inspect = insP; hunter.inspectT = 0;
+            hunter.lastSeen = { x:insP.x, z:insP.z };
+          }else{
+            hunter.mode = 'patrol'; hunter.lastSeen = null;
+          }
+        }
       }
     }else{
       hunter.mode = 'patrol';
     }
   }
   if(hunter.mode === 'chase') hunter.chaseT += dt; else hunter.chaseT = 0;
+  if(hunter.mode !== 'hunt'){ hunter.inspect = null; hunter.inspectT = 0; }
+  // 演出の頭脳：出会っていない時間と、追跡が終わってからの時間
+  if(hunter.mode === 'patrol') DIRECTOR.calmT += dt; else DIRECTOR.calmT = 0;
+  if(hunter.mode === 'chase') DIRECTOR.sinceChaseT = 0; else DIRECTOR.sinceChaseT += dt;
 
   var moved = 0;
   if(playAs === 'hunter'){
@@ -696,11 +740,19 @@ function updateHunter(dt, info){
         // 到達可能なマスから一様に選ぶ（＝どこへ向かうか読めない）
         // 什器で埋まったマスを目的地にしない（着けないので張り付いてしまう）
         var navP = world.nav;
-        var pick = null;
-        for(var pt=0; pt<12; pt++){
+        var pick = null, want = directorWant();
+        var pcD = worldToCell(player.x, player.z);
+        for(var pt=0; pt<(want ? 30 : 12); pt++){
           var cand3 = reach[(rnd()*reach.length)|0];
-          if(!navP || navP[idx(cand3.x, cand3.y)] === 0){ pick = cand3; break; }
+          if(navP && navP[idx(cand3.x, cand3.y)] !== 0) continue;
+          if(want){
+            var mdD = Math.abs(cand3.x - pcD.x) + Math.abs(cand3.y - pcD.y);
+            if(want > 0 && (mdD < DIRECTOR_NEAR[0] || mdD > DIRECTOR_NEAR[1])) continue;
+            if(want < 0 && mdD < DIRECTOR_AWAY) continue;
+          }
+          pick = cand3; break;
         }
+        if(want > 0 && pick) DIRECTOR.calmT = 0;          // 寄せるのは一度に一回。次はまた calm を待つ
         hunter.patrolGoal = pick || reach[(rnd()*reach.length)|0];
         hunter.patrolT = 4.5 + rnd()*4;
       }
@@ -750,10 +802,16 @@ function updateHunter(dt, info){
       var spd = (cheats.slowHunter ? 0.5 : 1) *
                 hunter.speed * (hunter.mode==='chase' ? d.chaseMul : (hunter.mode==='hunt'?1.05:0.82))
                 + (hunter.mode==='chase' ? rage : 0);
-      var mv = (cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0)
+      var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
+      // 曲がり角の減速（第 9 章 CORNER_SLOW）。追跡中だけ効かせる
+      var turnC = 1 - (nx0*hunter.dirX + nz0*hunter.dirZ);   // 0 直進 / 1 直角 / 2 反転
+      if(hunter.mode === 'chase' && turnC > 0.25) hunter.cornerK = Math.max(hunter.cornerK, clamp(turnC, 0, 1));
+      hunter.dirX = nx0; hunter.dirZ = nz0;
+      spd *= 1 - CORNER_SLOW * hunter.cornerK;
+      hunter.cornerK = Math.max(0, hunter.cornerK - dt / CORNER_REC);
+      var mv = (cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0 || hunter.inspect && hunter.inspectT > 0)
                ? 0 : Math.min(dist, spd*dt);
       var beforeX = hunter.x, beforeZ = hunter.z;
-      var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
       hunter.x += nx0*mv; hunter.z += nz0*mv;
       // 直進追跡でも壁をすり抜けないよう毎フレーム押し戻す
       var fix = pushOutOfWalls(hunter.x, hunter.z, 0.34);
@@ -1204,6 +1262,7 @@ function updateHunter(dt, info){
         var rvx = Math.cos(player.viewYaw), rvz = -Math.sin(player.viewYaw);
         var lat = ((hunter.x - player.x)*rvx + (hunter.z - player.z)*rvz) / Math.max(1, hd);
         Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
+        if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
            走りの足音は 115Hz・短い減衰、歩きは 82Hz・長い減衰で鳴り分けている。
            人はこの違いを聞き分けて「こっちへ走ってきている」と分かるので、
@@ -1334,6 +1393,7 @@ function updateHunterVox(dt, info, hs){
   if(kind < 0) return;
 
   Audio2.hunterVocal(kind, info.hd, hs.pan, !info.los);
+  soundCue('声', info.hd, hunter.mode === 'chase');
   voxT = VOX_GAP + Math.random()*0.6;
   // 追跡中は短い間隔で笑い続ける。探索中はたまにでいい
   /* 追跡中の間隔。最初 2.6〜5.0 秒にしていたが、実測では追跡の大半が
@@ -1355,6 +1415,7 @@ function updateEnv(dt, info){
     if(L && i < QC.lamps){
       var dd = Math.sqrt((L.x-player.x)*(L.x-player.x)+(L.z-player.z)*(L.z-player.z));
       var fl = 0.55 + 0.45*Math.sin(lampFlick*7 + L.flick) * (Math.sin(lampFlick*2.3+L.flick)>0.7?1:0.25);
+      fl = lerp(0.62, fl, settings.flash);          // 点滅の強さ（設定）
       var inten = dd < 22 ? (1.5*fl*(world.power ? 2.0 : 1)) : 0;
       lightPool[i].position.set(L.x, WALL_H-0.35, L.z);
       lightPool[i].intensity = inten;
@@ -1493,7 +1554,7 @@ function hudWake(sec){ HUDW.t = Math.max(HUDW.t, sec); }
 var CV = { fov:0, marked:false };
 function updateCheatView(dt){
   // 視野
-  var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0);
+  var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0) + settings.fov;
   if(state === STATE.PLAY && Math.abs(camera.fov - wantFov) > 0.01){
     camera.fov = lerp(camera.fov, wantFov, 1 - Math.pow(0.02, dt));
     camera.updateProjectionMatrix();

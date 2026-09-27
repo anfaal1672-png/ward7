@@ -578,6 +578,8 @@ function updatePost(dt){
   T.warp  = 0.015 + panic*0.28 + hurt*0.30;
   // ダメージは立ち上がりを速く、収まりをゆっくり
   var k = 1 - Math.pow(hurt > 0.01 ? 0.0005 : 0.02, dt);
+  // 画面の揺れ（設定）。歪み・走査線・色ずれも「揺れ」として一緒に絞る
+  T.aberr *= settings.motion; T.scan *= settings.motion; T.warp *= settings.motion;
   if(cheats.noShake){ T.aberr = 0; T.noise = 0.01; T.scan = 0; T.warp = 0; player.shake = 0; }
   postFX.aberr = lerp(postFX.aberr, T.aberr, k);
   postFX.noise = lerp(postFX.noise, T.noise, k);

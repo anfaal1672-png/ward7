@@ -123,7 +123,7 @@ function resize(){
   renderer.setSize(w, h, false);
   camera.aspect = w/h;
   // 縦持ちでは視野を少し広げて閉塞感を保ちつつ見やすく
-  camera.fov = (h > w) ? 78 : 70;
+  camera.fov = ((h > w) ? 78 : 70) + settings.fov;
   camera.updateProjectionMatrix();
   if(viewCam){
     viewCam.aspect = w/h;

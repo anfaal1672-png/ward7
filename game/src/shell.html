@@ -45,6 +45,7 @@
   <div id="hideView"></div>
   <div id="reticle"></div>
   <div id="toast"></div>
+  <div id="cue" aria-live="polite"><i></i><span></span></div>
   <div id="botHud" hidden></div>
   <div id="note"><b id="noteHead"></b><span id="noteBody"></span></div>
 </div>
@@ -111,6 +112,7 @@
       <button class="btn ghost" id="btnOpt" type="button">設定</button>
       <button class="btn ghost" id="btnCheat" type="button">チート</button>
       <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
+      <button class="btn ghost" id="btnJournal" type="button">手帳</button>
       <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
     </div>
     <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
@@ -149,6 +151,29 @@
     <div id="calib" aria-hidden="true"></div>
     <p class="hint">いちばん左の四角が「かろうじて見える」ところに合わせる。
       本編と同じ計算で描いているので、ここで見えない暗さは病棟でも見えない。</p>
+  </div>
+  <div class="sect">見え方と酔い・光過敏</div>
+  <div class="field">
+    <label for="fovA">視野角 <span id="valF">±0</span></label>
+    <input type="range" id="fovA" min="-10" max="20" step="1" value="0">
+  </div>
+  <div class="field">
+    <label for="motion">画面の揺れ <span id="valM">100</span></label>
+    <input type="range" id="motion" min="0" max="1" step="0.05" value="1">
+    <p class="hint">歩いたときの頭の揺れ、被弾の揺れ、画面の歪み。酔いやすい人は下げる。</p>
+  </div>
+  <div class="field">
+    <label for="flash">点滅の強さ <span id="valL">100</span></label>
+    <input type="range" id="flash" min="0" max="1" step="0.05" value="1">
+    <p class="hint">蛍光灯とランプのちらつき。光の点滅が苦手な人は 0 にする（明かりは点いたまま揺れなくなる）。</p>
+  </div>
+  <div class="field">
+    <label>音の方向表示 <span id="valC">オフ</span></label>
+    <div class="seg" id="segC" role="group" aria-label="音の方向表示">
+      <button type="button" data-c="0" aria-pressed="true">オフ</button>
+      <button type="button" data-c="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">追跡者の足音と声が、どちらから聞こえたかを画面の縁に出す。音が聞き取りにくい環境でも遊べる。</p>
   </div>
   <div class="sect">操作</div>
   <div class="field">
@@ -191,6 +216,7 @@
   <p class="lede" id="pauseHint"></p>
   <div class="rule"></div>
   <button class="btn primary" id="btnResume" type="button">続ける</button>
+  <button class="btn ghost" id="btnPauseJournal" type="button">手帳</button>
   <button class="btn ghost" id="btnPauseCheat" type="button">チート</button>
   <button class="btn ghost" id="btnQuit" type="button">病棟から出る（タイトルへ）</button>
 </div>
@@ -206,11 +232,24 @@
 
 <!-- win -->
 <div class="panel" id="win" hidden>
-  <div class="eyebrow">Discharged</div>
-  <div class="endtitle">脱出</div>
+  <div class="eyebrow" id="winEyebrow">Discharged</div>
+  <div class="endtitle" id="winTitle">脱出</div>
+  <p class="lede story" id="winStory"></p>
   <div class="stats" id="winStats"></div>
   <button class="btn primary" id="btnAgain" type="button">もう一度</button>
   <button class="btn ghost" id="btnWinTitle" type="button">タイトルへ</button>
+</div>
+
+<!-- 手帳（設計指示書 第 11.3 節）。読んだ文書を、周回をまたいで持っておく -->
+<div class="panel scrollable" id="journal" hidden>
+  <div class="eyebrow">Notebook</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">手帳</h1>
+  <div class="rule"></div>
+  <p class="hint" id="jSummary"></p>
+  <div id="jList" style="width:min(460px,88vw)"></div>
+  <div class="rule"></div>
+  <p class="hint" id="jLinkHint"></p>
+  <button class="btn" id="btnJournalBack" type="button" style="margin-top:18px">戻る</button>
 </div>
 
 <div id="dbg" hidden></div>

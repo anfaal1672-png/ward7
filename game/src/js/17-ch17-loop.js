@@ -27,6 +27,7 @@ function loop(now){
     if(state === STATE.PLAY){
       var bpm = updateEnv(dt, info);
       updateHUD(dt, bpm, info);
+      updateCue(dt);
       if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
       else if(BOT.on) botHUD();
     }

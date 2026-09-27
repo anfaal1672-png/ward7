@@ -8,8 +8,35 @@ var hunter = {
   memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:undefined, parts:null,
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
-  gazeT:0, gazeY:0, gazeTarget:0
+  gazeT:0, gazeY:0, gazeTarget:0,
+  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0
 };
+
+/* 演出の頭脳（設計指示書 第 5.3 節）。
+   追跡者自身は見たもの・聞いたものしか使わない。その上に、緊張の波だけを
+   整える層を置く。長く何も起きなければ徘徊の行き先をこちらの近くへ寄せ、
+   追跡を振り切った直後は遠くへ散らして一息つかせる。
+   こちらの正確な位置は渡さない（行き先の候補を絞るだけ）。 */
+var DIRECTOR = { calmT:0, sinceChaseT:999 };
+/* 寄せるときの行き先：こちらのマスから（マンハッタン距離）。
+   5〜12 で寄せ直しを calm の半分ごとにしていたら、通常のクリアが 41→27% に
+   落ちた（被弾 0.55→0.70/100s。240 本）。気配を近づけるだけのつもりが、
+   実際には鉢合わせを量産していた。遠めに寄せ、一度寄せたら calm を丸ごと待つ。 */
+var DIRECTOR_NEAR = [8, 16];
+var DIRECTOR_AWAY = 11;           // 散らすときはこれより遠く
+var DIRECTOR_REST = 18;           // 追跡のあと何秒を「一息」にするか
+function directorWant(){
+  if(world.endgame) return 0;                        // 終盤は別の仕組みで常に嗅ぎつける
+  if(DIRECTOR.sinceChaseT < DIRECTOR_REST) return -1;
+  if(DIRECTOR.calmT > DIFF[settings.diff].calm) return 1;
+  return 0;
+}
+
+/* 曲がり角の減速。直線では追いつかれるが、角を曲がるたびに踏み直す。
+   逃げ方が「足の速さ」ではなく「どの角を曲がるか」の判断になる。 */
+var CORNER_SLOW = 0.42;           // 直角に曲がった直後の速度の落ち幅
+var CORNER_REC  = 0.65;           // 元の速さへ戻るまでの秒数
+var HIDE_CHECK_T = 1.1;           // 隠れ場所の前で点検にかける秒数
 
 var SWING_DUR = 0.46;      // 殴打モーション全体の長さ（ため→打ち抜き→戻し）
 
@@ -870,6 +897,8 @@ function placeHunter(reach, startC){
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
   hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
   hunter.windT = 0; hunter.swingT = 0;
+  hunter.dirX = 0; hunter.dirZ = 0; hunter.cornerK = 0; hunter.inspect = null; hunter.inspectT = 0;
+  DIRECTOR.calmT = 0; DIRECTOR.sinceChaseT = 999;
   hunter.stuckT = 0; hunter.slideDir = 0; hunter.noDirectT = 0; hunter.punchArm = 1;
   hunter.gazeT = 0; hunter.gazeY = 0; hunter.gazeTarget = 0;
   hunter.eyeT = 2 + rnd()*3; hunter.eyeOff = 0;

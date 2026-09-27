@@ -375,6 +375,34 @@
     font-family:var(--mono);font-size:10px;color:#7de0c0;background:rgba(0,0,0,.6);padding:6px 8px;
     white-space:pre;line-height:1.5;pointer-events:none;max-width:70vw}
   #dbg[hidden]{display:none}
+
+  /* 音の方向表示。画面の縁に沿った楕円の上に、音の来た向きへ弧を出し、
+     短い字幕を上寄りに添える。縁に寄せるのは、中央の視界（追跡者そのもの）と
+     右下のランプを隠さないため */
+  #cue{position:fixed;inset:0;pointer-events:none;z-index:30}
+  #cue i{position:absolute;left:3vw;top:3vh;width:94vw;height:94vh;border-radius:50%;
+    opacity:0;transition:opacity .5s;
+    background:conic-gradient(from calc(var(--a,0deg) - 16deg),rgba(232,226,212,.85) 0deg,
+      rgba(232,226,212,0) 32deg,transparent 32deg);
+    -webkit-mask:radial-gradient(closest-side,transparent 92%,#000 94%,#000 99%,transparent 100%);
+            mask:radial-gradient(closest-side,transparent 92%,#000 94%,#000 99%,transparent 100%)}
+  #cue.on i{opacity:1;transition:opacity .08s}
+  #cue.hot i{background:conic-gradient(from calc(var(--a,0deg) - 16deg),rgba(200,60,50,.85) 0deg,
+      rgba(200,60,50,0) 32deg,transparent 32deg)}
+  #cue span{position:absolute;left:50%;top:calc(30vh + var(--sat));transform:translateX(-50%);white-space:nowrap;
+    font:12px/1.4 var(--mono);letter-spacing:.12em;color:var(--bone);opacity:0;transition:opacity .6s;
+    text-shadow:0 0 6px #000,0 0 2px #000}
+  #cue.on span{opacity:.9;transition:opacity .08s}
+
+  /* 手帳。声（誰が書いたか）ごとに並べ、私信だけは結びつけられる */
+  #jList .jsec{font:11px/1.8 var(--mono);letter-spacing:.3em;color:var(--dim);margin:18px 0 4px;text-transform:uppercase}
+  #jList .jdoc{border-top:1px solid var(--line);padding:10px 2px;font-size:13px;line-height:1.7;color:var(--bone)}
+  #jList .jdoc b{display:block;font:11px/1.6 var(--mono);letter-spacing:.14em;color:var(--dim);font-weight:400}
+  #jList .jdoc.unread{color:var(--dim);font-style:italic}
+  #jList .jdoc.letter{cursor:pointer;border-left:2px solid transparent;padding-left:10px;transition:border-color .2s,background .2s}
+  #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
+  #jList .jdoc.letter.linked{border-left-color:var(--copper)}
+  .lede.story{max-width:min(460px,86vw);font-size:14px;line-height:1.95;margin:10px 0 14px;white-space:pre-line}
 </style>
 </head>
 <body>
@@ -410,6 +438,7 @@
   <div id="hideView"></div>
   <div id="reticle"></div>
   <div id="toast"></div>
+  <div id="cue" aria-live="polite"><i></i><span></span></div>
   <div id="botHud" hidden></div>
   <div id="note"><b id="noteHead"></b><span id="noteBody"></span></div>
 </div>
@@ -476,6 +505,7 @@
       <button class="btn ghost" id="btnOpt" type="button">設定</button>
       <button class="btn ghost" id="btnCheat" type="button">チート</button>
       <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
+      <button class="btn ghost" id="btnJournal" type="button">手帳</button>
       <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
     </div>
     <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
@@ -514,6 +544,29 @@
     <div id="calib" aria-hidden="true"></div>
     <p class="hint">いちばん左の四角が「かろうじて見える」ところに合わせる。
       本編と同じ計算で描いているので、ここで見えない暗さは病棟でも見えない。</p>
+  </div>
+  <div class="sect">見え方と酔い・光過敏</div>
+  <div class="field">
+    <label for="fovA">視野角 <span id="valF">±0</span></label>
+    <input type="range" id="fovA" min="-10" max="20" step="1" value="0">
+  </div>
+  <div class="field">
+    <label for="motion">画面の揺れ <span id="valM">100</span></label>
+    <input type="range" id="motion" min="0" max="1" step="0.05" value="1">
+    <p class="hint">歩いたときの頭の揺れ、被弾の揺れ、画面の歪み。酔いやすい人は下げる。</p>
+  </div>
+  <div class="field">
+    <label for="flash">点滅の強さ <span id="valL">100</span></label>
+    <input type="range" id="flash" min="0" max="1" step="0.05" value="1">
+    <p class="hint">蛍光灯とランプのちらつき。光の点滅が苦手な人は 0 にする（明かりは点いたまま揺れなくなる）。</p>
+  </div>
+  <div class="field">
+    <label>音の方向表示 <span id="valC">オフ</span></label>
+    <div class="seg" id="segC" role="group" aria-label="音の方向表示">
+      <button type="button" data-c="0" aria-pressed="true">オフ</button>
+      <button type="button" data-c="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">追跡者の足音と声が、どちらから聞こえたかを画面の縁に出す。音が聞き取りにくい環境でも遊べる。</p>
   </div>
   <div class="sect">操作</div>
   <div class="field">
@@ -556,6 +609,7 @@
   <p class="lede" id="pauseHint"></p>
   <div class="rule"></div>
   <button class="btn primary" id="btnResume" type="button">続ける</button>
+  <button class="btn ghost" id="btnPauseJournal" type="button">手帳</button>
   <button class="btn ghost" id="btnPauseCheat" type="button">チート</button>
   <button class="btn ghost" id="btnQuit" type="button">病棟から出る（タイトルへ）</button>
 </div>
@@ -571,11 +625,24 @@
 
 <!-- win -->
 <div class="panel" id="win" hidden>
-  <div class="eyebrow">Discharged</div>
-  <div class="endtitle">脱出</div>
+  <div class="eyebrow" id="winEyebrow">Discharged</div>
+  <div class="endtitle" id="winTitle">脱出</div>
+  <p class="lede story" id="winStory"></p>
   <div class="stats" id="winStats"></div>
   <button class="btn primary" id="btnAgain" type="button">もう一度</button>
   <button class="btn ghost" id="btnWinTitle" type="button">タイトルへ</button>
+</div>
+
+<!-- 手帳（設計指示書 第 11.3 節）。読んだ文書を、周回をまたいで持っておく -->
+<div class="panel scrollable" id="journal" hidden>
+  <div class="eyebrow">Notebook</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">手帳</h1>
+  <div class="rule"></div>
+  <p class="hint" id="jSummary"></p>
+  <div id="jList" style="width:min(460px,88vw)"></div>
+  <div class="rule"></div>
+  <p class="hint" id="jLinkHint"></p>
+  <button class="btn" id="btnJournalBack" type="button" style="margin-top:18px">戻る</button>
 </div>
 
 <div id="dbg" hidden></div>
@@ -2347,15 +2414,21 @@ function hasSight(g, x0, z0, x1, z1){
 /* =========================================================================
    5. 設定・状態
    ========================================================================= */
+/* learn … 同じ隠れ場所を何回使うと、見失った近くでそこを点検しに来るか
+   calm  … 何秒出会わずにいると、演出の頭脳が徘徊をこちらの近くへ寄せるか
+   （設計指示書 第 5.3 節） */
 var DIFF = [
   // chaseMul を掛けた値が追跡速度。プレイヤーの全力疾走は約5.8m/s
   // ※ プレイヤーの基準速度と合わせて全体を1.22倍してあるので、速さの比＝難易度は据え置き
   { key:'静穏',  records:4, hunterSpeed:3.111, sight:16, hearing:10, drain:1.05, dmg:26, batteries:6,
-    chaseMul:1.32, rage:0.366, memory:1.8, batteries2:2 },
+    chaseMul:1.32, rage:0.366, memory:1.8, batteries2:2,
+    learn:4, calm:90 },
   { key:'通常',  records:5, hunterSpeed:3.721, sight:20, hearing:13, drain:1.5,  dmg:38, batteries:5,
-    chaseMul:1.32, rage:0.488, memory:2.4, batteries2:2 },
+    chaseMul:1.32, rage:0.488, memory:2.4, batteries2:2,
+    learn:3, calm:65 },
   { key:'絶望',  records:6, hunterSpeed:4.270, sight:25, hearing:16, drain:2.1,  dmg:52, batteries:4,
-    chaseMul:1.34, rage:0.610, memory:3.2, batteries2:2 }
+    chaseMul:1.34, rage:0.610, memory:3.2, batteries2:2,
+    learn:2, calm:45 }
 ];
 
 /* どちらの側で遊ぶか。'survivor' が従来のゲーム、'hunter' は追う側。
@@ -2369,7 +2442,12 @@ var settings = {
   invert: false,
   diff: 1,
   detect: 0,       // 0 オフ / 1 敵のみ / 2 完全探知
-  gamma: 1.0       // 画面の明るさ
+  gamma: 1.0,      // 画面の明るさ
+  // アクセシビリティ（設計指示書 第 13 章）
+  fov: 0,          // 視野角の上乗せ（度）
+  motion: 1.0,     // 画面の揺れ 0..1
+  flash: 1.0,      // 点滅の強さ 0..1
+  cues: false      // 音の方向表示
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -2381,6 +2459,10 @@ try{
     if(typeof saved.diff==='number')    settings.diff = clamp(saved.diff|0,0,2);
     if(typeof saved.detect==='number')  settings.detect = clamp(saved.detect|0,0,2);
     if(typeof saved.gamma==='number')   settings.gamma = clamp(saved.gamma,0.6,1.9);
+    if(typeof saved.fov==='number')     settings.fov = clamp(saved.fov|0,-10,20);
+    if(typeof saved.motion==='number')  settings.motion = clamp(saved.motion,0,1);
+    if(typeof saved.flash==='number')   settings.flash = clamp(saved.flash,0,1);
+    if(typeof saved.cues==='boolean')   settings.cues = saved.cues;
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
@@ -2628,7 +2710,7 @@ function resize(){
   renderer.setSize(w, h, false);
   camera.aspect = w/h;
   // 縦持ちでは視野を少し広げて閉塞感を保ちつつ見やすく
-  camera.fov = (h > w) ? 78 : 70;
+  camera.fov = ((h > w) ? 78 : 70) + settings.fov;
   camera.updateProjectionMatrix();
   if(viewCam){
     viewCam.aspect = w/h;
@@ -3440,6 +3522,8 @@ function updatePost(dt){
   T.warp  = 0.015 + panic*0.28 + hurt*0.30;
   // ダメージは立ち上がりを速く、収まりをゆっくり
   var k = 1 - Math.pow(hurt > 0.01 ? 0.0005 : 0.02, dt);
+  // 画面の揺れ（設定）。歪み・走査線・色ずれも「揺れ」として一緒に絞る
+  T.aberr *= settings.motion; T.scan *= settings.motion; T.warp *= settings.motion;
   if(cheats.noShake){ T.aberr = 0; T.noise = 0.01; T.scan = 0; T.warp = 0; player.shake = 0; }
   postFX.aberr = lerp(postFX.aberr, T.aberr, k);
   postFX.noise = lerp(postFX.noise, T.noise, k);
@@ -5815,8 +5899,35 @@ var hunter = {
   memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:undefined, parts:null,
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
-  gazeT:0, gazeY:0, gazeTarget:0
+  gazeT:0, gazeY:0, gazeTarget:0,
+  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0
 };
+
+/* 演出の頭脳（設計指示書 第 5.3 節）。
+   追跡者自身は見たもの・聞いたものしか使わない。その上に、緊張の波だけを
+   整える層を置く。長く何も起きなければ徘徊の行き先をこちらの近くへ寄せ、
+   追跡を振り切った直後は遠くへ散らして一息つかせる。
+   こちらの正確な位置は渡さない（行き先の候補を絞るだけ）。 */
+var DIRECTOR = { calmT:0, sinceChaseT:999 };
+/* 寄せるときの行き先：こちらのマスから（マンハッタン距離）。
+   5〜12 で寄せ直しを calm の半分ごとにしていたら、通常のクリアが 41→27% に
+   落ちた（被弾 0.55→0.70/100s。240 本）。気配を近づけるだけのつもりが、
+   実際には鉢合わせを量産していた。遠めに寄せ、一度寄せたら calm を丸ごと待つ。 */
+var DIRECTOR_NEAR = [8, 16];
+var DIRECTOR_AWAY = 11;           // 散らすときはこれより遠く
+var DIRECTOR_REST = 18;           // 追跡のあと何秒を「一息」にするか
+function directorWant(){
+  if(world.endgame) return 0;                        // 終盤は別の仕組みで常に嗅ぎつける
+  if(DIRECTOR.sinceChaseT < DIRECTOR_REST) return -1;
+  if(DIRECTOR.calmT > DIFF[settings.diff].calm) return 1;
+  return 0;
+}
+
+/* 曲がり角の減速。直線では追いつかれるが、角を曲がるたびに踏み直す。
+   逃げ方が「足の速さ」ではなく「どの角を曲がるか」の判断になる。 */
+var CORNER_SLOW = 0.42;           // 直角に曲がった直後の速度の落ち幅
+var CORNER_REC  = 0.65;           // 元の速さへ戻るまでの秒数
+var HIDE_CHECK_T = 1.1;           // 隠れ場所の前で点検にかける秒数
 
 var SWING_DUR = 0.46;      // 殴打モーション全体の長さ（ため→打ち抜き→戻し）
 
@@ -6677,6 +6788,8 @@ function placeHunter(reach, startC){
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
   hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
   hunter.windT = 0; hunter.swingT = 0;
+  hunter.dirX = 0; hunter.dirZ = 0; hunter.cornerK = 0; hunter.inspect = null; hunter.inspectT = 0;
+  DIRECTOR.calmT = 0; DIRECTOR.sinceChaseT = 999;
   hunter.stuckT = 0; hunter.slideDir = 0; hunter.noDirectT = 0; hunter.punchArm = 1;
   hunter.gazeT = 0; hunter.gazeY = 0; hunter.gazeTarget = 0;
   hunter.eyeT = 2 + rnd()*3; hunter.eyeOff = 0;
@@ -6991,6 +7104,46 @@ var NOTES = [
   ['所見 06-11', 'まだここにいる。出口の場所が思い出せない。これを読んでいる人へ——ランプを消しなさい。']
 ];
 
+/* 看護師の私信（設計指示書 第 20.1 節、隠し結末の道筋）。
+   所見と同じ筆跡で、去年亡くした妹に宛てている。1 回の脱出行につき
+   1 通ずつ、まだ読んでいない順に出る（2 枚目のカルテの代わりに）。
+   7 通のうち 3 通だけが、妹の「声」がまだ病棟の中にいることを語る。
+   その 3 通を手帳で結びつけた者だけが、最後の扉の前で灯りを消す意味を知る。 */
+var LETTERS = [
+  ['私信 一', '美和へ。今日から夜勤に入る。第七病棟は静かなところだと聞いていた。静かなのは、誰も口をきかないからだった。'],
+  ['私信 二', '美和へ。あなたの三回忌の日取りが決まったと母から電話があった。行けそうにない。ここを離れると、何かが私の代わりに廊下を歩く気がする。'],
+  ['私信 三', '美和へ。病棟で、あなたの鼻歌を聞いた。小さい頃に私が歌ってあげた子守唄。窓の外ではなく、壁の中から。'],
+  ['私信 四', '美和へ。手回しのランプを借りた。回している間だけ灯る。回している間、音がする。音がすると、あれが来る。'],
+  ['私信 五', '美和へ。夜中にあなたが私の名前を呼んだ。振り向かなかった。振り向いたら、あなたではないと分かってしまうから。'],
+  ['私信 六', '美和へ。記録を持ち出すなと言われた。だから、ここに残していく。誰かが拾ったら、それが私だったと分かるように。'],
+  ['私信 七', '美和へ。暗いところは怖くないと、あなたは言っていた。灯りを消せば、向こうからは見えない。灯りを消せば、やっとこちらからも見える。']
+];
+var LETTER_SISTER = [2, 4, 6];          // 妹の声がまだここにいると語る 3 通
+var LETTER_SLOT = 1;                    // 何枚目のカルテ（0 始まり）の代わりに出すか
+
+/* 手帳。読んだものは周回をまたいで残る（Store へ）。
+   notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
+   endings は見た結末。 */
+var JOURNAL = { notes:{}, letters:{}, linked:false, endings:{} };
+try{
+  var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
+  if(j0 && typeof j0 === 'object'){
+    if(j0.notes && typeof j0.notes === 'object') JOURNAL.notes = j0.notes;
+    if(j0.letters && typeof j0.letters === 'object') JOURNAL.letters = j0.letters;
+    JOURNAL.linked = !!j0.linked;
+    if(j0.endings && typeof j0.endings === 'object') JOURNAL.endings = j0.endings;
+  }
+}catch(e){}
+function saveJournal(){ Store.set('ward7.journal', JSON.stringify(JOURNAL)); }
+function nextLetter(){
+  for(var i=0; i<LETTERS.length; i++) if(!JOURNAL.letters[i]) return i;
+  return -1;
+}
+function lettersRead(){
+  var n = 0; for(var i=0; i<LETTERS.length; i++) if(JOURNAL.letters[i]) n++;
+  return n;
+}
+
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
 function buildNoteOrder(need){
@@ -7006,7 +7159,15 @@ function buildNoteOrder(need){
 }
 function showNote(i){
   var order = world.noteOrder || buildNoteOrder(player.need || 5);
-  var n = NOTES[order[i % order.length] % NOTES.length];
+  var ni = order[i % order.length] % NOTES.length;
+  var n = NOTES[ni];
+  /* 私信は決まった 1 枚の代わりに出る。閉じの文（最後の 1 枚）は奪わない。
+     チートの回や追う側では出さない（手帳は遊んだ記録なので） */
+  var li = (i === LETTER_SLOT && i < (player.need||5) - 1 && !cheatUsed && !BOT.on && playAs !== 'hunter')
+           ? nextLetter() : -1;
+  if(li >= 0){ n = LETTERS[li]; JOURNAL.letters[li] = 1; }
+  else if(!BOT.on && playAs !== 'hunter'){ JOURNAL.notes[ni] = 1; }
+  if(!BOT.on && playAs !== 'hunter') saveJournal();
   $('noteHead').textContent = n[0];
   $('noteBody').textContent = n[1];
   $('note').classList.add('on');
@@ -7150,10 +7311,108 @@ function drawRadar(dt){
   g.closePath(); g.fill();
 }
 
+
+/* 音の方向表示（設計指示書 第 13 章）。追跡者の足音と声が「どちらから」
+   聞こえたかを画面の縁の弧と短い字幕で出す。距離は言葉で粗くだけ伝える
+   （正確な距離を出すと音より強い手掛かりになってしまう）。 */
+var CUE = { t:0 };
+function soundCue(label, dist, hot){
+  if(!settings.cues || state !== STATE.PLAY) return;
+  var dx = hunter.x - player.x, dz = hunter.z - player.z;
+  var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+  var rx =  Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+  var ang = Math.atan2(dx*rx + dz*rz, dx*fx + dz*fz) * 180/Math.PI;   // 0 = 正面, 90 = 右
+  var a4 = (ang + 360 + 45) % 360;
+  var dir = a4 < 90 ? '前' : (a4 < 180 ? '右' : (a4 < 270 ? '後ろ' : '左'));
+  var far = dist < 8 ? '近い' : (dist < 16 ? '' : '遠い');
+  var el = $('cue');
+  el.style.setProperty('--a', ang.toFixed(0) + 'deg');
+  el.querySelector('span').textContent = '［' + label + '・' + dir + (far ? '・' + far : '') + '］';
+  el.classList.toggle('hot', !!hot);
+  el.classList.add('on');
+  CUE.t = 1.2;
+}
+function updateCue(dt){
+  if(CUE.t <= 0) return;
+  CUE.t -= dt;
+  if(CUE.t <= 0 || state !== STATE.PLAY) $('cue').classList.remove('on');
+}
+
+/* --- 手帳の画面 --------------------------------------------------------
+   所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
+   （あと何があるかは分かるが、何が書いてあるかは分からない）。
+   私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
+var journalReturn = 'title', jSel = {};
+function noteVoice(head){
+  if(head.indexOf('所見') === 0) return 0;
+  if(head.indexOf('書き置き') === 0) return 1;
+  return 2;                                   // 通達・配線記録
+}
+function openJournal(from){
+  journalReturn = from || 'title';
+  jSel = {};
+  renderJournal();
+  showPanel('journal');
+}
+function renderJournal(){
+  var list = $('jList'); list.innerHTML = '';
+  var VOICES = ['所見 — 夜勤の看護記録', '書き置き — 患者の残したもの', '通達・記録 — 院長名義'];
+  var readN = 0;
+  for(var v=0; v<3; v++){
+    var sec = document.createElement('div'); sec.className = 'jsec'; sec.textContent = VOICES[v];
+    list.appendChild(sec);
+    for(var i=0; i<NOTES.length; i++){
+      if(noteVoice(NOTES[i][0]) !== v) continue;
+      var el = document.createElement('div');
+      var rd = !!JOURNAL.notes[i]; if(rd) readN++;
+      el.className = 'jdoc' + (rd ? '' : ' unread');
+      el.innerHTML = '<b></b><span></span>';
+      el.firstChild.textContent = rd ? NOTES[i][0] : '（未読）';
+      el.lastChild.textContent = rd ? NOTES[i][1] : '';
+      list.appendChild(el);
+    }
+  }
+  var sec2 = document.createElement('div'); sec2.className = 'jsec'; sec2.textContent = '私信 — 同じ筆跡で';
+  list.appendChild(sec2);
+  var lr = lettersRead();
+  LETTERS.forEach(function(L, li){
+    var el = document.createElement('div');
+    var rd = !!JOURNAL.letters[li];
+    var linked = JOURNAL.linked && LETTER_SISTER.indexOf(li) >= 0;
+    el.className = 'jdoc' + (rd ? ' letter' : ' unread') + (jSel[li] ? ' sel' : '') + (linked ? ' linked' : '');
+    el.innerHTML = '<b></b><span></span>';
+    el.firstChild.textContent = rd ? L[0] + (linked ? '　— 結びついた' : '') : '（未読）';
+    el.lastChild.textContent = rd ? L[1] : '';
+    if(rd && !JOURNAL.linked && lr === LETTERS.length){
+      el.addEventListener('click', function(){ jSel[li] = !jSel[li]; tryLink(); renderJournal(); });
+    }
+    list.appendChild(el);
+  });
+  $('jSummary').textContent = '読んだ記録 ' + readN + ' / ' + NOTES.length + '　私信 ' + lr + ' / ' + LETTERS.length +
+    (JOURNAL.endings.A ? '　· 脱出の結末を見た' : '') + (JOURNAL.endings.B ? '　· もう一つの結末を見た' : '');
+  var hint;
+  if(JOURNAL.linked) hint = '三通の私信は、同じ一人の声を追っていた。最後の扉の前で、灯りを消す。';
+  else if(lr === LETTERS.length) hint = '私信を読み比べ、同じことを語っている三通を選ぶ。';
+  else hint = '私信はまだ揃っていない。一度の脱出行で一通ずつ見つかる。';
+  $('jLinkHint').textContent = hint;
+}
+function tryLink(){
+  var picked = [];
+  for(var k in jSel) if(jSel[k]) picked.push(+k);
+  if(picked.length < 3) return;
+  var ok = picked.length === 3 && LETTER_SISTER.every(function(x){ return picked.indexOf(x) >= 0; });
+  if(ok){
+    JOURNAL.linked = true; saveJournal();
+    Audio2.unlock();
+  }else{
+    Audio2.click(false);
+  }
+  jSel = {};
+}
 /* =========================================================================
    13. 画面遷移
    ========================================================================= */
-var panels = ['boot','title','opt','cheat','pause','dead','win','err'];
+var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal'];
 function showPanel(name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
@@ -7242,6 +7501,16 @@ function syncSettingsUI(){
   });
   $('valD').textContent = ['オフ','敵のみ','完全'][settings.detect];
   $('chartGoal').textContent = 'カルテ' + DIFF[settings.diff].records + '枚 → 非常口';
+  $('fovA').value = settings.fov;
+  $('valF').textContent = (settings.fov > 0 ? '+' : (settings.fov < 0 ? '' : '±')) + settings.fov;
+  $('motion').value = settings.motion;
+  $('valM').textContent = Math.round(settings.motion*100);
+  $('flash').value = settings.flash;
+  $('valL').textContent = Math.round(settings.flash*100);
+  Array.prototype.forEach.call($('segC').children, function(b){
+    b.setAttribute('aria-pressed', ((+b.dataset.c===1) === settings.cues) ? 'true':'false');
+  });
+  $('valC').textContent = settings.cues ? 'オン' : 'オフ';
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
   paintCalib();
@@ -7409,6 +7678,12 @@ $('gam').addEventListener('input', function(){
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
 });
+$('fovA').addEventListener('input', function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
+$('motion').addEventListener('input', function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
+$('flash').addEventListener('input', function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
+Array.prototype.forEach.call($('segC').children, function(b){
+  b.addEventListener('click', function(){ settings.cues = (+b.dataset.c === 1); syncSettingsUI(); saveSettings(); });
+});
 $('sens').addEventListener('input', function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
 $('vol').addEventListener('input', function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
@@ -7419,6 +7694,9 @@ $('btnCheat').addEventListener('click', function(){ openCheats('title'); });
 $('btnPauseCheat').addEventListener('click', function(){ openCheats('pause'); });
 $('btnCheatBack').addEventListener('click', function(){ showPanel(cheatReturn); });
 $('btnOpt').addEventListener('click', function(){ showPanel('opt'); });
+$('btnJournal').addEventListener('click', function(){ openJournal('title'); });
+$('btnPauseJournal').addEventListener('click', function(){ openJournal('pause'); });
+$('btnJournalBack').addEventListener('click', function(){ showPanel(journalReturn); });
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnStart').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = false; startGame(); });
 // 観戦モード。?bot=1 でも入れる
@@ -7966,6 +8244,7 @@ function updatePlayer(dt){
         if(al < 0.05){ ax = 1; az = 0; al = 1; }
         near.obj.fromX = ax/al; near.obj.fromZ = az/al;
         player.hiding = near.obj;
+        near.obj.uses = (near.obj.uses || 0) + 1;     // 追跡者が覚える（第 9 章 learn）
         player.vx = player.vz = 0;
         player.yaw = near.obj.yaw;
         // 入るところを見られていたら、隠れても意味がない
@@ -8004,11 +8283,13 @@ function updatePlayer(dt){
 
   // カメラ
   var spd01 = clamp(vmag/3.0, 0, 1);
-  var bobY = Math.sin(player.bob*2) * (player.running ? 0.052 : 0.028) * spd01;
-  var bobX = Math.cos(player.bob)   * (player.running ? 0.040 : 0.022) * spd01;
+  // 画面の揺れ（設定・第 13 章）。0 で頭の揺れも被弾の揺れも止まる
+  var MO = settings.motion;
+  var bobY = Math.sin(player.bob*2) * (player.running ? 0.052 : 0.028) * spd01 * MO;
+  var bobX = Math.cos(player.bob)   * (player.running ? 0.040 : 0.022) * spd01 * MO;
   var panic = 1 - player.sanity/100;
   player.shake = Math.max(0, player.shake - dt*2.2);
-  var sh = player.shake * 0.06 + panic*0.012;
+  var sh = (player.shake * 0.06 + panic*0.012) * MO;
 
   /* 追う側で遊んでいるときは、このカメラは使わない（第21章が追跡者の頭に置く）。
      ランプもカメラの子なので消し、代わりに逃げる側の分身が世界の中で灯す。 */
@@ -8028,10 +8309,12 @@ function updatePlayer(dt){
     player.z + (Math.random()-0.5)*sh
   );
   camera.rotation.set(player.pitch, player.viewYaw,
-    Math.sin(player.bob) * (player.running ? 0.019 : 0.010) * spd01 + (Math.random()-0.5)*sh*0.4);
+    Math.sin(player.bob) * (player.running ? 0.019 : 0.010) * spd01 * MO + (Math.random()-0.5)*sh*0.4);
 
   // ランプの明かり
   var flickAmt = player.battery < 22 ? (0.45 + 0.55*Math.abs(Math.sin(performance.now()*0.017))) : 1;
+  // 点滅の強さ（設定）。0 では揺れず、弱った明るさのまま灯る
+  if(flickAmt < 1) flickAmt = lerp(0.72, flickAmt, settings.flash);
 
   // --- 一人称の腕 ---
   if(viewArm){
@@ -8245,14 +8528,53 @@ function updateHunter(dt, info){
       if(Math.sqrt(lx*lx + lz*lz) < 1.5){
         // 到着しても近くにいれば嗅ぎつけ直す
         // seen を経由させる（隠れて見つかっていない相手を、距離だけで再捕捉しない）
-        if(seen){ hunter.mode = 'chase'; hunter.memT = d.memory * 0.6; }
-        else { hunter.mode = 'patrol'; hunter.lastSeen = null; }
+        if(seen){ hunter.mode = 'chase'; hunter.memT = d.memory * 0.6; hunter.inspect = null; }
+        else if(hunter.inspect){
+          /* 点検。扉を開け、ベッドの下を覗く。ここに居れば見つかる。
+             居なければ、この場所は空だったと覚え直す */
+          hunter.inspectT += dt;
+          if(hunter.inspectT >= HIDE_CHECK_T){
+            var ins = hunter.inspect;
+            Audio2.creak();
+            if(player.hiding === ins && !cheats.invisible && !cheats.ghostHide){
+              player.hideSeen = true;
+              hunter.mode = 'chase'; hunter.memT = d.memory;
+              hunter.lastSeen = { x:player.x, z:player.z };
+              toast('見つかった', 2.2);
+            }else{
+              ins.uses = 0;
+              hunter.mode = 'patrol'; hunter.lastSeen = null;
+            }
+            hunter.inspect = null; hunter.inspectT = 0;
+          }
+        }else{
+          /* 見失った場所の近くに、何度も使われた隠れ場所があれば点検しに行く。
+             こちらが中に居るかどうかは知らない。使われた回数だけを見ている */
+          var insP = null, insD = 5.0;
+          for(var ih=0; ih<world.hides.length; ih++){
+            var H0 = world.hides[ih];
+            if((H0.uses || 0) < d.learn) continue;
+            var idx0 = H0.x - hunter.lastSeen.x, idz0 = H0.z - hunter.lastSeen.z;
+            var idd = Math.sqrt(idx0*idx0 + idz0*idz0);
+            if(idd < insD){ insD = idd; insP = H0; }
+          }
+          if(insP && !cheats.invisible){
+            hunter.inspect = insP; hunter.inspectT = 0;
+            hunter.lastSeen = { x:insP.x, z:insP.z };
+          }else{
+            hunter.mode = 'patrol'; hunter.lastSeen = null;
+          }
+        }
       }
     }else{
       hunter.mode = 'patrol';
     }
   }
   if(hunter.mode === 'chase') hunter.chaseT += dt; else hunter.chaseT = 0;
+  if(hunter.mode !== 'hunt'){ hunter.inspect = null; hunter.inspectT = 0; }
+  // 演出の頭脳：出会っていない時間と、追跡が終わってからの時間
+  if(hunter.mode === 'patrol') DIRECTOR.calmT += dt; else DIRECTOR.calmT = 0;
+  if(hunter.mode === 'chase') DIRECTOR.sinceChaseT = 0; else DIRECTOR.sinceChaseT += dt;
 
   var moved = 0;
   if(playAs === 'hunter'){
@@ -8325,11 +8647,19 @@ function updateHunter(dt, info){
         // 到達可能なマスから一様に選ぶ（＝どこへ向かうか読めない）
         // 什器で埋まったマスを目的地にしない（着けないので張り付いてしまう）
         var navP = world.nav;
-        var pick = null;
-        for(var pt=0; pt<12; pt++){
+        var pick = null, want = directorWant();
+        var pcD = worldToCell(player.x, player.z);
+        for(var pt=0; pt<(want ? 30 : 12); pt++){
           var cand3 = reach[(rnd()*reach.length)|0];
-          if(!navP || navP[idx(cand3.x, cand3.y)] === 0){ pick = cand3; break; }
+          if(navP && navP[idx(cand3.x, cand3.y)] !== 0) continue;
+          if(want){
+            var mdD = Math.abs(cand3.x - pcD.x) + Math.abs(cand3.y - pcD.y);
+            if(want > 0 && (mdD < DIRECTOR_NEAR[0] || mdD > DIRECTOR_NEAR[1])) continue;
+            if(want < 0 && mdD < DIRECTOR_AWAY) continue;
+          }
+          pick = cand3; break;
         }
+        if(want > 0 && pick) DIRECTOR.calmT = 0;          // 寄せるのは一度に一回。次はまた calm を待つ
         hunter.patrolGoal = pick || reach[(rnd()*reach.length)|0];
         hunter.patrolT = 4.5 + rnd()*4;
       }
@@ -8379,10 +8709,16 @@ function updateHunter(dt, info){
       var spd = (cheats.slowHunter ? 0.5 : 1) *
                 hunter.speed * (hunter.mode==='chase' ? d.chaseMul : (hunter.mode==='hunt'?1.05:0.82))
                 + (hunter.mode==='chase' ? rage : 0);
-      var mv = (cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0)
+      var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
+      // 曲がり角の減速（第 9 章 CORNER_SLOW）。追跡中だけ効かせる
+      var turnC = 1 - (nx0*hunter.dirX + nz0*hunter.dirZ);   // 0 直進 / 1 直角 / 2 反転
+      if(hunter.mode === 'chase' && turnC > 0.25) hunter.cornerK = Math.max(hunter.cornerK, clamp(turnC, 0, 1));
+      hunter.dirX = nx0; hunter.dirZ = nz0;
+      spd *= 1 - CORNER_SLOW * hunter.cornerK;
+      hunter.cornerK = Math.max(0, hunter.cornerK - dt / CORNER_REC);
+      var mv = (cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0 || hunter.inspect && hunter.inspectT > 0)
                ? 0 : Math.min(dist, spd*dt);
       var beforeX = hunter.x, beforeZ = hunter.z;
-      var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
       hunter.x += nx0*mv; hunter.z += nz0*mv;
       // 直進追跡でも壁をすり抜けないよう毎フレーム押し戻す
       var fix = pushOutOfWalls(hunter.x, hunter.z, 0.34);
@@ -8833,6 +9169,7 @@ function updateHunter(dt, info){
         var rvx = Math.cos(player.viewYaw), rvz = -Math.sin(player.viewYaw);
         var lat = ((hunter.x - player.x)*rvx + (hunter.z - player.z)*rvz) / Math.max(1, hd);
         Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
+        if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
            走りの足音は 115Hz・短い減衰、歩きは 82Hz・長い減衰で鳴り分けている。
            人はこの違いを聞き分けて「こっちへ走ってきている」と分かるので、
@@ -8963,6 +9300,7 @@ function updateHunterVox(dt, info, hs){
   if(kind < 0) return;
 
   Audio2.hunterVocal(kind, info.hd, hs.pan, !info.los);
+  soundCue('声', info.hd, hunter.mode === 'chase');
   voxT = VOX_GAP + Math.random()*0.6;
   // 追跡中は短い間隔で笑い続ける。探索中はたまにでいい
   /* 追跡中の間隔。最初 2.6〜5.0 秒にしていたが、実測では追跡の大半が
@@ -8984,6 +9322,7 @@ function updateEnv(dt, info){
     if(L && i < QC.lamps){
       var dd = Math.sqrt((L.x-player.x)*(L.x-player.x)+(L.z-player.z)*(L.z-player.z));
       var fl = 0.55 + 0.45*Math.sin(lampFlick*7 + L.flick) * (Math.sin(lampFlick*2.3+L.flick)>0.7?1:0.25);
+      fl = lerp(0.62, fl, settings.flash);          // 点滅の強さ（設定）
       var inten = dd < 22 ? (1.5*fl*(world.power ? 2.0 : 1)) : 0;
       lightPool[i].position.set(L.x, WALL_H-0.35, L.z);
       lightPool[i].intensity = inten;
@@ -9122,7 +9461,7 @@ function hudWake(sec){ HUDW.t = Math.max(HUDW.t, sec); }
 var CV = { fov:0, marked:false };
 function updateCheatView(dt){
   // 視野
-  var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0);
+  var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0) + settings.fov;
   if(state === STATE.PLAY && Math.abs(camera.fov - wantFov) > 0.01){
     camera.fov = lerp(camera.fov, wantFov, 1 - Math.pow(0.02, dt));
     camera.updateProjectionMatrix();
@@ -9266,6 +9605,7 @@ function doDeath(){
        手から落ちた灯りが床から照らす形にすると、飛びが収まるうえに
        顔が下から照らされる。 */
     var flick = 0.72 + 0.28*Math.abs(Math.sin(performance.now()*0.021));
+    flick = lerp(0.86, flick, settings.flash);
     flashlight.intensity = LAMP_I * (1 - k*0.88);
     /* 落ちたランプは、既にある足元の補助光をそのまま床へ降ろして使う。
        専用の光源を 1 つ足すと、その 1 灯が「常に」全ての材質の
@@ -9303,6 +9643,12 @@ function doWin(){
   /* 記録は演出（暗転 1 秒）を待たずに、勝敗が決まったこの場で書く。
      待っている間に閉じられると記録が消えるし、
      ヘッドレスの検証でも実時間のタイマーは進まない。 */
+  /* 結末（設計指示書 第 20.1 節）。三通を結びつけた者が、灯りを消したまま
+     扉を抜けたときだけ、もう一つの結末になる。灯りを点けたまま出れば
+     いつもの脱出。チートの回・ボット・追う側では結末を数えない。 */
+  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter');
+  var endingB = story && JOURNAL.linked && !player.lamp;
+  if(story){ JOURNAL.endings[endingB ? 'B' : 'A'] = 1; saveJournal(); }
   var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
   recordRun(true, player.hits||0);
   Audio2.unlock();
@@ -9338,6 +9684,9 @@ function doWin(){
     if(exitShaft) exitShaft.material.color.setHex(0xff5a4a);
     renderer.toneMappingExposure = exposureNow();
     Audio2.stopAmbient();
+    $('winEyebrow').textContent = endingB ? 'Released' : 'Discharged';
+    $('winTitle').textContent = endingB ? '退院' : '脱出';
+    $('winStory').textContent = !story ? '' : (endingB ? ENDING_B : ENDING_A);
     $('winStats').innerHTML =
       (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +
       endTable([
@@ -9405,6 +9754,17 @@ function fmtTime(s){
   return m + ':' + (r<10?'0':'') + r;
 }
 
+
+/* 結末の文。短く、事務的な記録の文体で終える（カルテと同じ声） */
+var ENDING_A =
+  '非常口の扉を押し開けた。外ではなかった。\n' +
+  '第七病棟の入口に立っていた。受付の上に、カルテの束が置いてある。\n' +
+  'いちばん上の一枚の患者名の欄に、あなたの名前が書いてある。';
+var ENDING_B =
+  'ランプを消した。暗闇の中で、呼ぶ声がすぐそこまで来て、止まった。\n' +
+  '「お姉ちゃん」\n' +
+  '手を伸ばすと、冷たい指が触れた。怖くはなかった。\n\n' +
+  '所見 06-11 追記　第七病棟、最後の患者の退院を確認。記録者 不明。';
 /* =========================================================================
    17. メインループ
    ========================================================================= */
@@ -9434,6 +9794,7 @@ function loop(now){
     if(state === STATE.PLAY){
       var bpm = updateEnv(dt, info);
       updateHUD(dt, bpm, info);
+      updateCue(dt);
       if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
       else if(BOT.on) botHUD();
     }

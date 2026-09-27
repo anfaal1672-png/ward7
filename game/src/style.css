@@ -364,3 +364,31 @@
     font-family:var(--mono);font-size:10px;color:#7de0c0;background:rgba(0,0,0,.6);padding:6px 8px;
     white-space:pre;line-height:1.5;pointer-events:none;max-width:70vw}
   #dbg[hidden]{display:none}
+
+  /* 音の方向表示。画面の縁に沿った楕円の上に、音の来た向きへ弧を出し、
+     短い字幕を上寄りに添える。縁に寄せるのは、中央の視界（追跡者そのもの）と
+     右下のランプを隠さないため */
+  #cue{position:fixed;inset:0;pointer-events:none;z-index:30}
+  #cue i{position:absolute;left:3vw;top:3vh;width:94vw;height:94vh;border-radius:50%;
+    opacity:0;transition:opacity .5s;
+    background:conic-gradient(from calc(var(--a,0deg) - 16deg),rgba(232,226,212,.85) 0deg,
+      rgba(232,226,212,0) 32deg,transparent 32deg);
+    -webkit-mask:radial-gradient(closest-side,transparent 92%,#000 94%,#000 99%,transparent 100%);
+            mask:radial-gradient(closest-side,transparent 92%,#000 94%,#000 99%,transparent 100%)}
+  #cue.on i{opacity:1;transition:opacity .08s}
+  #cue.hot i{background:conic-gradient(from calc(var(--a,0deg) - 16deg),rgba(200,60,50,.85) 0deg,
+      rgba(200,60,50,0) 32deg,transparent 32deg)}
+  #cue span{position:absolute;left:50%;top:calc(30vh + var(--sat));transform:translateX(-50%);white-space:nowrap;
+    font:12px/1.4 var(--mono);letter-spacing:.12em;color:var(--bone);opacity:0;transition:opacity .6s;
+    text-shadow:0 0 6px #000,0 0 2px #000}
+  #cue.on span{opacity:.9;transition:opacity .08s}
+
+  /* 手帳。声（誰が書いたか）ごとに並べ、私信だけは結びつけられる */
+  #jList .jsec{font:11px/1.8 var(--mono);letter-spacing:.3em;color:var(--dim);margin:18px 0 4px;text-transform:uppercase}
+  #jList .jdoc{border-top:1px solid var(--line);padding:10px 2px;font-size:13px;line-height:1.7;color:var(--bone)}
+  #jList .jdoc b{display:block;font:11px/1.6 var(--mono);letter-spacing:.14em;color:var(--dim);font-weight:400}
+  #jList .jdoc.unread{color:var(--dim);font-style:italic}
+  #jList .jdoc.letter{cursor:pointer;border-left:2px solid transparent;padding-left:10px;transition:border-color .2s,background .2s}
+  #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
+  #jList .jdoc.letter.linked{border-left-color:var(--copper)}
+  .lede.story{max-width:min(460px,86vw);font-size:14px;line-height:1.95;margin:10px 0 14px;white-space:pre-line}

@@ -41,6 +41,7 @@ function doDeath(){
        手から落ちた灯りが床から照らす形にすると、飛びが収まるうえに
        顔が下から照らされる。 */
     var flick = 0.72 + 0.28*Math.abs(Math.sin(performance.now()*0.021));
+    flick = lerp(0.86, flick, settings.flash);
     flashlight.intensity = LAMP_I * (1 - k*0.88);
     /* 落ちたランプは、既にある足元の補助光をそのまま床へ降ろして使う。
        専用の光源を 1 つ足すと、その 1 灯が「常に」全ての材質の
@@ -78,6 +79,12 @@ function doWin(){
   /* 記録は演出（暗転 1 秒）を待たずに、勝敗が決まったこの場で書く。
      待っている間に閉じられると記録が消えるし、
      ヘッドレスの検証でも実時間のタイマーは進まない。 */
+  /* 結末（設計指示書 第 20.1 節）。三通を結びつけた者が、灯りを消したまま
+     扉を抜けたときだけ、もう一つの結末になる。灯りを点けたまま出れば
+     いつもの脱出。チートの回・ボット・追う側では結末を数えない。 */
+  var story = (!cheatUsed && !BOT.on && playAs !== 'hunter');
+  var endingB = story && JOURNAL.linked && !player.lamp;
+  if(story){ JOURNAL.endings[endingB ? 'B' : 'A'] = 1; saveJournal(); }
   var wasBest = !cheatUsed && (!RECS[settings.diff].best || player.time < RECS[settings.diff].best);
   recordRun(true, player.hits||0);
   Audio2.unlock();
@@ -113,6 +120,9 @@ function doWin(){
     if(exitShaft) exitShaft.material.color.setHex(0xff5a4a);
     renderer.toneMappingExposure = exposureNow();
     Audio2.stopAmbient();
+    $('winEyebrow').textContent = endingB ? 'Released' : 'Discharged';
+    $('winTitle').textContent = endingB ? '退院' : '脱出';
+    $('winStory').textContent = !story ? '' : (endingB ? ENDING_B : ENDING_A);
     $('winStats').innerHTML =
       (playAs === 'hunter' ? '<div class="warnline">逃げられた</div>' : '') +
       endTable([
@@ -180,3 +190,14 @@ function fmtTime(s){
   return m + ':' + (r<10?'0':'') + r;
 }
 
+
+/* 結末の文。短く、事務的な記録の文体で終える（カルテと同じ声） */
+var ENDING_A =
+  '非常口の扉を押し開けた。外ではなかった。\n' +
+  '第七病棟の入口に立っていた。受付の上に、カルテの束が置いてある。\n' +
+  'いちばん上の一枚の患者名の欄に、あなたの名前が書いてある。';
+var ENDING_B =
+  'ランプを消した。暗闇の中で、呼ぶ声がすぐそこまで来て、止まった。\n' +
+  '「お姉ちゃん」\n' +
+  '手を伸ばすと、冷たい指が触れた。怖くはなかった。\n\n' +
+  '所見 06-11 追記　第七病棟、最後の患者の退院を確認。記録者 不明。';

@@ -1,7 +1,7 @@
 /* =========================================================================
    13. 画面遷移
    ========================================================================= */
-var panels = ['boot','title','opt','cheat','pause','dead','win','err'];
+var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal'];
 function showPanel(name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
@@ -90,6 +90,16 @@ function syncSettingsUI(){
   });
   $('valD').textContent = ['オフ','敵のみ','完全'][settings.detect];
   $('chartGoal').textContent = 'カルテ' + DIFF[settings.diff].records + '枚 → 非常口';
+  $('fovA').value = settings.fov;
+  $('valF').textContent = (settings.fov > 0 ? '+' : (settings.fov < 0 ? '' : '±')) + settings.fov;
+  $('motion').value = settings.motion;
+  $('valM').textContent = Math.round(settings.motion*100);
+  $('flash').value = settings.flash;
+  $('valL').textContent = Math.round(settings.flash*100);
+  Array.prototype.forEach.call($('segC').children, function(b){
+    b.setAttribute('aria-pressed', ((+b.dataset.c===1) === settings.cues) ? 'true':'false');
+  });
+  $('valC').textContent = settings.cues ? 'オン' : 'オフ';
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
   paintCalib();
@@ -257,6 +267,12 @@ $('gam').addEventListener('input', function(){
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
 });
+$('fovA').addEventListener('input', function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
+$('motion').addEventListener('input', function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
+$('flash').addEventListener('input', function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
+Array.prototype.forEach.call($('segC').children, function(b){
+  b.addEventListener('click', function(){ settings.cues = (+b.dataset.c === 1); syncSettingsUI(); saveSettings(); });
+});
 $('sens').addEventListener('input', function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
 $('vol').addEventListener('input', function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
@@ -267,6 +283,9 @@ $('btnCheat').addEventListener('click', function(){ openCheats('title'); });
 $('btnPauseCheat').addEventListener('click', function(){ openCheats('pause'); });
 $('btnCheatBack').addEventListener('click', function(){ showPanel(cheatReturn); });
 $('btnOpt').addEventListener('click', function(){ showPanel('opt'); });
+$('btnJournal').addEventListener('click', function(){ openJournal('title'); });
+$('btnPauseJournal').addEventListener('click', function(){ openJournal('pause'); });
+$('btnJournalBack').addEventListener('click', function(){ showPanel(journalReturn); });
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnStart').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = false; startGame(); });
 // 観戦モード。?bot=1 でも入れる
