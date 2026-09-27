@@ -11182,15 +11182,34 @@ function updateHUD(dt, bpm, info){
 /* =========================================================================
    16. 終了処理
    ========================================================================= */
+/* 捕まったときの演出（設計指示書 第 9.3 節）。毎回同じだと恐怖が退屈に変わる。
+     front … 正面から。向き直らされ、顔へ寄っていく（最初からあった形）
+     back  … 背後から。後ろへ引き倒され、天井が回って床へ落ち、最後に覗き込まれる
+     hide  … 隠れ場所から引きずり出される。箱の外へ、あれの方へ一気に引かれる
+   2 回目からは短く（同じ遊びの中で何度も見せない）。 */
+var deathsShown = 0;
+function deathKind(){
+  if(player.hiding) return 'hide';
+  var dx = hunter.x - player.x, dz = hunter.z - player.z;
+  var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+  var dl = Math.sqrt(dx*dx + dz*dz) || 1;
+  return ((dx/dl)*fx + (dz/dl)*fz) < -0.35 ? 'back' : 'front';
+}
 function doDeath(){
   if(state !== STATE.PLAY) return;
+  var kind = deathKind();
   state = STATE.DEAD;
   recordRun(false, player.hits||0);   // 演出を待たずにこの場で書く
   Audio2.scream();
   haptic([200,80,300]);
-  // 顔面アップ演出
   var t0 = performance.now();
-  var dur = 1500;
+  var dur = deathsShown > 0 ? 900 : 1500;
+  var hold = deathsShown > 0 ? 400 : 900;
+  deathsShown++;
+  // 引きずり出されるので、隠れ場所の格子の覆いは外す（残っていると箱の中のまま見える）
+  if(kind === 'hide') $('hideView').classList.remove('on');
+  var cam0 = { x:camera.position.x, y:camera.position.y, z:camera.position.z,
+               rx:camera.rotation.x, ry:camera.rotation.y };
   (function zoom(){
     if(state !== STATE.DEAD) return;
     if(playAs === 'hunter'){
@@ -11211,8 +11230,25 @@ function doDeath(){
     var hx = hunter.x, hz = hunter.z;
     var dx = hx-player.x, dz = hz-player.z;
     var yaw = Math.atan2(-dx, -dz);
-    camera.rotation.set(lerp(camera.rotation.x, 0.05, 0.15), yaw, (Math.random()-0.5)*0.08*(1-k));
-    camera.fov = lerp(camera.fov, 42, 0.06);
+    var MO = settings.motion;                     // 画面の揺れ（設定）で振れ幅を絞る
+    if(kind === 'back'){
+      // 後ろへ引き倒される：天井を仰ぎ、転がって床へ。終わり際に覗き込む顔の方へ
+      var fall = k < 0.7 ? k / 0.7 : 1, look = k < 0.7 ? 0 : (k - 0.7) / 0.3;
+      camera.position.set(cam0.x - Math.sin(yaw)*0.5*fall, lerp(cam0.y, 0.35, fall*fall), cam0.z - Math.cos(yaw)*0.5*fall);
+      camera.rotation.set(lerp(cam0.rx, 1.25, fall) * (1 - look) + 0.55 * look,
+                          lerp(cam0.ry, yaw, look), (0.9 * fall * (1 - look) + (Math.random()-0.5)*0.1) * MO);
+      camera.fov = lerp(camera.fov, 55, 0.06);
+    }else if(kind === 'hide'){
+      // 箱の外へ引きずり出される：前へ一気に、揺れながら
+      var pull = 1 - Math.pow(1 - k, 3);
+      camera.position.set(lerp(cam0.x, hx - Math.sin(yaw)*0.0 + (player.x - hx)*0.35, pull), cam0.y - 0.25*pull,
+                          lerp(cam0.z, hz + (player.z - hz)*0.35, pull));
+      camera.rotation.set(lerp(camera.rotation.x, 0.1, 0.2), yaw, (Math.random()-0.5)*0.22*(1-k)*MO);
+      camera.fov = lerp(camera.fov, 48, 0.08);
+    }else{
+      camera.rotation.set(lerp(camera.rotation.x, 0.05, 0.15), yaw, (Math.random()-0.5)*0.08*(1-k)*MO);
+      camera.fov = lerp(camera.fov, 42, 0.06);
+    }
     camera.updateProjectionMatrix();
 
     /* 掴まれたらランプを落とす。
@@ -11250,7 +11286,7 @@ function doDeath(){
           ['これまで', recLine(settings.diff)]
         ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
         showPanel('dead');
-      }, 900);
+      }, hold);
     }
   })();
 }
