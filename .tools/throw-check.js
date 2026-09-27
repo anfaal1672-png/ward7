@@ -2,7 +2,7 @@
    - 瓶が置かれている / 拾える / 投げると割れて、聞こえる距離の追跡者が割れた場所へ向かう
    - 忍び足で動くと player.sneaking が立つ
    使い方: node throw-check.js <html> [png] */
-const { chromium, EXEC } = require('./pw.js');
+const { chromium, EXEC, useUntil } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const b=await chromium.launch({executablePath:EXEC,
@@ -17,9 +17,9 @@ const fs=require('fs'), path=require('path');
   const r1 = await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.start();
     const w=A.world, pl=A.player, bt=w.bottles[0];
     const n = w.bottles.length;
-    pl.x = bt.x + 0.3; pl.z = bt.z; A.use();
+    pl.x = bt.x; pl.z = bt.z;
     return { placed:n }; });
-  await p.waitForTimeout(300);
+  await useUntil(p, ()=>window.__WARD7.player.bottles > 0);
   r1.got = await p.evaluate(()=>window.__WARD7.player.bottles);
   // 追跡者を離れた所に置き、徘徊させておく。瓶を投げる
   await p.waitForTimeout(400);

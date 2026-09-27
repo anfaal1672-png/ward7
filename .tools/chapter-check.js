@@ -3,7 +3,7 @@
    2) 第2章：患者が壁際に立つ。灯りを顔に向けると振り向いて叫び、あれが呼ばれる
    3) 第3章：停電。電源を戻すまで非常口が使えない
    使い方: node chapter-check.js <html> [患者の png] */
-const { chromium, EXEC } = require('./pw.js');
+const { chromium, EXEC, useUntil } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const b=await chromium.launch({executablePath:EXEC,
@@ -21,7 +21,7 @@ const fs=require('fs'), path=require('path');
   out.lock0 = await p.evaluate(()=>[...document.querySelectorAll('#segCh button')].map(b=>b.disabled));
   await p.evaluate(()=>{ const A=window.__WARD7; A.run.ch=0; A.start(); const pl=A.player, w=A.world;
     pl.got=pl.need; pl.hasKey=true; w.endgame=true; w.exit.open=true; pl.x=w.exit.x; pl.z=w.exit.z; });
-  await p.waitForTimeout(300); await p.evaluate(()=>window.__WARD7.use());
+  await p.waitForTimeout(300); await useUntil(p, ()=>!document.getElementById('win').hidden);
   await p.waitForFunction(()=>!document.getElementById('win').hidden,{timeout:15000}).catch(()=>{});
   out.win1 = await p.evaluate(()=>({title:document.getElementById('winTitle').textContent,
     again:document.getElementById('btnAgain').textContent, unlocked:window.__WARD7.progress.unlocked}));
@@ -44,10 +44,10 @@ const fs=require('fs'), path=require('path');
     pl.got=pl.need; pl.hasKey=true; w.endgame=true; w.exit.open=true; pl.x=w.exit.x; pl.z=w.exit.z; });
   await p.waitForTimeout(400); await p.evaluate(()=>window.__WARD7.use()); await p.waitForTimeout(600);
   out.dark = await p.evaluate(()=>({state:window.__WARD7.state(), btn:document.getElementById('bUse').textContent, bo:window.__WARD7.world.blackout}));
-  await p.evaluate(()=>{ const A=window.__WARD7, w=A.world, pl=A.player; pl.x=w.lever.x; pl.z=w.lever.z; A.use(); });
-  await p.waitForTimeout(500);
+  await p.evaluate(()=>{ const A=window.__WARD7, w=A.world, pl=A.player; pl.x=w.lever.x; pl.z=w.lever.z; });
+  await useUntil(p, ()=>window.__WARD7.world.power);
   await p.evaluate(()=>{ const A=window.__WARD7, w=A.world, pl=A.player; pl.x=w.exit.x; pl.z=w.exit.z; });
-  await p.waitForTimeout(400); await p.evaluate(()=>window.__WARD7.use());
+  await p.waitForTimeout(400); await useUntil(p, ()=>!document.getElementById('win').hidden);
   await p.waitForFunction(()=>!document.getElementById('win').hidden,{timeout:15000}).catch(()=>{});
   out.lit = await p.evaluate(()=>({power:window.__WARD7.world.power, win:!document.getElementById('win').hidden,
     title:document.getElementById('winTitle').textContent}));
@@ -71,7 +71,7 @@ const fs=require('fs'), path=require('path');
   await p.evaluate(()=>{ const A=window.__WARD7; for(const k in A.cheats) if(typeof A.cheats[k]==='boolean') A.cheats[k]=false;
     A.run.ch=6; A.start(); const pl=A.player, w=A.world;
     pl.got=pl.need; pl.hasKey=true; w.endgame=true; w.exit.open=true; pl.x=w.exit.x; pl.z=w.exit.z; pl.lamp=true; });
-  await p.waitForTimeout(300); await p.evaluate(()=>window.__WARD7.use());
+  await p.waitForTimeout(300); await useUntil(p, ()=>!document.getElementById('win').hidden);
   await p.waitForFunction(()=>!document.getElementById('win').hidden,{timeout:20000}).catch(()=>{});
   out.finale = await p.evaluate(()=>({title:document.getElementById('winTitle').textContent,
     story:document.getElementById('winStory').textContent.slice(0,12), again:document.getElementById('btnAgain').textContent}));

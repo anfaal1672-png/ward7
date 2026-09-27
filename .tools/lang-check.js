@@ -1,7 +1,7 @@
 /* 英語（設計指示書 第 14 章）。英語を選んだ状態で主な画面を開き、
    見えている文字に日本語が残っていないかを数える。
    使い方: node lang-check.js <html> [タイトルの png] [ゲーム中の png] */
-const { chromium, EXEC } = require('./pw.js');
+const { chromium, EXEC, useUntil } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
   const b=await chromium.launch({executablePath:EXEC,
@@ -40,7 +40,7 @@ const fs=require('fs'), path=require('path');
   await p.keyboard.press('Escape');
   await p.evaluate(()=>{ const A=window.__WARD7; for(const k in A.cheats) if(typeof A.cheats[k]==='boolean') A.cheats[k]=false;
     A.run.ch=-1; A.start(); const pl=A.player, w=A.world; pl.got=pl.need; pl.hasKey=true; w.endgame=true; w.exit.open=true; pl.x=w.exit.x; pl.z=w.exit.z; });
-  await p.waitForTimeout(300); await p.evaluate(()=>window.__WARD7.use());
+  await p.waitForTimeout(300); await useUntil(p, ()=>!document.getElementById('win').hidden);
   await p.waitForFunction(()=>!document.getElementById('win').hidden,{timeout:15000}).catch(()=>{});
   res.push(await leftovers('win'));
   res.forEach(r=>console.log(r.tag.padEnd(10), '残り', r.n, r.sample.join(' | ')));

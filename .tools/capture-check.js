@@ -29,9 +29,16 @@ const fs=require('fs'), path=require('path');
     return { grabT:pl.grabT, pushed:Math.hypot(pl.x-0, pl.z-0), hp:pl.hp, txt:document.getElementById('txtHp').textContent }; });
   r1.moved = await p.evaluate((g)=>Math.hypot(window.__WARD7.player.x-g.x, window.__WARD7.player.z-g.z), g);
   // 包帯を拾う
-  await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player, bd=A.world.bandages[0];
-    A.cheats.invisible=true; pl.x=bd.x+0.3; pl.z=bd.z; A.use(); });
-  await p.waitForTimeout(500);
+  /* 使う入力は次のフレームで消費される。その 1 フレームで一番近い物が包帯でないと
+     空振りする（CI で一度落ちた）。包帯の真上に立たせ、拾えるまで押し直す */
+  for(let tries=0; tries<10; tries++){
+    const got = await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player, bd=A.world.bandages[0];
+      if(bd.taken) return true;
+      A.cheats.invisible=true; A.hunter.x=pl.x+30; A.hunter.z=pl.z; pl.x=bd.x; pl.z=bd.z; A.use(); return false; });
+    if(got) break;
+    await p.waitForTimeout(300);
+  }
+  await p.waitForTimeout(200);
   const r2 = await p.evaluate(()=>({hp:window.__WARD7.player.hp, txt:document.getElementById('txtHp').textContent}));
   console.log(JSON.stringify({r0, r0b, g, r1, r2, errs:errs.slice(0,3)}));
   const ok = r0.bandages>=1 && r0b==='あと 2 回' && g.grabT>0 && r1.grabT<=0 && r1.moved>0.3 &&

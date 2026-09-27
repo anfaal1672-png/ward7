@@ -3,7 +3,7 @@
    1) 私信を全部読んだ手帳を仕込み、妹の 3 通を指で選んで結びつく
    2) 灯りを消したまま非常口を抜けると「退院」、点けたままなら「脱出」
    使い方: node story-check.js <html> [手帳の png] */
-const { chromium, EXEC } = require('./pw.js');
+const { chromium, EXEC, useUntil } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 async function run(b, html, lampOn, linked, shot){
   const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
@@ -36,7 +36,7 @@ async function run(b, html, lampOn, linked, shot){
     if(w.exit){ pl.x=w.exit.x; pl.z=w.exit.z; }
     pl.lamp=lampOn; }, lampOn);
   await p.waitForTimeout(300);
-  await p.evaluate(()=>window.__WARD7.use());
+  await useUntil(p, ()=>!document.getElementById('win').hidden);
   await p.waitForFunction(()=>!document.getElementById('win').hidden,{timeout:15000}).catch(()=>{});
   const r = await p.evaluate(()=>({title:document.getElementById('winTitle').textContent,
     story:document.getElementById('winStory').textContent.slice(0,24),
