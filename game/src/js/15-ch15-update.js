@@ -1313,6 +1313,11 @@ function updateHunter(dt, info){
   // 緊張感を音に反映
   var tension = clamp(1 - hd/24, 0, 1) * (hunter.mode==='chase'?1:0.5);
   Audio2.setTension(tension);
+  // 劇伴の段（第 2 章 setScore）。見えていなくても、近くを捜していれば段が上がる
+  var lvl = hunter.mode === 'chase' ? 3 :
+            ((hunter.mode === 'hunt' && hd < 16) || hd < 9) ? 2 :
+            (hunter.mode === 'hunt' || hd < 22) ? 1 : 0;
+  Audio2.setScore(lvl);
 }
 
 /* 声を鳴らす条件。

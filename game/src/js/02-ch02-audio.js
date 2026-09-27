@@ -189,17 +189,118 @@ var Audio2 = (function(){
     var elg = ctx.createGain(); elg.gain.value = 0.09;
     elfo.connect(elg); elg.connect(e2g.gain); elfo.start();
     drone.push(e1, e2, elfo);
+
+    buildScore();
   }
+
+  /* --- 劇伴（設計指示書 第 10.3 節） -----------------------------------
+     追跡者との距離と状態で 4 段を行き来する：静寂 → 気配 → 接近 → 追跡。
+     段ごとに別の層を持ち、上の段ほど層を足していく（下の段の音は残る）。
+     切り替えは 1.5 秒ほどで交差させる。音源ファイルは使わず全部ここで作る。
+       気配 … 短 2 度でぶつかる低い弦のような持続音。ゆっくり息をする
+       接近 … 心拍に近い周期の低い脈と、高いところで震える不協和
+       追跡 … 速い打ち込みの脈と、上下に掻きむしる帯域雑音
+     追跡が終わったら 8 秒だけ劇伴と環境音を落とし切る（REST）。
+     安堵を一度作ってから次の緊張へ入るため。追跡者の音は落とさない。 */
+  var score = null, scoreLevel = 0, restUntil = 0;
+  var SCORE_X = 0.55;            // 交差の時定数（setTargetAtTime。約 3 倍で落ち着く ≒ 1.5 秒）
+  var REST_SEC = 8, REST_BACK = 2.5;
+  function buildScore(){
+    score = { bus: ctx.createGain(), layers: [] };
+    score.bus.gain.value = 1; score.bus.connect(master);
+    function layer(){ var g = ctx.createGain(); g.gain.value = 0.0001; g.connect(score.bus); score.layers.push(g); return g; }
+    // 1: 気配
+    var L1 = layer();
+    var f1 = ctx.createBiquadFilter(); f1.type = 'lowpass'; f1.frequency.value = 340; f1.Q.value = 0.9;
+    f1.connect(L1);
+    [55.0, 58.27, 82.4].forEach(function(f, i){
+      var o = ctx.createOscillator(); o.type = i === 2 ? 'triangle' : 'sawtooth';
+      o.frequency.value = f; o.detune.value = (i - 1) * 7;
+      var g = ctx.createGain(); g.gain.value = i === 2 ? 0.05 : 0.09;
+      o.connect(g); g.connect(f1); o.start(); drone.push(o);
+    });
+    var br = ctx.createOscillator(); br.frequency.value = 0.07;       // 息をするような揺れ
+    var brg = ctx.createGain(); brg.gain.value = 120;
+    br.connect(brg); brg.connect(f1.frequency); br.start(); drone.push(br);
+    // 2: 接近
+    var L2 = layer();
+    var sub = ctx.createOscillator(); sub.type = 'sine'; sub.frequency.value = 36;
+    var subg = ctx.createGain(); subg.gain.value = 0.0;
+    var pul = ctx.createOscillator(); pul.type = 'sine'; pul.frequency.value = 0.9;   // 心拍より少し遅い
+    var pulg = ctx.createGain(); pulg.gain.value = 0.34;
+    pul.connect(pulg); pulg.connect(subg.gain);
+    sub.connect(subg); subg.connect(L2); sub.start(); pul.start(); drone.push(sub, pul);
+    [1244.5, 1318.5].forEach(function(f){
+      var o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      var g = ctx.createGain(); g.gain.value = 0.012;
+      var tr = ctx.createOscillator(); tr.frequency.value = 5.3 + Math.random();
+      var trg = ctx.createGain(); trg.gain.value = 0.010;
+      tr.connect(trg); trg.connect(g.gain);
+      o.connect(g); g.connect(L2); o.start(); tr.start(); drone.push(o, tr);
+    });
+    // 3: 追跡
+    var L3 = layer();
+    var kn = noiseSrc();
+    var kf = ctx.createBiquadFilter(); kf.type = 'lowpass'; kf.frequency.value = 180;
+    var kg = ctx.createGain(); kg.gain.value = 0.0;
+    var kl = ctx.createOscillator(); kl.type = 'square'; kl.frequency.value = 2.3;   // 打ち込みの脈
+    var klg = ctx.createGain(); klg.gain.value = 0.55;
+    kl.connect(klg); klg.connect(kg.gain);
+    kn.connect(kf); kf.connect(kg); kg.connect(L3); kn.start(); kl.start(); drone.push(kn, kl);
+    var sn = noiseSrc();
+    var sf = ctx.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 1500; sf.Q.value = 6;
+    var sg = ctx.createGain(); sg.gain.value = 0.16;
+    var sw = ctx.createOscillator(); sw.frequency.value = 0.17;
+    var swg = ctx.createGain(); swg.gain.value = 800;
+    sw.connect(swg); swg.connect(sf.frequency);
+    sn.connect(sf); sf.connect(sg); sg.connect(L3); sn.start(); sw.start(); drone.push(sn, sw);
+    scoreLevel = 0;
+  }
+  var LAYER_VOL = [0.55, 0.60, 0.50];
+  /* 劇伴の段を決める（0..3）。段 n では層 1..n を鳴らす */
+  function setScore(level){
+    if(!score) return;
+    level = clamp(level|0, 0, 3);
+    var t = ctx.currentTime;
+    var resting = t < restUntil;
+    // 毎フレーム呼ばれる。段も静寂も変わっていなければ何も積まない（AudioParam の予定が溜まる）
+    if(level === scoreLevel && resting === score.wasResting) return;
+    score.wasResting = resting;
+    if(scoreLevel === 3 && level < 3){ rest(); resting = true; score.wasResting = true; }   // 追跡が終わった
+    scoreLevel = level;
+    for(var i=0; i<3; i++){
+      var on = (i < level) && (!resting || level === 3);
+      score.layers[i].gain.setTargetAtTime(on ? LAYER_VOL[i] : 0.0001, t, SCORE_X);
+    }
+    if(level === 3 && resting){ restUntil = 0; unrest(); }
+  }
+  /* 8 秒の静寂。環境音の持続音と劇伴を落とす。追跡が再開すれば即座に戻る */
+  function rest(){
+    if(!score) return;
+    var t = ctx.currentTime;
+    restUntil = t + REST_SEC;
+    score.bus.gain.setTargetAtTime(0.0001, t, 0.4);
+    if(droneGain) droneGain.gain.setTargetAtTime(0.02, t, 0.6);
+    score.bus.gain.setTargetAtTime(1, t + REST_SEC, REST_BACK / 3);
+    if(droneGain) droneGain.gain.setTargetAtTime(0.5, t + REST_SEC, REST_BACK / 3);
+  }
+  function unrest(){
+    var t = ctx.currentTime;
+    score.bus.gain.cancelScheduledValues(t); score.bus.gain.setTargetAtTime(1, t, 0.15);
+    if(droneGain){ droneGain.gain.cancelScheduledValues(t); droneGain.gain.setTargetAtTime(0.5, t, 0.3); }
+  }
+  function resting(){ return !!ctx && ctx.currentTime < restUntil; }
   function stopAmbient(){
     if(!drone) return;
     try{ drone.forEach(function(o){ try{o.stop();}catch(e){} }); }catch(e){}
     drone = null; droneGain = null; droneFilt = null;
+    score = null; scoreLevel = 0; restUntil = 0;
     buses.hunter = null; buses.lamps = []; buses.exit = null;
   }
   function setTension(t){ // 0..1
     if(!droneFilt) return;
     droneFilt.frequency.setTargetAtTime(260 + t*1500, ctx.currentTime, 0.35);
-    if(droneGain) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
+    if(droneGain && !resting()) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
   }
 
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
@@ -528,7 +629,8 @@ var Audio2 = (function(){
     env(g, t, 0.3, 0.7, 0.06);
     o.start(t); o.stop(t+1.2);
   }
-  return { init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+  return { setScore:setScore, resting:resting, scoreLevel:function(){ return scoreLevel; },
+           init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
