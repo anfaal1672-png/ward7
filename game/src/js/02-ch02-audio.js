@@ -300,6 +300,7 @@ var Audio2 = (function(){
     if(!drone) return;
     try{ drone.forEach(function(o){ try{o.stop();}catch(e){} }); }catch(e){}
     drone = null; droneGain = null; droneFilt = null;
+    setWater(false);
     score = null; scoreLevel = 0; restUntil = 0;
     buses.hunter = null; buses.lamps = []; buses.exit = null;
   }
@@ -692,7 +693,101 @@ var Audio2 = (function(){
     o.start(t); vib.start(t); n.start(t);
     o.stop(t + dur + 0.4); vib.stop(t + dur + 0.4); n.stop(t + dur + 0.4);
   }
-  return { setScore:setScore, glass:glass, shriek:shriek, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 天井裏の金属音（第4章 通気口）。薄い鋼板を叩いた鈍い響きを、
+     頭の上から聞こえるように高域を削って鳴らす。loud は 0..1.2 */
+  function clang(dist, pan, loud){
+    if(!ready) return;
+    var t = ctx.currentTime;
+    var att = (8 / (8 + dist)) * (loud || 1);
+    var out = ctx.createGain(); out.gain.value = 0.5 * att;
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900 + 1400 * clamp(1 - dist/30, 0, 1);
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    out.connect(lp);
+    if(pn){ pn.pan.value = clamp(pan, -1, 1) * 0.7; lp.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
+    else lp.connect(master);
+    [118, 187, 263, 341].forEach(function(f, i){
+      var o = ctx.createOscillator(); o.type = i ? 'sine' : 'triangle';
+      o.frequency.value = f * (1 + (Math.random()-0.5)*0.03);
+      var g = ctx.createGain(); o.connect(g); g.connect(out);
+      env(g, t, 0.002, 0.25 + i*0.08, 0.5 / (i + 1));
+      o.start(t); o.stop(t + 0.7);
+    });
+    var n = ctx.createBufferSource(); n.buffer = noiseBuf;
+    var nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 700; nf.Q.value = 1.5;
+    var ng = ctx.createGain(); n.connect(nf); nf.connect(ng); ng.connect(out);
+    env(ng, t, 0.001, 0.08, 0.6);
+    n.start(t); n.stop(t + 0.15);
+  }
+  /* 囁き（第5章 映るもの）。子音だけの息の音を、話し声の帯域で短く刻む。
+     近いほど大きく、残響を抜いて耳元で鳴らす */
+  function whisper(dist, pan){
+    if(!ready) return;
+    var t = ctx.currentTime, att = 4 / (4 + dist);
+    var out = ctx.createGain(); out.gain.value = 0.35 * att;
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if(pn){ pn.pan.value = clamp(pan, -1, 1); out.connect(pn); pn.connect(master); } else out.connect(master);
+    var syl = 3 + ((Math.random()*3) | 0);
+    for(var i=0; i<syl; i++){
+      var off = i * (0.11 + Math.random()*0.07);
+      var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 0.9 + Math.random()*0.3;
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4;
+      bp.frequency.setValueAtTime(1800 + Math.random()*2600, t + off);
+      bp.frequency.linearRampToValueAtTime(1200 + Math.random()*1800, t + off + 0.09);
+      var g = ctx.createGain(); n.connect(bp); bp.connect(g); g.connect(out);
+      env(g, t + off, 0.012, 0.07 + Math.random()*0.05, 0.9);
+      n.start(t + off); n.stop(t + off + 0.25);
+    }
+  }
+  /* 水しぶき（第6章）。自分の足（dist 0）にも、あれの足にも使う。
+     低い「どぷ」と、高い帯域の飛沫を重ねる */
+  function splash(dist, pan, vol){
+    if(!ready) return;
+    var t = ctx.currentTime, att = (dist > 0 ? 6 / (6 + dist) : 1) * (vol === undefined ? 1 : vol);
+    if(att < 0.004) return;
+    var out = ctx.createGain(); out.gain.value = 0.45 * att;
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if(pn){ pn.pan.value = clamp(pan || 0, -1, 1); out.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
+    else out.connect(master);
+    var o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(260 + Math.random()*80, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.09);
+    var og = ctx.createGain(); o.connect(og); og.connect(out); env(og, t, 0.004, 0.09, 0.5);
+    o.start(t); o.stop(t + 0.15);
+    var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 0.8 + Math.random()*0.4;
+    var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500 + Math.random()*1500; bp.Q.value = 0.8;
+    var ng = ctx.createGain(); n.connect(bp); bp.connect(ng); ng.connect(out);
+    env(ng, t + 0.01, 0.01, 0.22, 0.55);
+    n.start(t); n.stop(t + 0.35);
+  }
+  /* 地下の水音。低いせせらぎを常に鳴らし、ときどき滴を落とす。
+     これがあれの足音を覆い隠す */
+  var waterNodes = null, dripT = null;
+  function setWater(on){
+    if(!ready) return;
+    if(waterNodes){ waterNodes.forEach(function(n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
+    if(dripT){ clearInterval(dripT); dripT = null; }
+    if(!on) return;
+    var n = noiseSrc();
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+    var g = ctx.createGain(); g.gain.value = 0.10;
+    var lf = ctx.createOscillator(); lf.frequency.value = 0.13;
+    var lg = ctx.createGain(); lg.gain.value = 0.04; lf.connect(lg); lg.connect(g.gain);
+    n.connect(lp); lp.connect(g); g.connect(master); if(revSend) g.connect(revSend);
+    n.start(); lf.start();
+    waterNodes = [n, lf];
+    dripT = setInterval(function(){
+      if(!ctx || ctx.state !== 'running' || Math.random() < 0.4) return;
+      var t = ctx.currentTime;
+      var o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(1400 + Math.random()*1600, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.05);
+      var gg = ctx.createGain(); var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      o.connect(gg);
+      if(pn){ pn.pan.value = Math.random()*2 - 1; gg.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
+      else gg.connect(master);
+      env(gg, t, 0.001, 0.06, 0.05 + Math.random()*0.05);
+      o.start(t); o.stop(t + 0.1);
+    }, 700);
+  }
+  return { setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,

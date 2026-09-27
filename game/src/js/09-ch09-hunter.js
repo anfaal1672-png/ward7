@@ -9,7 +9,8 @@ var hunter = {
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
   gazeT:0, gazeY:0, gazeTarget:0,
-  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0
+  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0,
+  vent:null, ventT:0, ventCd:0
 };
 
 /* 演出の頭脳（設計指示書 第 5.3 節）。
@@ -1054,4 +1055,214 @@ function updatePatients(dt){
 function lerpAngle(a, b, t){
   var dd = ((b - a + Math.PI*3) % TAU) - Math.PI;
   return a + dd * t;
+}
+
+/* --- 通気口（設計指示書 第 5.4 節・第4章） ---------------------------------
+   天井近くの格子から天井裏へ入り、音のした場所の近くの格子から降りてくる。
+   入っている間は姿も目も無い（見られないし、襲ってもこない）。
+   代わりに天井裏を這う金属の音が、上から、動いていく方向に鳴る。
+   降りる直前にいちばん大きく鳴るので、耳を澄ませていれば先回りに気づける。 */
+var vents = [];
+var VENT_CD = 35;            // 一度使ったら、次に使えるまで
+var VENT_SPEED = 6.5;        // 天井裏を進む速さ（m/s）
+function clearVents(){
+  vents.forEach(function(v){ if(v.mesh.parent) v.mesh.parent.remove(v.mesh); v.mesh.geometry.dispose(); });
+  vents = [];
+}
+var ventGeo = null, ventMat = null;
+function buildVents(info, n){
+  clearVents();
+  hunter.vent = null; hunter.ventT = 0; hunter.ventCd = 8;
+  if(!n) return;
+  if(!ventGeo){
+    var parts = [{ w:0.95, h:0.52, d:0.05, y:0, c:0x3a3f3c }];            // 枠
+    for(var k=0; k<5; k++) parts.push({ w:0.86, h:0.035, d:0.07, y:-0.19 + k*0.095, c:0x7b8079 });   // 羽板
+    ventGeo = mergeTinted(parts);
+    ventMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.55, metalness:0.6,
+                                               map:TEX.grunge || null });
+  }
+  var g = world.grid;
+  var br = mulberry32(((info.reach.length * 374761393) ^ (info.start.x * 2654435761) ^ (info.start.y * 97)) >>> 0 || 5);
+  var cand = info.reach.filter(function(c){
+    if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
+    for(var k=0; k<4; k++){ var nx = c.x + [1,-1,0,0][k], ny = c.y + [0,0,1,-1][k];
+      if(!inBounds(nx, ny) || g[idx(nx, ny)] !== 0) return true; }
+    return false;
+  });
+  for(var i=0; i<n && cand.length; i++){
+    var c = cand.splice((br() * cand.length) | 0, 1)[0];
+    // 近すぎる格子は置かない（天井裏の近道にならない）
+    var near = vents.some(function(v){ return Math.abs(v.cx - c.x) + Math.abs(v.cy - c.y) < 5; });
+    if(near){ i--; if(!cand.length) break; continue; }
+    var dirs = [];
+    for(var k2=0; k2<4; k2++){ var wx = c.x + [1,-1,0,0][k2], wy = c.y + [0,0,1,-1][k2];
+      if(!inBounds(wx, wy) || g[idx(wx, wy)] !== 0) dirs.push(k2); }
+    var dk = dirs[(br() * dirs.length) | 0], ddx = [1,-1,0,0][dk], ddz = [0,0,1,-1][dk];
+    var w = cellToWorld(c.x, c.y);
+    var m = new THREE.Mesh(ventGeo, ventMat);
+    m.position.set(w.x + ddx*(CELL*0.5 - 0.04), WALL_H - 0.55, w.z + ddz*(CELL*0.5 - 0.04));
+    m.rotation.y = Math.atan2(ddx, ddz);
+    world.group.add(m);
+    vents.push({ mesh:m, x:w.x, z:w.z, cx:c.x, cy:c.y });
+  }
+}
+function nearestVent(x, z, maxD, not){
+  var best = null, bd = maxD;
+  for(var i=0; i<vents.length; i++){
+    if(vents[i] === not) continue;
+    var dx = vents[i].x - x, dz = vents[i].z - z, dd = Math.sqrt(dx*dx + dz*dz);
+    if(dd < bd){ bd = dd; best = vents[i]; }
+  }
+  return best;
+}
+/* 天井裏に入るか。捜索中（hunt）で、行き先が遠く、近くに入口があり、
+   行き先の近くに出口があるときだけ */
+function ventTryEnter(){
+  if(!vents.length || hunter.ventCd > 0 || hunter.mode !== 'hunt' || !hunter.lastSeen || cheats.freeze) return false;
+  var L = hunter.lastSeen;
+  var far = Math.sqrt((L.x-hunter.x)*(L.x-hunter.x) + (L.z-hunter.z)*(L.z-hunter.z));
+  if(far < 18) return false;
+  var vIn = nearestVent(hunter.x, hunter.z, 7, null);
+  var vOut = vIn && nearestVent(L.x, L.z, 9, vIn);
+  if(!vIn || !vOut) return false;
+  var span = Math.sqrt((vOut.x-vIn.x)*(vOut.x-vIn.x) + (vOut.z-vIn.z)*(vOut.z-vIn.z));
+  if(span < 12) return false;
+  hunter.vent = { from:vIn, to:vOut, T:clamp(span / VENT_SPEED, 2.5, 7), bangT:0, warned:false };
+  hunter.ventT = hunter.vent.T;
+  hunter.group.visible = false; hunter.shadow.visible = false;
+  ventBang(vIn.x, vIn.z, 1.0);
+  return true;
+}
+/* 天井裏を進む。戻り値 true の間は、追跡者の他の処理を全部止める */
+function ventUpdate(dt){
+  if(!hunter.vent) return false;
+  var V = hunter.vent;
+  hunter.ventT -= dt;
+  var k = clamp(1 - hunter.ventT / V.T, 0, 1);
+  var x = lerp(V.from.x, V.to.x, k), z = lerp(V.from.z, V.to.z, k);
+  V.bangT -= dt;
+  if(V.bangT <= 0){ V.bangT = 0.42 + Math.random()*0.18; ventBang(x, z, 0.45); }
+  if(!V.warned && hunter.ventT < 1.2){
+    V.warned = true; ventBang(V.to.x, V.to.z, 1.2);
+    var pd = Math.sqrt((V.to.x-player.x)*(V.to.x-player.x) + (V.to.z-player.z)*(V.to.z-player.z));
+    if(settings.cues && pd < 18) soundCue('天井裏', pd, true);
+  }
+  if(hunter.ventT > 0) return true;
+  // 降りる
+  var p = pushOutOfWalls(V.to.x, V.to.z, 0.34);
+  hunter.x = p.x; hunter.z = p.z;
+  hunter.group.visible = true; hunter.shadow.visible = true;
+  hunter.stunT = Math.max(hunter.stunT, 0.6);          // 着地のひと呼吸
+  hunter.target = null; hunter.repathT = 0;
+  hunter.vent = null; hunter.ventCd = VENT_CD;
+  haptic(40);
+  return false;
+}
+function ventBang(x, z, loud){
+  var dx = x - player.x, dz = z - player.z, d = Math.sqrt(dx*dx + dz*dz);
+  var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+  Audio2.clang(d, clamp((dx*rx + dz*rz) / Math.max(1, d), -1, 1), loud);
+}
+
+/* --- 映るもの（設計指示書 第 5.4 節・第5章） -------------------------------
+   灯りを消している間だけ近づいてくる。体は黒く、自分では光らないので、
+   ランプの光の中でしか見えない。照らされると止まり、照らされ続けると消える。
+   触れられると、捕まったのと同じだけ削られる。
+   柱 1「光は命綱であり、罠である」を、あれとは逆向きに突きつける：
+   あれから隠れるには灯りを消したいが、消せばこちらが寄ってくる。 */
+var shade = { group:null, on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:0 };
+/* 3 秒・1.4 m/s では第5章の通常が 18.3%（被弾 0.89 /100 秒。ボット 240 本）と
+   ほかの章の半分に落ちた。消している時間を少し長く許し、足を遅くした */
+var SHADE_SPEED = 1.2;        // 歩き（3.1 m/s）の半分より遅い
+var SHADE_WAIT = 5.0;         // 灯りを消してから現れるまで
+var SHADE_LIT = 1.2;          // これだけ照らし続けると消える
+var shadeMat = null;
+function buildShade(on){
+  if(shade.group){ if(shade.group.parent) shade.group.parent.remove(shade.group);
+    shade.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); shade.group = null; }
+  shade.enabled = !!on; shade.on = false; shade.darkT = 0; shade.litT = 0; shade.cool = 6; shade.whisperT = 0;
+  if(!on || !hunter.group) return;
+  if(!shadeMat) shadeMat = new THREE.MeshLambertMaterial({ color:0x5a5c60 });
+  var fig = bakeFigure(hunter.group);
+  shade.group = new THREE.Group();
+  fig.children.forEach(function(m){ shade.group.add(new THREE.Mesh(m.geometry, shadeMat)); });
+  shade.group.visible = false;
+  shade.group.scale.set(0.96, 1.04, 0.96);                    // 少しだけ縦に長い
+  scene.add(shade.group);
+}
+function shadeSpawn(){
+  // 通路の道のりで 12〜18m 離れた、こちらから見えていないマスに現れる
+  var F = PATHF.field; if(!F) return false;
+  var list = [];
+  for(var i=0; i<F.length; i++){
+    var dv = F[i] * CELL;
+    if(F[i] > 0 && dv >= 12 && dv <= 18){
+      var cx = i % GW, cy = (i / GW) | 0, w = cellToWorld(cx, cy);
+      if(!hasSight(world.grid, player.x, player.z, w.x, w.z)) list.push(w);
+    }
+  }
+  if(!list.length) return false;
+  var w2 = list[(Math.random() * list.length) | 0];          // 見た目だけの出来事なので rnd は引かない
+  shade.x = w2.x; shade.z = w2.z; shade.on = true; shade.litT = 0;
+  shade.group.visible = true;
+  return true;
+}
+function updateShade(dt){
+  if(!shade.enabled || !shade.group) return;
+  if(shade.cool > 0) shade.cool -= dt;
+  var dark = !player.lamp && !player.hiding;
+  shade.darkT = dark ? shade.darkT + dt : 0;
+  if(!shade.on){
+    if(shade.cool <= 0 && shade.darkT > SHADE_WAIT && !cheats.invisible) shadeSpawn();
+    return;
+  }
+  var dx = player.x - shade.x, dz = player.z - shade.z, d = Math.sqrt(dx*dx + dz*dz);
+  // 照らされているか：ランプが点いていて、光の円錐に入っていて、壁に遮られていない
+  var lit = false;
+  if(player.lamp && d < 16){
+    var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+    lit = ((-dx/d)*fx + (-dz/d)*fz) > 0.88 && hasSight(world.grid, player.x, player.z, shade.x, shade.z);
+  }
+  if(lit){
+    shade.litT += dt;
+    if(shade.litT >= SHADE_LIT){ shade.on = false; shade.group.visible = false; shade.cool = 12; Audio2.gasp(); }
+  }else{
+    shade.litT = Math.max(0, shade.litT - dt*0.5);
+    // 灯りの外にいる間だけ進む。道のりの地図を 1 マスずつ降りる
+    if(!player.lamp || !lit){
+      var c = worldToCell(shade.x, shade.z), F = PATHF.field, tx = player.x, tz = player.z;
+      if(F && inBounds(c.x, c.y) && F[idx(c.x, c.y)] > 1){
+        var cur = F[idx(c.x, c.y)], best = null;
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(o){
+          var nx = c.x + o[0], ny = c.y + o[1];
+          if(inBounds(nx, ny) && F[idx(nx, ny)] >= 0 && F[idx(nx, ny)] < cur) best = cellToWorld(nx, ny);
+        });
+        if(best){ tx = best.x; tz = best.z; }
+      }
+      var mx = tx - shade.x, mz = tz - shade.z, ml = Math.sqrt(mx*mx + mz*mz) || 1;
+      var st = Math.min(ml, SHADE_SPEED * dt * (player.lamp ? 0.5 : 1));
+      shade.x += mx/ml*st; shade.z += mz/ml*st;
+    }
+  }
+  // 囁き。近いほど頻繁に、耳元で
+  shade.whisperT -= dt;
+  if(d < 9 && shade.whisperT <= 0){
+    shade.whisperT = 0.9 + d*0.25;
+    var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+    Audio2.whisper(d, clamp(((shade.x-player.x)*rx + (shade.z-player.z)*rz) / Math.max(1, d), -1, 1));
+    if(settings.cues) soundCue('囁き', d, d < 4);
+  }
+  shade.group.position.set(shade.x, 0, shade.z);
+  shade.group.rotation.y = Math.atan2(dx, dz);
+  // 触れられた
+  if(d < 0.9 && !player.hiding){
+    shade.on = false; shade.group.visible = false; shade.cool = 25;
+    player.sanity = clamp(player.sanity - 40, 0, 100);
+    player.shake = 1.2; player.hurtT = 0.5;
+    if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
+    player.hits = (player.hits || 0) + 1;
+    Audio2.hurt(); haptic([80, 40, 120]);
+    toast(escapesLeft() > 0 ? '冷たい指が触れた（あと ' + escapesLeft() + ' 回）' : '冷たい指が触れた', 2.6);
+    if(player.hp <= 0) doDeath();
+  }
 }

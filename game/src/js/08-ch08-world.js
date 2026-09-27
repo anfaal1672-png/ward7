@@ -3021,3 +3021,90 @@ function placeBandages(pool, used, startC){
     world.bandages.push({ mesh:m, spr:spr, x:m.position.x, z:m.position.z, taken:false });
   }
 }
+
+/* --- 水（設計指示書 第 5.4 節・第6章） ------------------------------------
+   9 区画のうち 4 つが膝まで水に浸かっている。水の中では
+     こちら … 遅くなり、足音が水しぶきになって遠くまで届く（忍び足なら抑えられる）
+     あれ   … 足音が水音に紛れて聞こえにくくなる
+   区画の選び方は間取りから作った乱数で決める（ゲームの rnd は引かない）。 */
+var WATER_Y = 0.16;
+var waterMesh = null;
+function clearWater(){
+  if(waterMesh){
+    if(waterMesh.parent) waterMesh.parent.remove(waterMesh);
+    var k = ENV_MATS.indexOf(waterMesh.material); if(k >= 0) ENV_MATS.splice(k, 1);   // 映り込みの登録も外す
+    waterMesh.geometry.dispose(); waterMesh.material.dispose(); waterMesh = null;
+  }
+  world.water = null;
+}
+function buildWater(info, on){
+  clearWater();
+  if(!on) return;
+  var g = world.grid;
+  var br = mulberry32(((info.reach.length * 1597334677) ^ (info.start.x * 3812015801) ^ (info.start.y * 71)) >>> 0 || 9);
+  var zs = [0,1,2,3,4,5,6,7,8];
+  for(var i=zs.length-1; i>0; i--){ var j = (br() * (i+1)) | 0; var t = zs[i]; zs[i] = zs[j]; zs[j] = t; }
+  var wet = {}; zs.slice(0, 4).forEach(function(z){ wet[z] = 1; });
+  world.water = new Uint8Array(GW*GH);
+  var pos = [], nor = [], uv = [], idxs = [], n = 0, h = CELL * 0.5;
+  for(var y=0; y<GH; y++) for(var x=0; x<GW; x++){
+    if(g[idx(x, y)] !== 0 || !wet[zoneOf(x, y)]) continue;
+    world.water[idx(x, y)] = 1;
+    var w = cellToWorld(x, y);
+    pos.push(w.x-h, WATER_Y, w.z-h,  w.x+h, WATER_Y, w.z-h,  w.x+h, WATER_Y, w.z+h,  w.x-h, WATER_Y, w.z+h);
+    nor.push(0,1,0, 0,1,0, 0,1,0, 0,1,0);
+    var u0 = (w.x - h) / 3, u1 = (w.x + h) / 3, v0 = (w.z - h) / 3, v1 = (w.z + h) / 3;
+    uv.push(u0, v0,  u1, v0,  u1, v1,  u0, v1);
+    idxs.push(n, n+2, n+1, n, n+3, n+2); n += 4;
+  }
+  if(!n) return;
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idxs);
+  /* 黒く澄んだ水。粗さを低くしてランプの光を細く返す。
+     底の床が透けて見えるよう少しだけ透かす（まるで床が消えたように見えると怖いより先に分かりにくい） */
+  /* 最初は明るい青緑の板にしか見えなかった（拡散反射が強すぎ、床のタイルの
+     ように光を受けていた）。色を沈め、映り込みとさざ波の法線で「光を返す面」にする。
+     さざ波はゆっくり流して、止まった水ではないことを見せる（updateWater）。 */
+  var mat = regEnvMat(new THREE.MeshStandardMaterial({ color:0x03080a, roughness:0.035, metalness:0.25,
+    transparent:true, opacity:0.86, depthWrite:false, envMapIntensity:1.1,
+    normalMap:waterNormals(), normalScale:new THREE.Vector2(0.35, 0.35) }));
+  waterMesh = new THREE.Mesh(geo, mat);
+  waterMesh.renderOrder = 3;
+  world.group.add(waterMesh);
+}
+function inWater(x, z){
+  if(!world.water) return false;
+  var c = worldToCell(x, z);
+  return inBounds(c.x, c.y) && world.water[idx(c.x, c.y)] === 1;
+}
+
+/* さざ波の法線マップ。いくつかの波を重ねた高さから法線を起こす（画像ファイルは使わない） */
+var waterNTex = null;
+function waterNormals(){
+  if(waterNTex) return waterNTex;
+  var S = 128, c = makeCanvas(S), x = c.getContext('2d'), im = x.createImageData(S, S), H = new Float32Array(S*S);
+  var waves = [[3,1,0.5],[1,4,1.7],[5,-2,2.9],[-2,5,4.1],[7,3,0.3]];
+  for(var j=0; j<S; j++) for(var i=0; i<S; i++){
+    var h = 0;
+    waves.forEach(function(w){ h += Math.sin((i*w[0] + j*w[1]) * TAU / S + w[2]) / (1 + Math.abs(w[0]) + Math.abs(w[1])); });
+    H[j*S+i] = h;
+  }
+  for(var j2=0; j2<S; j2++) for(var i2=0; i2<S; i2++){
+    var dx = H[j2*S + ((i2+1)%S)] - H[j2*S + ((i2+S-1)%S)];
+    var dy = H[((j2+1)%S)*S + i2] - H[((j2+S-1)%S)*S + i2];
+    var nx = -dx*2.2, ny = -dy*2.2, nz = 1, l = Math.sqrt(nx*nx + ny*ny + nz*nz), o = (j2*S+i2)*4;
+    im.data[o] = (nx/l*0.5+0.5)*255; im.data[o+1] = (ny/l*0.5+0.5)*255; im.data[o+2] = (nz/l*0.5+0.5)*255; im.data[o+3] = 255;
+  }
+  x.putImageData(im, 0, 0);
+  waterNTex = new THREE.CanvasTexture(c);
+  waterNTex.wrapS = waterNTex.wrapT = THREE.RepeatWrapping;
+  return waterNTex;
+}
+function updateWater(dt){
+  if(!waterMesh || !waterNTex) return;
+  waterNTex.offset.x = (waterNTex.offset.x + dt*0.012) % 1;
+  waterNTex.offset.y = (waterNTex.offset.y + dt*0.007) % 1;
+}

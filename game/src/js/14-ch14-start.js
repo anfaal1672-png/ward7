@@ -66,6 +66,10 @@ function startGame(){
   placeHunter(buildInfo.reach, buildInfo.start);
   buildPatients(buildInfo, rdef.patients[clamp(settings.diff|0, 0, 2)] | 0);
   world.blackout = !!rdef.blackout;
+  buildVents(buildInfo, rdef.vents | 0);
+  buildShade(!!rdef.reflect);
+  buildWater(buildInfo, !!rdef.water);
+  Audio2.setWater(!!rdef.water);
 
   var sw = cellToWorld(buildInfo.start.x, buildInfo.start.y);
   player.x = sw.x; player.z = sw.z;

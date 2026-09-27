@@ -401,3 +401,7 @@
   /* 忍び足。スティックを小さく倒している間は、輪を青緑に沈めて字を出す */
   #stick.sneak::after{border-color:rgba(111,191,168,.55)}
   #stick.sneak #stickLbl{opacity:.8;color:var(--copper)}
+
+  /* 章の選択。8 つ並べると縦書きに潰れたので、4 つずつ 2 段に折る */
+  #segCh{flex-wrap:wrap;gap:6px}
+  #segCh button{flex:1 0 22%;white-space:nowrap;font-size:12px;letter-spacing:.06em;padding-left:2px;padding-right:2px}

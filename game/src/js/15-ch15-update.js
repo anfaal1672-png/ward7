@@ -246,6 +246,8 @@ function updatePlayer(dt){
 
   var base = 3.111;                 // 2.55 × 1.22（追跡者も同率で引き上げ）
   var speed = base * (player.running ? 1.85 : 1.0);
+  player.wet = inWater(player.x, player.z);
+  if(player.wet) speed *= 0.8;                  // 膝まで水（第6章）
   if(cheats.fast) speed *= 2.0;
   if(!player.lamp) speed *= 0.86;              // 暗いと慎重に
   if(player.hp < 40) speed *= 0.9;
@@ -301,7 +303,9 @@ function updatePlayer(dt){
     player.bob += (adv / stride) * Math.PI;      // 1歩でπ進む＝揺れが歩幅に同期する
     player.stepAcc += adv;
     // 余りを繰り越す（0に戻すと1フレーム分だけ歩幅が伸びて不揃いになる）
-    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z), player.sneaking ? 0.4 : 1); }
+    if(player.stepAcc >= stride){ player.stepAcc -= stride;
+      if(player.wet) Audio2.splash(0, 0, player.sneaking ? 0.35 : (player.running ? 1 : 0.7));
+      else Audio2.step(player.running, floorMat(player.x, player.z), player.sneaking ? 0.4 : 1); }
   }else{
     player.bob += dt*0.8;
     if(player.stepAcc > stride*0.6) player.stepAcc = stride*0.6;
@@ -654,6 +658,9 @@ function updateExposure(dt, lampOn){
 function updateHunter(dt, info){
   var g = world.grid;
   var hd = info.hd;
+  // 通気口（第 9 章）。天井裏にいる間は、見ることも襲うこともない
+  if(hunter.ventCd > 0) hunter.ventCd -= dt;
+  if(playAs !== 'hunter' && ventUpdate(dt)){ Audio2.setTension(0.2); return; }
 
   if(hunter.spawnGrace > 0) hunter.spawnGrace -= dt;
 
@@ -664,6 +671,8 @@ function updateHunter(dt, info){
   var d = DIFF[settings.diff];
   // 忍び足は立ち止まっているのとほぼ同じだけしか聞こえない（第 10 章 SNEAK_V）
   var noise = player.running ? 1.6 : (info.vmag > 0.4 ? (player.sneaking ? 0.55 : 1.0) : 0.45);
+  // 水の中では足音が水しぶきになって遠くまで届く（忍び足なら半分で済む）
+  if(player.wet && info.vmag > 0.4) noise *= player.sneaking ? 1.3 : 1.5;
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
   var hearWall = hearOpen * 0.55;       // 壁越しは届きにくいが、届く
   var seen = false;                     // 目視した＝追跡
@@ -774,6 +783,7 @@ function updateHunter(dt, info){
     }
   }
   if(hunter.mode === 'chase') hunter.chaseT += dt; else hunter.chaseT = 0;
+  if(playAs !== 'hunter' && ventTryEnter()) return;
   if(hunter.mode !== 'hunt'){ hunter.inspect = null; hunter.inspectT = 0; }
   // 演出の頭脳：出会っていない時間と、追跡が終わってからの時間
   if(hunter.mode === 'patrol') DIRECTOR.calmT += dt; else DIRECTOR.calmT = 0;
@@ -912,6 +922,7 @@ function updateHunter(dt, info){
       var spd = (cheats.slowHunter ? 0.5 : 1) *
                 hunter.speed * (hunter.mode==='chase' ? d.chaseMul : (hunter.mode==='hunt'?1.05:0.82))
                 + (hunter.mode==='chase' ? rage : 0);
+      if(inWater(hunter.x, hunter.z)) spd *= 0.85;      // あれも水には足を取られる
       var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
       // 曲がり角の減速（第 9 章 CORNER_SLOW）。追跡中だけ効かせる
       var turnC = 1 - (nx0*hunter.dirX + nz0*hunter.dirZ);   // 0 直進 / 1 直角 / 2 反転
@@ -1371,7 +1382,10 @@ function updateHunter(dt, info){
         // プレイヤーの向きを基準にした左右の成分をパンに使う
         var rvx = Math.cos(player.viewYaw), rvz = -Math.sin(player.viewYaw);
         var lat = ((hunter.x - player.x)*rvx + (hunter.z - player.z)*rvz) / Math.max(1, hd);
-        Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
+        // 水の中の足音は水音に紛れる（第6章）。人の耳にもボットの耳にも同じだけ
+        var hWet = inWater(hunter.x, hunter.z) ? 0.5 : 1;
+        if(hWet < 1) Audio2.splash(hd, clamp(lat, -1, 1) * 0.85, chasing ? 0.55 : 0.4);
+        else Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
         if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
            走りの足音は 115Hz・短い減衰、歩きは 82Hz・長い減衰で鳴り分けている。
@@ -1388,7 +1402,7 @@ function updateHunter(dt, info){
                        ボットは徘徊・捜索中の接近にまるで気づけなかった
                        （被弾の実例：hunt のまま 13.4m→4.6m を 6 秒で詰められている）。 */
                     BOT.ear.stepAtt = (6/(6+hd)) * (1 - Math.pow(clamp(hd/40,0,1),3)) *
-                                      (info.los ? 1 : 0.55); }
+                                      (info.los ? 1 : 0.55) * hWet; }
       }
     }
   }

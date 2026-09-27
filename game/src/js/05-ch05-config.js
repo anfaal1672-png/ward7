@@ -29,7 +29,17 @@ var CHAPTERS = [
   { n:2, name:'東棟',   seed:0x57A02, patients:[3,4,5], blackout:false,
     intro:'大部屋の患者たちは壁を向いて立っている。灯りを向けると騒ぐ。騒げば、あれが来る。' },
   { n:3, name:'管理棟', seed:0x57A03, patients:[0,1,2], blackout:true,
-    intro:'非常回路が落ちている。電源を戻さなければ非常口は開かない。戻せば、あれに気づかれる。' }
+    intro:'非常回路が落ちている。電源を戻さなければ非常口は開かない。戻せば、あれに気づかれる。' },
+  { n:4, name:'階段',   seed:0x57A04, patients:[0,1,1], blackout:false, vents:6,
+    intro:'天井裏を何かが這っている。音のした方へ、上から先回りしてくる。' },
+  { n:5, name:'記録庫', seed:0x57A05, patients:[0,0,1], blackout:false, reflect:true,
+    intro:'灯りの外でだけ近づいてくるものがいる。照らせば止まり、照らし続ければ消える。' },
+  { n:6, name:'地下', seed:0x57A06, patients:[1,1,2], blackout:false, water:true,
+    intro:'地下は膝まで水が溜まっている。水の中では自分の足音が響き、あれの足音は水音に紛れる。' },
+  /* 終章。第1章と同じ種＝同じ間取り。最初に歩いた病棟へ戻ってくる
+     （最後のカルテ「出口の場所が思い出せない」に、歩いた記憶で答える章） */
+  { n:7, name:'第七病棟', seed:0x57A01, patients:[2,3,3], blackout:false, vents:4, reflect:true,
+    intro:'最初の病棟に戻ってきた。出口の場所を思い出す。ここを抜けたところで、すべてが終わる。' }
 ];
 var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
   intro:'毎回違う病棟。物語とは別に、何度でも。' };

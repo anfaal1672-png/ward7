@@ -8,7 +8,7 @@ var player = {
   hiding:null, hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
   got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
-  sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0
+  sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0, wet:false
 };
 
 // 家具（円で近似）から押し出す。プレイヤーと追跡者の両方で使う

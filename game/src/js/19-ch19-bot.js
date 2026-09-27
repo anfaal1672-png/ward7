@@ -1735,7 +1735,11 @@ function botLamp(dt, F){
     fleeing ||                                   // ここで消えていると必ず捕まる
     th > 0.13 ||                                 // 気配がある。すぐ走るかもしれない
     player.battery > 88 ||                       // 満タン近くは惜しまない
-    BOT.pulseOn);                                // 探索中はここで明滅する
+    BOT.pulseOn ||                               // 探索中はここで明滅する
+    /* 第5章（映るもの）。消して 3 秒で寄ってくるので、囁きが聞こえたら
+       点けて待つ（照らせば止まる）。人が聞いて分かる手掛かりだけを使う */
+    (shade.enabled && shade.on && shade.whisperT > 0 &&
+     Math.sqrt((shade.x-player.x)*(shade.x-player.x) + (shade.z-player.z)*(shade.z-player.z)) < 9));
   // 追われている間は待たずに点ける（1.2 秒の迷いが致命傷になる）
   if(fleeing && !player.lamp && player.battery > 1){ toggleLamp(); BOT.lampCd = 1.2; }
   // 残量を温存しようと消灯を増やすと、消灯時間が延びてかえって遅くなった（計測済み）

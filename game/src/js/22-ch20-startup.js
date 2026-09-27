@@ -54,7 +54,7 @@ try{
     propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
-    run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; },
+    run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; }, vents: function(){ return vents; }, shade: shade,
     spatialPath: function(x, z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
