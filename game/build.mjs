@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildSync } from 'esbuild';
+import { createHash } from 'node:crypto';
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const src = path.join(here, 'src');
@@ -54,6 +55,11 @@ const html = shell
   .replace('<!--@style-->', () => css)
   .replace('<!--@script-->', () => "(function(){\n'use strict';\n" + js + '\n})();');
 
+// Service Worker（第 15.5 節）。キャッシュの名前を中身から作る
+const swTarget = path.join(here, '..', 'sw.js');
+const swHash = createHash('sha256').update(html).update(three).update(assetsJs).digest('hex').slice(0, 12);
+const swJs = fs.readFileSync(path.join(src, 'sw.js'), 'utf8').replace('__HASH__', swHash);
+
 if(process.argv.includes('--check')){
   const cur = fs.readFileSync(target, 'utf8');
   if(cur !== html){
@@ -70,10 +76,15 @@ if(process.argv.includes('--check')){
     console.error('assets.js が assets/textures と一致しない。node game/build.mjs で組み直すこと');
     process.exit(1);
   }
-  console.log('ward7.html・three.min.js・assets.js は源と一致');
+  if((fs.existsSync(swTarget) ? fs.readFileSync(swTarget, 'utf8') : '') !== swJs){
+    console.error('sw.js が源と一致しない。node game/build.mjs で組み直すこと');
+    process.exit(1);
+  }
+  console.log('ward7.html・three.min.js・assets.js・sw.js は源と一致');
 }else{
   fs.writeFileSync(target, html);
   fs.writeFileSync(threeTarget, three);
   fs.writeFileSync(assetsTarget, assetsJs);
+  fs.writeFileSync(swTarget, swJs);
   console.log('ward7.html を書き出した（' + html.split('\n').length + ' 行）');
 }

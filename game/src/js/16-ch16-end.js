@@ -17,6 +17,8 @@ function deathKind(){
 function doDeath(){
   if(state !== STATE.PLAY) return;
   var kind = deathKind();
+  tele('death', { x:+player.x.toFixed(1), z:+player.z.toFixed(1), by:(player.lastHitBy || 'hunter'), got:player.got,
+                  time:+player.time.toFixed(1), how:kind });
   state = STATE.DEAD;
   recordRun(false, player.hits||0);   // 演出を待たずにこの場で書く
   Audio2.scream();
@@ -111,6 +113,7 @@ function doDeath(){
 }
 function doWin(){
   if(state !== STATE.PLAY) return;
+  tele('win', { time:+player.time.toFixed(1), hits:player.hits||0, lamp:!!player.lamp });
   state = STATE.WIN;
   /* 記録は演出（暗転 1 秒）を待たずに、勝敗が決まったこの場で書く。
      待っている間に閉じられると記録が消えるし、

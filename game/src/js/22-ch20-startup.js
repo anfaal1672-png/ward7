@@ -30,6 +30,10 @@ try{
          sessionStorage.setItem('ward7.restored', '1'); }catch(e){ return; }
     location.reload();
   });
+  /* Web 版はオフラインでも遊べるよう Service Worker を置く（第 15.5 節）。
+     https でだけ動く。file://（iOS アプリ・手元）では何もしない */
+  try{ if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
+    navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){}
   blackout(true, true);
   requestAnimationFrame(loop);
 

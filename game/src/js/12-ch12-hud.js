@@ -468,3 +468,48 @@ function drawMap(){
   x.lineTo(me.x + fz2*r*0.7 - fx2*r*0.6, me.y - fx2*r*0.7 - fz2*r*0.6);
   x.closePath(); x.fill();
 }
+
+/* --- プレイテストの記録（設計指示書 第 17 章） -----------------------------
+   設定でオンにしたときだけ、この端末の中（Store）に残す。外へは一切送らない。
+   目的は二つ：捕まる場所が偏っていないか（理不尽の検出）と、どこでやめてしまうか。
+   記録するもの：章の開始と終わり（結果・時間）、捕まった場所と相手、隠れ場所に入った場所、
+   1 分ごとのフレーム時間の分布（中央値・95%）と温度の段階。 */
+var TELE = { ev:null, ft:[], ftT:0 };
+var TELE_MAX = 3000;
+function teleLoad(){
+  if(TELE.ev) return;
+  try{ TELE.ev = JSON.parse(Store.get('ward7.tele') || '[]'); }catch(e){ TELE.ev = []; }
+  if(!Array.isArray(TELE.ev)) TELE.ev = [];
+}
+function tele(kind, data){
+  if(!settings.tele || BOT.on) return;
+  teleLoad();
+  var e = { k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 };
+  for(var key in data) e[key] = data[key];
+  TELE.ev.push(e);
+  if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
+  Store.set('ward7.tele', JSON.stringify(TELE.ev));
+}
+function teleFrame(dt){
+  if(!settings.tele || BOT.on || state !== STATE.PLAY) return;
+  TELE.ft.push(dt); TELE.ftT += dt;
+  if(TELE.ftT < 60) return;
+  var a = TELE.ft.slice().sort(function(x, y){ return x - y; });
+  tele('frames', { med:+(a[a.length >> 1]*1000).toFixed(1), p95:+(a[Math.floor(a.length*0.95)]*1000).toFixed(1),
+                   n:a.length, drs:+DRS.scale.toFixed(2), heat:THERMAL.level, q:settings.quality|0 });
+  TELE.ft = []; TELE.ftT = 0;
+}
+function teleExport(){
+  teleLoad();
+  var text = JSON.stringify({ app:'ward7', at:new Date().toISOString(), ua:navigator.userAgent, events:TELE.ev }, null, 1);
+  // iOS アプリでは保存のダイアログが出ないので、共有シートかクリップボードへ
+  try{
+    var blob = new Blob([text], { type:'application/json' });
+    var file = (typeof File === 'function') ? new File([blob], 'ward7-playtest.json', { type:'application/json' }) : null;
+    if(file && navigator.canShare && navigator.canShare({ files:[file] })){ navigator.share({ files:[file] }).catch(function(){}); return; }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ward7-playtest.json';
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }catch(e){
+    try{ navigator.clipboard.writeText(text); toast('記録をクリップボードに写した', 2.4); }catch(e2){}
+  }
+}

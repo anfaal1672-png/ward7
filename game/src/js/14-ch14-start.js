@@ -106,6 +106,7 @@ function startGame(){
   $('numGot').textContent = '0';
   $('objSub').textContent = 'カルテを探せ';
   if(rdef.n) toast('第' + rdef.n + '章　' + rdef.name, 3.2);
+  tele('start', { need:player.need });
   $('bLight').classList.add('hot');
   $('bUse').classList.add('dim');
   $('hurt').style.opacity = '0';

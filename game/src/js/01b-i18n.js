@@ -119,6 +119,9 @@ var EN = {
   '獲物を探せ':'Find your prey', 'カルテを揃えた。もう隠れられない':'All records taken. It can’t hide now',
   '気配':'Presence', '起動できません':'Cannot start', '再読み込み':'Reload',
   '歩いた場所の地図':'Map of where you have walked',
+  'プレイテスト':'Playtest', '記録を書き出す':'Export log', '記録をクリップボードに写した':'Log copied to clipboard',
+  'どこで捕まったか・どの章で何分かかったか・動作の重さを、この端末の中だけに残す。外へは送らない。':
+    'Keeps where you were caught, how long each chapter took and how heavy the game ran, on this device only. Nothing is sent anywhere.',
   '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
@@ -244,6 +247,7 @@ var EN_PATTERNS = [
              (far ? ' · ' + (far === '近い' ? 'near' : 'far') : '') + ']'; }],
   [/^カルテを (\d+) 枚 集めろ$/, 'Collect $1 records'],
   [/^挑戦 (\d+)/, function(m){ return trFragments(m); }],
+  [/^（いま (\d+) 件）$/, '($1 entries)'],
   [/^(\d+) 回$/, '$1']
 ];
 /* 部品の置き換え（長いものから） */

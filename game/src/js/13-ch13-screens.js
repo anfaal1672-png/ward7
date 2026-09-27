@@ -118,6 +118,11 @@ function syncSettingsUI(){
     b.setAttribute('aria-pressed', ((+b.dataset.h === 1) === settings.hrtf) ? 'true' : 'false');
   });
   $('valH').textContent = settings.hrtf ? 'ヘッドホン' : 'スピーカー';
+  Array.prototype.forEach.call($('segT').children, function(b){
+    b.setAttribute('aria-pressed', ((+b.dataset.t === 1) === settings.tele) ? 'true' : 'false');
+  });
+  $('valT').textContent = settings.tele ? 'オン' : 'オフ';
+  teleLoad(); $('teleN').textContent = TELE.ev.length ? '（いま ' + TELE.ev.length + ' 件）' : '';
   Audio2.setHRTF(settings.hrtf);
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
@@ -286,6 +291,10 @@ $('gam').addEventListener('input', function(){
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
 });
+Array.prototype.forEach.call($('segT').children, function(b){
+  b.addEventListener('click', function(){ settings.tele = (+b.dataset.t === 1); syncSettingsUI(); saveSettings(); });
+});
+$('btnTeleOut').addEventListener('click', teleExport);
 /* 立体音響の切り替えは、次に病棟へ入ったときの音から効く（持続音のバスは入るときに作る） */
 Array.prototype.forEach.call($('segH').children, function(b){
   b.addEventListener('click', function(){ settings.hrtf = (+b.dataset.h === 1); syncSettingsUI(); saveSettings(); });

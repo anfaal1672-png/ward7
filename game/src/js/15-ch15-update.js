@@ -456,6 +456,7 @@ function updatePlayer(dt){
         near.obj.fromX = ax/al; near.obj.fromZ = az/al;
         player.hiding = near.obj;
         near.obj.uses = (near.obj.uses || 0) + 1;     // 追跡者が覚える（第 9 章 learn）
+        tele('hide', { x:+near.obj.x.toFixed(1), z:+near.obj.z.toFixed(1), uses:near.obj.uses });
         player.vx = player.vz = 0;
         player.yaw = near.obj.yaw;
         // 入るところを見られていたら、隠れても意味がない
@@ -1436,6 +1437,8 @@ function updateHunter(dt, info){
     hunter.stunT = 3.0;               // 振り抜いたあとの硬直。逃げ直す猶予になる
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
     player.hits = (player.hits || 0) + 1;
+    player.lastHitBy = 'hunter';
+    tele('grab', { x:+player.x.toFixed(1), z:+player.z.toFixed(1), mode:hunter.mode, left:escapesLeft() });
     player.shake = 1.4; player.hurtT = 0.5;
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
     Audio2.hurt();

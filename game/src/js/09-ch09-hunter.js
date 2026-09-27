@@ -1261,6 +1261,8 @@ function updateShade(dt){
     player.shake = 1.2; player.hurtT = 0.5;
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
     player.hits = (player.hits || 0) + 1;
+    player.lastHitBy = 'shade';
+    tele('touch', { x:+player.x.toFixed(1), z:+player.z.toFixed(1) });
     Audio2.hurt(); haptic([80, 40, 120]);
     toast(escapesLeft() > 0 ? '冷たい指が触れた（あと ' + escapesLeft() + ' 回）' : '冷たい指が触れた', 2.6);
     if(player.hp <= 0) doDeath();
