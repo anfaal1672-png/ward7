@@ -199,3 +199,66 @@ function buildTextures(){
   if(QC.gloss) TEX.grungeR = mkR(roughFrom(gc, 0.52, 0.92), 1, 1);
 }
 
+
+/* --- 写真素材（設計指示書 第 7.2 節） ---------------------------------------
+   CC0 の写真素材を加工したもの（assets/textures、出所は assets/LICENSES.md）を、
+   高精細以上で壁・床・天井に貼る。assets.js は後から読まれるので、届くまでは
+   手続き生成の絵のまま遊べ、届いた時点で差し替える。頂点色（陰りと区画の色調）は
+   そのまま効く。軽量・標準では読まない（端末のメモリと読み込みを優先）。
+   1 マスの広さ 4.2m に対して、壁のボーダータイル 1 枚の絵が約 1.1m、床の
+   長尺シートの絵が 1 マスぶん、天井板が約 2m。 */
+var PHOTO = { tex:null, loading:false, wait:[] };
+/* 最初の案（壁 3.8×3.3・床 1 マス 1 枚）は、壁の目地が細かすぎて白い面に溶け、
+   床の八角形が大きすぎて手前が柄に見えた。撮って合わせた値 */
+var PHOTO_REPEAT = { wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] };
+/* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
+var PHOTO_TINT = { wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 };
+function photoWanted(){
+  return (settings.quality|0) >= 2 && !!window.W7_ASSETS &&
+         !!(renderer.capabilities && renderer.capabilities.isWebGL2);
+}
+function loadPhoto(cb){
+  if(PHOTO.tex){ cb(PHOTO.tex); return; }
+  PHOTO.wait.push(cb);
+  if(PHOTO.loading) return;
+  PHOTO.loading = true;
+  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = {}, left = 0;
+  var sets = { wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' };
+  Object.keys(sets).forEach(function(k){
+    T[k] = {};
+    ['diff', 'nor', 'rough'].forEach(function(m){
+      var src = A[sets[k] + '/' + m]; if(!src) return;
+      left++;
+      T[k][m] = L.load(src, function(){ if(--left === 0) done(); }, undefined, function(){ if(--left === 0) done(); });
+      var t = T[k][m];
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(PHOTO_REPEAT[k][0], PHOTO_REPEAT[k][1]);
+      t.colorSpace = (m === 'diff') ? THREE.SRGBColorSpace : THREE.NoColorSpace;   // 法線と粗さは色ではない
+      t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
+    });
+  });
+  function done(){
+    PHOTO.tex = T; PHOTO.loading = false;
+    var w = PHOTO.wait; PHOTO.wait = [];
+    w.forEach(function(f){ f(T); });
+  }
+}
+function applyPhoto(){
+  if(!photoWanted() || !world.mats) return;
+  var mats = world.mats;
+  loadPhoto(function(T){
+    if(world.mats !== mats) return;                 // 読み込み中に作り直された
+    [['wall', mats.wall, 1.6], ['floor', mats.floor, 0.8], ['ceil', mats.ceil, 0.5]].forEach(function(e){
+      var t = T[e[0]], m = e[1];
+      if(!m || !t || !t.diff) return;
+      m.map = t.diff;
+      m.color.setHex(PHOTO_TINT[e[0]]);
+      if(t.nor){ m.normalMap = t.nor; m.normalScale = new THREE.Vector2(e[2], e[2]); }
+      if(t.rough){ m.roughnessMap = t.rough; m.roughness = 1; }
+      m.needsUpdate = true;
+    });
+    world.photo = true;
+  });
+}
+// assets.js は defer で後から届く。遊んでいる最中に届いたら、その場で貼る
+window.addEventListener('load', function(){ if(state === STATE.PLAY) applyPhoto(); });

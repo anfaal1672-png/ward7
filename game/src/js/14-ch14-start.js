@@ -52,6 +52,7 @@ function startGame(){
   resetPlayerLight();
   resetHunterVox();
   buildInfo = buildWorld();
+  applyPhoto();
   buildHunter();
   /* 法線の最終検め。
      生成の各所で fixNormals を通してはいるが、形の作り方は 6 通りあり、

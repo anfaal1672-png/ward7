@@ -14,6 +14,28 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const src = path.join(here, 'src');
 const target = path.join(here, '..', 'ward7.html');
 const threeTarget = path.join(here, '..', 'three.min.js');
+const assetsTarget = path.join(here, '..', 'assets.js');
+const assetsDir = path.join(here, '..', 'assets');
+
+/* 外部素材（第 7.2 節）。file:// で開くと画像は別オリジン扱いになり WebGL に渡せない
+   （iOS の WKWebView も同じ）。data URI にして 1 本のスクリプトへ畳む。
+   LICENSES.md に載っていない素材があれば組み立てを止める。 */
+function buildAssets(){
+  const lic = fs.readFileSync(path.join(assetsDir, 'LICENSES.md'), 'utf8');
+  const texRoot = path.join(assetsDir, 'textures');
+  const out = {};
+  for(const name of fs.readdirSync(texRoot).sort()){
+    if(lic.indexOf('textures/' + name + '/') < 0) throw new Error('assets/LICENSES.md に textures/' + name + '/ の記録が無い');
+    for(const f of fs.readdirSync(path.join(texRoot, name)).sort()){
+      if(!/\.jpg$/.test(f)) continue;
+      out[name + '/' + f.replace(/\.jpg$/, '')] = 'data:image/jpeg;base64,' +
+        fs.readFileSync(path.join(texRoot, name, f)).toString('base64');
+    }
+  }
+  return '/* 生成物（game/build.mjs）。assets/textures の加工済み素材。出所は assets/LICENSES.md */\n' +
+         'window.W7_ASSETS=' + JSON.stringify(out) + ';\n';
+}
+const assetsJs = buildAssets();
 
 const three = buildSync({
   entryPoints: [path.join(here, 'vendor', 'three-global.js')],
@@ -43,9 +65,15 @@ if(process.argv.includes('--check')){
     console.error('three.min.js が package.json の three と一致しない。node game/build.mjs で組み直すこと');
     process.exit(1);
   }
-  console.log('ward7.html・three.min.js は源と一致');
+  const curAssets = fs.existsSync(assetsTarget) ? fs.readFileSync(assetsTarget, 'utf8') : '';
+  if(curAssets !== assetsJs){
+    console.error('assets.js が assets/textures と一致しない。node game/build.mjs で組み直すこと');
+    process.exit(1);
+  }
+  console.log('ward7.html・three.min.js・assets.js は源と一致');
 }else{
   fs.writeFileSync(target, html);
   fs.writeFileSync(threeTarget, three);
+  fs.writeFileSync(assetsTarget, assetsJs);
   console.log('ward7.html を書き出した（' + html.split('\n').length + ' 行）');
 }
