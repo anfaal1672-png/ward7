@@ -76,9 +76,15 @@ var Audio2 = (function(){
   function setVol(v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
      「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
-  function setSpace(inBox){
-    if(!revWet || !ready) return;
-    revWet.gain.setTargetAtTime(inBox ? REV_BOX : REV_OPEN, ctx.currentTime, 0.25);
+  /* 部屋の広さで返りを変える（第 10.2 節）。箱の中はほぼ無し、廊下は並、
+     大部屋・ホールは深く。space: 'box' | 'hall' | 'room' */
+  var REV_ROOM = 0.46, spaceNow = null;
+  function setSpace(space){
+    if(space === true) space = 'box'; else if(space === false || !space) space = 'hall';
+    if(!revWet || !ready || space === spaceNow) return;
+    spaceNow = space;
+    revWet.gain.setTargetAtTime(space === 'box' ? REV_BOX : (space === 'room' ? REV_ROOM : REV_OPEN),
+                                ctx.currentTime, 0.4);
   }
 
   function noiseSrc(){

@@ -55,6 +55,7 @@ try{
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
     run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; },
+    spatialPath: function(x, z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){

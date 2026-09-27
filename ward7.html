@@ -938,9 +938,15 @@ var Audio2 = (function(){
   function setVol(v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
      「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
-  function setSpace(inBox){
-    if(!revWet || !ready) return;
-    revWet.gain.setTargetAtTime(inBox ? REV_BOX : REV_OPEN, ctx.currentTime, 0.25);
+  /* 部屋の広さで返りを変える（第 10.2 節）。箱の中はほぼ無し、廊下は並、
+     大部屋・ホールは深く。space: 'box' | 'hall' | 'room' */
+  var REV_ROOM = 0.46, spaceNow = null;
+  function setSpace(space){
+    if(space === true) space = 'box'; else if(space === false || !space) space = 'hall';
+    if(!revWet || !ready || space === spaceNow) return;
+    spaceNow = space;
+    revWet.gain.setTargetAtTime(space === 'box' ? REV_BOX : (space === 'room' ? REV_ROOM : REV_OPEN),
+                                ctx.currentTime, 0.4);
   }
 
   function noiseSrc(){
@@ -8573,6 +8579,60 @@ function spatial(wx, wz, maxD, blocked, refD){
   if(blocked){ vol *= 0.5; cut = Math.min(cut, 430); } // 壁越しはこもる
   return { d:d, vol:vol, pan:clamp(lat, -1, 1) * 0.85, cut:cut };
 }
+/* --- 音の通り道（設計指示書 第 10.2 節） ---------------------------------
+   壁越しの音を「まっすぐの距離で、こもらせるだけ」にしていたので、
+   壁 1 枚向こうで 40m 回り込まないと来られない相手が、すぐ横にいるように
+   聞こえていた。プレイヤーのマスから通路を幅優先でたどった距離の地図を
+   持ち、壁越しの音はその道のりの長さで小さくし、回り道が長いほどこもらせる。
+   向き（左右）は、音が入ってくる開口（こちらのマスの隣の、道の最後の 1 マス）
+   から鳴らす。角の向こうの足音は、角の方から聞こえる。 */
+var PATHF = { t:0, cx:-1, cy:-1, field:null };
+function updatePathField(dt){
+  PATHF.t -= dt;
+  var c = worldToCell(player.x, player.z);
+  if(PATHF.field && PATHF.t > 0 && c.x === PATHF.cx && c.y === PATHF.cy) return;
+  PATHF.t = 0.25; PATHF.cx = c.x; PATHF.cy = c.y;
+  var g = world.grid, n = GW*GH;
+  if(!PATHF.field || PATHF.field.length !== n) PATHF.field = new Int16Array(n);
+  var F = PATHF.field; F.fill(-1);
+  if(!inBounds(c.x, c.y) || g[idx(c.x, c.y)] !== 0) return;
+  var q = [idx(c.x, c.y)], head = 0; F[q[0]] = 0;
+  while(head < q.length){
+    var i = q[head++], x = i % GW, y = (i / GW) | 0, dv = F[i] + 1;
+    if(x > 0      && F[i-1]  < 0 && g[i-1]  === 0){ F[i-1]  = dv; q.push(i-1); }
+    if(x < GW-1   && F[i+1]  < 0 && g[i+1]  === 0){ F[i+1]  = dv; q.push(i+1); }
+    if(y > 0      && F[i-GW] < 0 && g[i-GW] === 0){ F[i-GW] = dv; q.push(i-GW); }
+    if(y < GH-1   && F[i+GW] < 0 && g[i+GW] === 0){ F[i+GW] = dv; q.push(i+GW); }
+  }
+}
+function spatialPath(wx, wz, maxD, blocked, refD){
+  if(!blocked || !PATHF.field) return spatial(wx, wz, maxD, blocked, refD);
+  var F = PATHF.field, c = worldToCell(wx, wz);
+  if(!inBounds(c.x, c.y) || F[idx(c.x, c.y)] < 1) return spatial(wx, wz, maxD, blocked, refD);
+  // 道を逆にたどって、こちらのマスの隣（道のり 1）まで降りる。そこが開口
+  var x = c.x, y = c.y, guard = 200;
+  while(F[idx(x, y)] > 1 && guard-- > 0){
+    var cur = F[idx(x, y)], nx = x, ny = y;
+    if(x > 0    && F[idx(x-1,y)] === cur-1) nx = x-1;
+    else if(x < GW-1 && F[idx(x+1,y)] === cur-1) nx = x+1;
+    else if(y > 0    && F[idx(x,y-1)] === cur-1) ny = y-1;
+    else if(y < GH-1 && F[idx(x,y+1)] === cur-1) ny = y+1;
+    else break;
+    x = nx; y = ny;
+  }
+  var pw = cellToWorld(x, y);
+  var dx0 = wx - player.x, dz0 = wz - player.z, d = Math.sqrt(dx0*dx0 + dz0*dz0);
+  var Lp = Math.max(d, F[idx(c.x, c.y)] * CELL);
+  var px = pw.x - player.x, pz = pw.z - player.z, pl = Math.sqrt(px*px + pz*pz) || 1;
+  // 開口の向きに、道のりの長さだけ離れた場所で鳴っているものとして計算する
+  var r = spatial(player.x + px/pl*Lp, player.z + pz/pl*Lp, maxD, false, refD);
+  var ex = clamp((Lp - d) / 14, 0, 1);             // 回り道の長さ（14m で頭打ち）
+  r.vol *= lerp(0.8, 0.45, ex);
+  r.cut = Math.min(r.cut, lerp(1900, 380, ex));
+  r.d = d; r.path = Lp;
+  return r;
+}
+
 /* 床の硬さ。マスの座標から決まる固定値なので、同じ場所は毎回同じ音になる。
    「ここは剥がれたリノリウム、ここはタイル」が歩いているうちに分かる。
    地形の意味は見ていない（部屋か廊下かは音の担当ではない）。 */
@@ -8670,7 +8730,13 @@ function updatePlayer(dt){
   $('bBack').classList.toggle('hot', wantBack);
 
   // 隠れている間は動けない。視界も狭くなる
-  if(player.hiding !== BOOTH.was){ BOOTH.was = player.hiding; Audio2.setSpace(!!player.hiding); }
+  // 返りの深さ：箱の中 / 部屋（大部屋・ホール） / 廊下
+  var pcS = worldToCell(player.x, player.z), inRoom = false;
+  for(var ri=0; ri<world.rooms.length && !inRoom; ri++){
+    var RM = world.rooms[ri];
+    if(pcS.x >= RM.x && pcS.x < RM.x + RM.w && pcS.y >= RM.y && pcS.y < RM.y + RM.h) inRoom = true;
+  }
+  Audio2.setSpace(player.hiding ? 'box' : (inRoom ? 'room' : 'hall'));
   if(player.hiding){
     var H = player.hiding;
     var rel2 = ((player.yaw - H.yaw + Math.PI*3) % TAU) - Math.PI;
@@ -10087,10 +10153,16 @@ function updateEnv(dt, info){
 
   // --- 立体音響：追跡者・非常灯・非常口をそれぞれの方向から鳴らす ---
   if(hunter.group && hunter.group.visible){
+    updatePathField(dt);
     var hs = spatial(hunter.x, hunter.z, 30, !info.los);
+    var hsA = spatialPath(hunter.x, hunter.z, 30, !info.los);        // 耳に届く音は道のりで
     var modeGain = hunter.mode === 'chase' ? 1.0 : (hunter.mode === 'hunt' ? 0.66 : 0.42);
     var hv = hs.vol * 0.42 * modeGain;
-    Audio2.setHunterVoice(hv, hs.pan, hs.cut);
+    Audio2.setHunterVoice(hsA.vol * 0.42 * modeGain, hsA.pan, hsA.cut);
+    /* ボットの耳は今までどおりまっすぐの距離の値を渡す。道のりの音に
+       替えると、これまでの測定（ボット 240 本）と比べられなくなるため。
+       人の耳の方が情報は多い（回り込みの向きが分かる）ので、ボットが
+       有利になることはない。 */
     // 観戦モードの「耳」。ボットはここで鳴っている値しか受け取らない
     if(BOT.on){ BOT.ear.vol = hv; BOT.ear.pan = hs.pan; BOT.ear.cut = hs.cut;
                 BOT.ear.muffled = (hs.cut <= 440); }
@@ -13565,6 +13637,7 @@ try{
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
     run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; },
+    spatialPath: function(x, z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
     lookBack: function(on){ backBtnDown = !!on; },
     findLOSSpot: function(px, pz, minD, maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
