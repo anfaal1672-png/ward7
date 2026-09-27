@@ -114,6 +114,11 @@ function syncSettingsUI(){
   Array.prototype.forEach.call($('segL').children, function(b){
     b.setAttribute('aria-pressed', (b.dataset.l === settings.lang) ? 'true' : 'false');
   });
+  Array.prototype.forEach.call($('segH').children, function(b){
+    b.setAttribute('aria-pressed', ((+b.dataset.h === 1) === settings.hrtf) ? 'true' : 'false');
+  });
+  $('valH').textContent = settings.hrtf ? 'ヘッドホン' : 'スピーカー';
+  Audio2.setHRTF(settings.hrtf);
   $('gam').value = settings.gamma;
   $('valG').textContent = (+settings.gamma).toFixed(2);
   paintCalib();
@@ -280,6 +285,10 @@ $('gam').addEventListener('input', function(){
   paintCalib();
   renderer.toneMappingExposure = exposureNow();
   saveSettings();
+});
+/* 立体音響の切り替えは、次に病棟へ入ったときの音から効く（持続音のバスは入るときに作る） */
+Array.prototype.forEach.call($('segH').children, function(b){
+  b.addEventListener('click', function(){ settings.hrtf = (+b.dataset.h === 1); syncSettingsUI(); saveSettings(); });
 });
 /* 言語を変えたら読み直す。訳は文字が画面に入る瞬間に掛けているので、
    すでに出ている英語を日本語へ戻す手段を持たない（持つ必要もない） */

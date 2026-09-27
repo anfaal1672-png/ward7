@@ -99,26 +99,47 @@ var Audio2 = (function(){
 
   // 位置を持つ持続音のための共通バス（音量・左右・こもり具合を毎フレーム更新する）
   var buses = { hunter:null, lamps:[], exit:null };
+  /* 頭部伝達関数（HRTF、設計指示書 第 10.2 節）。ヘッドホンなら前後と上下まで
+     分かる。左右の振り分け（StereoPanner）では「真後ろ」と「真正面」が同じに鳴る。
+     音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
+     （距離による減衰は切る＝rolloffFactor 0）。スピーカーで遊ぶときは左右の振り分けに戻す。 */
+  var hrtf = true;
+  function setHRTF(on){ hrtf = !!on; }
+  function makePanner(){
+    if(!hrtf || !ctx.createPanner) return null;
+    var p = ctx.createPanner();
+    p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.rolloffFactor = 0; p.refDistance = 1;
+    return p;
+  }
+  function setDir(p, pan, fwd, t, tc){
+    // 聞き手は原点で -Z を向いている。右が +X、前が -Z
+    var x = clamp(pan, -1, 1), z = -(fwd === undefined ? Math.sqrt(Math.max(0, 1 - x*x)) : fwd);
+    if(p.positionX){ p.positionX.setTargetAtTime(x, t, tc); p.positionY.setTargetAtTime(0, t, tc); p.positionZ.setTargetAtTime(z, t, tc); }
+    else p.setPosition(x, 0, z);
+  }
   function makeBus(){
     var g = ctx.createGain(); g.gain.value = 0.0001;
     var lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
     lp.frequency.value = 800; lp.Q.value = 0.5;
-    var sp = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    var hp = makePanner();
+    var sp = (!hp && ctx.createStereoPanner) ? ctx.createStereoPanner() : null;
     g.connect(lp);
-    if(sp){ lp.connect(sp); sp.connect(master); } else { lp.connect(master); }
-    return { in:g, gain:g, lp:lp, pan:sp, vol:0, panV:0, cut:800 };
+    if(hp){ lp.connect(hp); hp.connect(master); }
+    else if(sp){ lp.connect(sp); sp.connect(master); } else { lp.connect(master); }
+    return { in:g, gain:g, lp:lp, pan:sp, hrtf:hp, vol:0, panV:0, cut:800 };
   }
-  function setBus(bus, vol, panV, cut){
+  function setBus(bus, vol, panV, cut, fwd){
     if(!bus || !ready) return;
     var t = ctx.currentTime;
     bus.vol = vol; bus.panV = panV; bus.cut = cut;
     bus.gain.gain.setTargetAtTime(Math.max(0.00001, vol), t, 0.12);
     bus.lp.frequency.setTargetAtTime(Math.max(120, cut), t, 0.16);
-    if(bus.pan) bus.pan.pan.setTargetAtTime(clamp(panV, -1, 1), t, 0.09);
+    if(bus.hrtf) setDir(bus.hrtf, panV / 0.85, fwd, t, 0.09);      // 左右の値は 0.85 倍して渡されている
+    else if(bus.pan) bus.pan.pan.setTargetAtTime(clamp(panV, -1, 1), t, 0.09);
   }
-  function setHunterVoice(v,p,c){ setBus(buses.hunter, v, p, c); }
-  function setLampVoice(i,v,p,c){ setBus(buses.lamps[i], v, p, c); }
-  function setExitVoice(v,p,c){ setBus(buses.exit, v, p, c); }
+  function setHunterVoice(v,p,c,f){ setBus(buses.hunter, v, p, c, f); }
+  function setLampVoice(i,v,p,c,f){ setBus(buses.lamps[i], v, p, c, f); }
+  function setExitVoice(v,p,c,f){ setBus(buses.exit, v, p, c, f); }
   function busCount(){ return (buses.hunter?1:0) + buses.lamps.length + (buses.exit?1:0); }
   function busState(){
     return {
@@ -499,16 +520,17 @@ var Audio2 = (function(){
     var n = clamp(dist / STEP_MAX, 0, 1);
     return (6 / (6 + dist)) * (1 - n*n*n);
   }
-  function hunterStep(dist, chasing, pan, blocked){
+  function hunterStep(dist, chasing, pan, blocked, fwd){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = stepAtten(dist) * (blocked ? 0.55 : 1);
     if(att <= 0.0005) return;
     var n01 = clamp(dist / STEP_MAX, 0, 1);
 
-    // 出口：距離に応じて左右へ振る（対応していない環境では素通し）
-    var out = master;
-    if(ctx.createStereoPanner){
+    // 出口：ヘッドホンなら HRTF で向きごと、そうでなければ左右へ振る
+    var out = master, hp = makePanner();
+    if(hp){ setDir(hp, (pan || 0) / 0.85, fwd, t, 0.001); hp.connect(master); out = hp; }
+    else if(ctx.createStereoPanner){
       var sp = ctx.createStereoPanner();
       sp.pan.value = clamp(pan || 0, -1, 1);
       sp.connect(master);
@@ -787,7 +809,7 @@ var Audio2 = (function(){
       o.start(t); o.stop(t + 0.1);
     }, 700);
   }
-  return { setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,

@@ -119,6 +119,9 @@ var EN = {
   '獲物を探せ':'Find your prey', 'カルテを揃えた。もう隠れられない':'All records taken. It can’t hide now',
   '気配':'Presence', '起動できません':'Cannot start', '再読み込み':'Reload',
   '歩いた場所の地図':'Map of where you have walked',
+  '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
+  'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
+    'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
   'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
   '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio',
   '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',

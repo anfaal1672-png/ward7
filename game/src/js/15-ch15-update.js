@@ -20,7 +20,7 @@ function spatial(wx, wz, maxD, blocked, refD){
   if(fwd < 0) vol *= 0.72 + 0.28*(1 + fwd);          // 背後はやや遠く聞こえる
   var cut = 320 + 3200 * Math.pow(1 - n, 2);
   if(blocked){ vol *= 0.5; cut = Math.min(cut, 430); } // 壁越しはこもる
-  return { d:d, vol:vol, pan:clamp(lat, -1, 1) * 0.85, cut:cut };
+  return { d:d, vol:vol, pan:clamp(lat, -1, 1) * 0.85, cut:cut, fwd:fwd };
 }
 /* --- 音の通り道（設計指示書 第 10.2 節） ---------------------------------
    壁越しの音を「まっすぐの距離で、こもらせるだけ」にしていたので、
@@ -1394,7 +1394,11 @@ function updateHunter(dt, info){
         // 水の中の足音は水音に紛れる（第6章）。人の耳にもボットの耳にも同じだけ
         var hWet = inWater(hunter.x, hunter.z) ? 0.5 : 1;
         if(hWet < 1) Audio2.splash(hd, clamp(lat, -1, 1) * 0.85, chasing ? 0.55 : 0.4);
-        else Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los);
+        else {
+          var fvx = -Math.sin(player.viewYaw), fvz = -Math.cos(player.viewYaw);
+          var fwdS = ((hunter.x - player.x)*fvx + (hunter.z - player.z)*fvz) / Math.max(1, hd);
+          Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los, fwdS);
+        }
         if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
            走りの足音は 115Hz・短い減衰、歩きは 82Hz・長い減衰で鳴り分けている。
@@ -1624,7 +1628,7 @@ function updateEnv(dt, info){
     var hsA = spatialPath(hunter.x, hunter.z, 30, !info.los);        // 耳に届く音は道のりで
     var modeGain = hunter.mode === 'chase' ? 1.0 : (hunter.mode === 'hunt' ? 0.66 : 0.42);
     var hv = hs.vol * 0.42 * modeGain;
-    Audio2.setHunterVoice(hsA.vol * 0.42 * modeGain, hsA.pan, hsA.cut);
+    Audio2.setHunterVoice(hsA.vol * 0.42 * modeGain, hsA.pan, hsA.cut, hsA.fwd);
     /* ボットの耳は今までどおりまっすぐの距離の値を渡す。道のりの音に
        替えると、これまでの測定（ボット 240 本）と比べられなくなるため。
        人の耳の方が情報は多い（回り込みの向きが分かる）ので、ボットが
@@ -1642,7 +1646,7 @@ function updateEnv(dt, info){
     var LL = lamps[lb2];
     if(LL && lightPool[lb2] && lightPool[lb2].intensity > 0.01){
       var ls = spatial(LL.x, LL.z, 22, !hasLOS(world.grid, player.x, player.z, LL.x, LL.z));
-      Audio2.setLampVoice(lb2, ls.vol * 0.20, ls.pan, ls.cut);
+      Audio2.setLampVoice(lb2, ls.vol * 0.20, ls.pan, ls.cut, ls.fwd);
     }else{
       Audio2.setLampVoice(lb2, 0, 0, 400);
     }
@@ -1650,7 +1654,7 @@ function updateEnv(dt, info){
   if(world.exit && world.exit.open){
     var es = spatial(world.exit.doorX, world.exit.doorZ, 150,
                      !hasLOS(world.grid, player.x, player.z, world.exit.x, world.exit.z), 30);
-    Audio2.setExitVoice(es.vol * 0.30, es.pan, Math.max(es.cut, 900));
+    Audio2.setExitVoice(es.vol * 0.30, es.pan, Math.max(es.cut, 900), es.fwd);
   }else{
     Audio2.setExitVoice(0, 0, 400);
   }
