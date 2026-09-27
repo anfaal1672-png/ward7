@@ -341,3 +341,53 @@ function tryLink(){
   }
   jSel = {};
 }
+
+/* --- 迷ったときのほのめかし（設計指示書 第 11.3 節） ---------------------
+   何も進まないまま 3 分経ったら、次に向かうべき物がある区画を言う。
+   さらに 2 分経ったら、今の向きから見た大まかな方角も添える。
+   進んだ（拾った・開けた）瞬間に数え直す。地図の代わりにはしない
+   （正確な位置は出さない。迷っている人を少し押すだけ）。 */
+var HINT_T1 = 180, HINT_T2 = 300;
+var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
+function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
+function hintTarget(){
+  var best = null, bd = 1e9;
+  function consider(o, what){
+    var dx = o.x - player.x, dz = o.z - player.z, dd = dx*dx + dz*dz;
+    if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
+  }
+  if(player.got < player.need){
+    world.records.forEach(function(r){ if(!r.taken) consider(r, 'カルテ'); });
+  }else if(world.key && !world.key.taken && !player.hasKey){
+    consider(world.key, '鍵');
+  }else if(world.exit){
+    consider({ x:world.exit.doorX, z:world.exit.doorZ }, '非常口');
+  }
+  return best;
+}
+function updateHint(dt){
+  if(BOT.on || playAs === 'hunter') return;
+  if(player.got !== HINT.lastGot || player.hasKey !== HINT.lastKey){
+    HINT.lastGot = player.got; HINT.lastKey = player.hasKey;
+    HINT.idle = 0; HINT.level = 0;
+    return;
+  }
+  if(player.hiding) return;                      // 隠れて様子を見ている時間は数えない
+  HINT.idle += dt;
+  var want = HINT.idle > HINT_T2 ? 2 : (HINT.idle > HINT_T1 ? 1 : 0);
+  if(want <= HINT.level) return;
+  HINT.level = want;
+  var t = hintTarget(); if(!t) return;
+  var c = worldToCell(t.x, t.z);
+  var msg = t.what + 'は区画 ' + ZONE_LETTERS[zoneOf(c.x, c.y)] + ' のあたりにあった気がする';
+  if(want >= 2){
+    var dx = t.x - player.x, dz = t.z - player.z;
+    var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+    var rx =  Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+    var a = Math.atan2(dx*rx + dz*rz, dx*fx + dz*fz) * 180/Math.PI;
+    var a4 = (a + 360 + 45) % 360;
+    msg += '。' + (a4 < 90 ? '前の方' : (a4 < 180 ? '右手の方' : (a4 < 270 ? '後ろの方' : '左手の方')));
+  }
+  toast(msg, 5);
+  $('objSub').textContent = msg;
+}
