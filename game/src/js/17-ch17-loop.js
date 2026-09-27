@@ -89,6 +89,7 @@ function loop(now){
     }
   }
 
+  updateDRS(dt);
   // FPS 監視・自動品質ダウン
   fpsAcc += dt; fpsN++;
   if(fpsAcc >= 0.5){
@@ -99,7 +100,7 @@ function loop(now){
         autoDropChecked = true;
         settings.quality = Math.max(0, settings.quality-1);
         QC = qualityCfg();
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
+        renderer.setPixelRatio(effPixelRatio());
         scene.fog.density = QC.fogD;
         $('grain').style.display = QC.cssFx ? 'block' : 'none';
         // 影が不要な品質まで落ちたら、その場で影を切る

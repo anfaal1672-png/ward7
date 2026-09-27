@@ -1,6 +1,39 @@
 /* =========================================================================
    6. レンダラ／シーン
    ========================================================================= */
+/* 内部解像度の自動調整（設計指示書 第 8.3 節）。
+   端末の画素密度 × 品質ごとの上限 に、さらに 0.6〜1.0 の倍率を掛ける。
+   フレーム時間が目標（約 55fps）を超え続けたら少しずつ下げ、余裕が続いたら戻す。
+   iPhone は 10 分を過ぎたあたりで熱で落ちるので、急に 20fps になるより、
+   ずっと少しだけ粗い方が体験を壊さない。iOS アプリからは端末の温度の段階も届き、
+   熱いときは上限そのものを下げる（ios/Sources/AppDelegate.swift）。
+   自動操作（検証ツール）の下では動かさない。撮った絵の解像度が揃わなくなるため。 */
+var DRS = { scale:1, max:1, min:0.6, slowT:0, fastT:0, cool:0, ema:1/60,
+            on: !navigator.webdriver || /[?&]drs=1/.test(location.search) };
+var THERMAL = { level:0 };
+function effPixelRatio(){ return Math.min(window.devicePixelRatio||1, QC.pixelCap) * DRS.scale; }
+window.__w7thermal = function(n){           // 0 nominal / 1 fair / 2 serious / 3 critical
+  THERMAL.level = n|0;
+  DRS.max = THERMAL.level >= 3 ? 0.7 : (THERMAL.level >= 2 ? 0.8 : 1);
+  if(DRS.scale > DRS.max){ DRS.scale = DRS.max; resize(); }
+};
+function updateDRS(dt){
+  if(!DRS.on || state !== STATE.PLAY) return;
+  DRS.ema = lerp(DRS.ema, dt, 0.08);
+  DRS.cool -= dt;
+  var target = 1/55;
+  if(DRS.ema > target*1.12){ DRS.slowT += dt; DRS.fastT = 0; }
+  else if(DRS.ema < target*0.80){ DRS.fastT += dt; DRS.slowT = 0; }
+  else { DRS.slowT = 0; DRS.fastT = 0; }
+  if(DRS.cool > 0) return;
+  var want = DRS.scale;
+  if(DRS.slowT > 1.0) want = Math.max(DRS.min, DRS.scale - 0.08);
+  else if(DRS.fastT > 3.0) want = Math.min(DRS.max, DRS.scale + 0.05);
+  if(want !== DRS.scale){
+    DRS.scale = want; DRS.slowT = DRS.fastT = 0; DRS.cool = 1.5;
+    resize();                                  // 描画先の大きさ（後処理の RT も）を合わせ直す
+  }
+}
 var canvas = $('scene');
 var renderer, scene, camera;
 var CTX_LOST = false;
@@ -50,7 +83,7 @@ try{
   fatal('レンダラを初期化できませんでした: ' + e.message);
   return;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
+renderer.setPixelRatio(effPixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -113,13 +146,14 @@ canvas.addEventListener('webglcontextlost', function(e){
 }, false);
 canvas.addEventListener('webglcontextrestored', function(){
   CTX_LOST = false;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
+  renderer.setPixelRatio(effPixelRatio());
   resize();
   toast('描画を復帰しました', 2);
 }, false);
 
 function resize(){
   var w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+  renderer.setPixelRatio(effPixelRatio());       // 自動調整の倍率（DRS）を反映する
   renderer.setSize(w, h, false);
   camera.aspect = w/h;
   // 縦持ちでは視野を少し広げて閉塞感を保ちつつ見やすく

@@ -16,7 +16,7 @@ function startGame(){
   var d = DIFF[settings.diff];
 
   QC = qualityCfg();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, QC.pixelCap));
+  renderer.setPixelRatio(effPixelRatio());
   scene.fog.density = QC.fogD;
   $('grain').style.display = (QC.cssFx && !QC.post) ? 'block' : 'none';
   /* テクスチャの作り直しは種を決める前に済ませる。

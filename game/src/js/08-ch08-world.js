@@ -596,7 +596,8 @@ function updatePost(dt){
      切られた分だけ引き伸ばされてぼける。切られていなければ掛けない
      （等倍の画にまで掛けると、ただ縁が硬くなるだけ）。 */
   var dpr = window.devicePixelRatio || 1;
-  u.uSharp.value = (settings.quality|0) >= 1 ? clamp((dpr - QC.pixelCap) * 0.9, 0, 0.85) : 0;
+  // 自動調整で下げたぶんも引き伸ばしなので、輪郭の持ち上げに足す
+  u.uSharp.value = (settings.quality|0) >= 1 ? clamp((dpr - effPixelRatio()) * 0.9, 0, 0.85) : 0;
 }
 
 function buildViewModel(){

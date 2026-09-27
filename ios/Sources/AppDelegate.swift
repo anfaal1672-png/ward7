@@ -6,6 +6,7 @@
 //    - 音：消音スイッチが入っていても鳴らす（AVAudioSession を playback に）
 //    - 振動：ゲーム側の haptic() が ward7haptic へ投げたものを Taptic Engine で鳴らす
 //    - 画面：遊んでいる間に自動で消灯・施錠しない
+//    - 熱：端末の温度の段階をゲームへ渡す（内部解像度の上限を下げる。第 8.3 節）
 
 import UIKit
 import WebKit
@@ -78,6 +79,28 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKScript
             return
         }
         webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged),
+            name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+    }
+
+    /// 端末の温度の段階（0 nominal … 3 critical）をゲームへ渡す。
+    /// 熱で急にコマ落ちする前に、ゲーム側が内部解像度の上限を下げる。
+    @objc private func thermalChanged() {
+        let n: Int
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: n = 0
+        case .fair: n = 1
+        case .serious: n = 2
+        case .critical: n = 3
+        @unknown default: n = 1
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript("window.__w7thermal && window.__w7thermal(\(n))", completionHandler: nil)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        thermalChanged()                  // 起動時点の温度も渡す
     }
 
     /// haptic(pat) の pat は ms の数、または [鳴る, 休む, 鳴る, ...]（navigator.vibrate と同じ形）。
