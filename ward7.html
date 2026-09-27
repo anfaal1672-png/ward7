@@ -403,6 +403,15 @@
   #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
   #jList .jdoc.letter.linked{border-left-color:var(--copper)}
   .lede.story{max-width:min(460px,86vw);font-size:14px;line-height:1.95;margin:10px 0 14px;white-space:pre-line}
+
+  /* 投げる。瓶を持っているときだけ出る。ランプの左、親指の届くところ */
+  #bThrow{right:calc(92px + var(--sar));bottom:calc(126px + var(--sab));width:62px;height:62px;line-height:1.25}
+  #bThrow span{font:10px var(--mono);opacity:.7}
+  body.notouch #bThrow{display:none !important}
+
+  /* 忍び足。スティックを小さく倒している間は、輪を青緑に沈めて字を出す */
+  #stick.sneak::after{border-color:rgba(111,191,168,.55)}
+  #stick.sneak #stickLbl{opacity:.8;color:var(--copper)}
 </style>
 </head>
 <body>
@@ -447,6 +456,7 @@
 <div id="touch">
   <div id="stick"><span id="stickLbl">RUN</span><i></i></div>
   <button class="tbtn" id="bLight" type="button">LAMP</button>
+  <button class="tbtn" id="bThrow" type="button" style="display:none">投げる<br><span id="nThrow">1</span></button>
   <button class="tbtn" id="bBack" type="button">後ろを<br>見る</button>
   <button class="tbtn" id="bHold" type="button" style="display:none">息を<br>止める</button>
   <button class="tbtn dim" id="bUse" type="button">拾う</button>
@@ -1151,8 +1161,9 @@ var Audio2 = (function(){
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
      同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
      その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
-  function step(hard, mat){
+  function step(hard, mat, vol){
     if(!ready) return;
+    vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
     var t = ctx.currentTime;
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
@@ -1163,14 +1174,14 @@ var Audio2 = (function(){
     var g = ctx.createGain();
     n.connect(f); f.connect(g); g.connect(master);
     // 硬い床ほど短く切れる
-    env(g, t, 0.005, (hard?0.16:0.10) * (1.25 - mat*0.5), hard?0.28:0.16);
+    env(g, t, 0.005, (hard?0.16:0.10) * (1.25 - mat*0.5), (hard?0.28:0.16) * vol);
     n.start(t); n.stop(t+0.3);
     // 硬い床では踵の当たりが上に乗る
     if(mat > 0.55){
       var o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(2400 + Math.random()*900, t);
       var g2 = ctx.createGain(); o.connect(g2); g2.connect(master);
-      env(g2, t, 0.001, 0.035, (hard?0.09:0.05) * (mat-0.55)/0.45);
+      env(g2, t, 0.001, 0.035, (hard?0.09:0.05) * (mat-0.55)/0.45 * vol);
       o.start(t); o.stop(t+0.08);
     }
   }
@@ -1474,7 +1485,34 @@ var Audio2 = (function(){
     env(g, t, 0.3, 0.7, 0.06);
     o.start(t); o.stop(t+1.2);
   }
-  return { setScore:setScore, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 瓶が割れる音。高い帯域の雑音の粒を数発ばらまき、低い「ごつん」を下に敷く。
+     距離で小さく、高域から先に削る */
+  function glass(dist, pan){
+    if(!ready) return;
+    var t = ctx.currentTime;
+    var att = 6 / (6 + dist);
+    var out = ctx.createGain(); out.gain.value = 0.9 * att;
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 9000 * att + 1200;
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    out.connect(lp);
+    if(pn){ pn.pan.value = clamp(pan, -1, 1); lp.connect(pn); pn.connect(master); } else lp.connect(master);
+    for(var i=0; i<7; i++){
+      var off = i * (0.012 + Math.random()*0.03);
+      var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 1.4 + Math.random();
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9 + Math.random()*12;
+      bp.frequency.value = 2600 + Math.random()*5200;
+      var g = ctx.createGain();
+      n.connect(bp); bp.connect(g); g.connect(out);
+      env(g, t + off, 0.001, 0.05 + Math.random()*0.12, 0.5 - i*0.05);
+      n.start(t + off); n.stop(t + off + 0.3);
+    }
+    var o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+    var og = ctx.createGain(); o.connect(og); og.connect(out);
+    env(og, t, 0.002, 0.12, 0.35);
+    o.start(t); o.stop(t + 0.2);
+  }
+  return { setScore:setScore, glass:glass, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
@@ -3071,7 +3109,7 @@ function clearWorld(){
   }
   world.group = new THREE.Group();
   scene.add(world.group);
-  world.props = []; world.records = []; world.batteries = [];
+  world.props = []; world.records = []; world.batteries = []; world.bottles = [];
   world.lamps = []; world.exit = null; world.hides = [];
   world.key = null; world.lockDoor = null; world.lever = null; world.power = false;
   world.zones = []; world.exitField = null; world.nav = null;
@@ -5804,6 +5842,8 @@ function buildWorld(){
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
 
+  placeBottles(pool, used, startC);
+
   bakeStaticFurniture();
 
   return { start:startC, field:field, reach:reach };
@@ -5991,6 +6031,46 @@ function buildNavGrid(g, seedCell){
   return nav;
 }
 
+
+/* --- 投げる瓶（設計指示書 第 5.2 節） ------------------------------------
+   割れる音で追跡者を呼び寄せ、その間に別の道を行く。
+   置き場所はゲームの乱数（rnd）を引かずに決める。引くと同じ種でも
+   間取りの後に続く全部（追跡者の徘徊など）がずれ、これまでの測定と
+   比べられなくなる。間取りそのものから種を作って別の乱数で引く。 */
+var BOTTLES_PER_RUN = [4, 3, 3];
+var bottleGeo = null;
+function placeBottles(pool, used, startC){
+  if(!bottleGeo){
+    bottleGeo = mergeTinted([
+      { type:'cyl', r:0.050, h:0.170, y:0,     c:0x2f4a3a },   // 胴（緑の硝子）
+      { type:'cyl', r:0.020, h:0.070, y:0.118, c:0x2f4a3a },   // 首
+      { type:'cyl', r:0.024, h:0.012, y:0.157, c:0x9a927e },   // 口
+      { type:'cyl', r:0.051, h:0.060, y:-0.020, c:0xb9ab88 }   // 剥げかけたラベル
+    ]);
+  }
+  var h = (pool.length * 2654435761 ^ (startC.x * 7919) ^ (startC.y * 104729)) >>> 0;
+  var br = mulberry32(h || 1);
+  var free = pool.filter(function(c){ return !used[c.x + ',' + c.y] &&
+    (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
+  var n = BOTTLES_PER_RUN[clamp(settings.diff|0, 0, 2)];
+  for(var i=0; i<n && free.length; i++){
+    var k = (br() * free.length) | 0;
+    var c = free.splice(k, 1)[0];
+    var w = cellToWorld(c.x, c.y);
+    var ox = (br() - 0.5) * 1.2, oz = (br() - 0.5) * 1.2;
+    var mat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.18, metalness:0.1,
+      emissive:0x6fbfa8, emissiveIntensity:0.05 });
+    var m = new THREE.Mesh(bottleGeo, mat);
+    m.position.set(w.x + ox, 0.10, w.z + oz);
+    m.rotation.z = (br() < 0.5) ? Math.PI/2 : 0;           // 倒れているものもある
+    var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: TEX.glowW, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.22
+    }));
+    spr.scale.set(1.0, 1.0, 1); spr.position.copy(m.position);
+    world.group.add(m); world.group.add(spr);
+    world.bottles.push({ mesh:m, spr:spr, x:m.position.x, z:m.position.z, taken:false });
+  }
+}
 /* =========================================================================
    9. 追跡者
    ========================================================================= */
@@ -6909,7 +6989,8 @@ var player = {
   lamp:true, running:false, exhausted:false, bob:0, stepAcc:0, breath:0,
   hiding:null, hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
-  got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42
+  got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
+  sneaking:false, bottles:0
 };
 
 // 家具（円で近似）から押し出す。プレイヤーと追跡者の両方で使う
@@ -6985,6 +7066,73 @@ function collideMove(nx, nz){
   if(!isFinite(player.x) || !isFinite(player.z)){ player.x = ox; player.z = oz; }
 }
 
+
+/* --- 忍び足と投擲（設計指示書 第 5.2 節） --------------------------------
+   忍び足：歩きの 55% 未満で動いている間は足音を絞り、追跡者の聴覚距離も
+   ほぼ立ち止まっているときと同じに縮む。遅いぶん距離が稼げない。
+   投擲：瓶を視線の先へ放る。割れた場所へ、聞こえる範囲の追跡者が
+   向かう（姿を見て追っている最中は釣られない）。 */
+var SNEAK_V = 1.75;          // これ未満の速さなら忍び足（歩きは 3.11 m/s）
+var SNEAK_LEN = 0.45;        // PC の忍び足キーで抑える入力の大きさ
+var BOTTLE_MAX = 2;          // 同時に持てる瓶の数
+var THROW_V = 9.5;           // 投げ出す速さ（m/s）
+var throws = [];
+function clearThrows(){
+  throws.forEach(function(t){ if(t.mesh && t.mesh.parent) t.mesh.parent.remove(t.mesh); });
+  throws = [];
+}
+function throwBottle(){
+  if(state !== STATE.PLAY || player.hiding || player.bottles <= 0) return false;
+  player.bottles--;
+  var m = new THREE.Mesh(bottleGeo, new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.2 }));
+  var cp = Math.cos(player.pitch + 0.22), sp = Math.sin(player.pitch + 0.22);
+  var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
+  var t = { mesh:m, x:player.x + fx*0.4, y:player.y - 0.15, z:player.z + fz*0.4,
+            vx:fx*cp*THROW_V + player.vx*0.5, vy:sp*THROW_V, vz:fz*cp*THROW_V + player.vz*0.5, spin:0 };
+  m.position.set(t.x, t.y, t.z);
+  scene.add(m);
+  throws.push(t);
+  Audio2.click(false);
+  return true;
+}
+function updateThrows(dt){
+  for(var i=throws.length-1; i>=0; i--){
+    var t = throws[i];
+    t.vy -= 9.8 * dt;
+    var nx = t.x + t.vx*dt, nz = t.z + t.vz*dt, ny = t.y + t.vy*dt;
+    var c = worldToCell(nx, nz);
+    var hitWall = !inBounds(c.x, c.y) || world.grid[idx(c.x, c.y)] !== 0;
+    if(hitWall || ny <= 0.06 || ny >= WALL_H - 0.1){
+      var at = pushOutOfWalls(hitWall ? t.x : nx, hitWall ? t.z : nz, 0.2);
+      shatter(at.x, at.z);
+      if(t.mesh.parent) t.mesh.parent.remove(t.mesh);
+      throws.splice(i, 1);
+      continue;
+    }
+    t.x = nx; t.y = ny; t.z = nz; t.spin += dt * 11;
+    t.mesh.position.set(t.x, t.y, t.z);
+    t.mesh.rotation.set(t.spin, t.spin*0.6, 0);
+  }
+}
+function shatter(x, z){
+  var dx = x - player.x, dz = z - player.z;
+  var dist = Math.sqrt(dx*dx + dz*dz);
+  var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+  var pan = clamp((dx*rx + dz*rz) / Math.max(1, dist), -1, 1);
+  Audio2.glass(dist, pan);
+  // 追跡者に聞こえたか。壁越しは届きにくい（足音と同じ扱い）
+  var hx = x - hunter.x, hz = z - hunter.z, hd = Math.sqrt(hx*hx + hz*hz);
+  var dd = DIFF[settings.diff];
+  var open = hasSight(world.grid, x, z, hunter.x, hunter.z);
+  var reach = dd.hearing * 1.5 * (open ? 1 : 0.7);
+  var locked = hunter.mode === 'chase' && hunter.memT > 0;       // 見て追っている最中は釣られない
+  if(hd < reach && !locked && !cheats.invisible && hunter.spawnGrace <= 0){
+    hunter.mode = 'hunt';
+    hunter.lastSeen = { x:x, z:z };
+    hunter.repathT = 0; hunter.inspect = null;
+    player.lure = (player.lure || 0) + 1;
+  }
+}
 /* =========================================================================
    11. 入力
    ========================================================================= */
@@ -7126,6 +7274,7 @@ document.addEventListener('keydown', function(e){
   if(e.repeat) return;
   input.keys[e.code] = true; humanKeys[e.code] = true;
   if(e.code === 'KeyF') toggleLamp();
+  if(e.code === 'KeyG') throwBottle();
   if(e.code === 'KeyE' || e.code === 'Space'){ input.use = true; if(e.code==='Space') e.preventDefault(); }
   if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); }
   if(KEYMAP[e.code]) e.preventDefault();
@@ -7141,6 +7290,54 @@ function readKeys(){
   var s = (k.KeyD||k.ArrowRight?1:0) - (k.KeyA||k.ArrowLeft?1:0);
   if(f||s||!IS_TOUCH){ input.fwd = f; input.side = s; }
   input.run = !!(k.ShiftLeft || k.ShiftRight);
+  readPad();
+}
+
+/* --- ゲームパッド（設計指示書 第 12.2 節） ------------------------------
+   iOS は MFi・Xbox・DualSense を標準で読める。標準配置（mapping 'standard'）で
+     左スティック＝移動  右スティック＝視点
+     A＝使う／隠れる  X＝ランプ  RB＝投げる  LB＝後ろを見る  B＝息を止める
+     LT＝忍び足  RT・L3＝走る  Start＝一時停止
+   ボタンは押した瞬間だけ拾う（押しっぱなしで連打にならないように）。
+   スティックの遊びは 0.15、その外側を 0..1 に引き直してから曲線を通す。 */
+var PAD_DEAD = 0.15;
+var padPrev = [];
+var pad = { back:false, hold:false, sneak:false, active:false, t:0 };
+function padAxis(v){
+  var a = Math.abs(v);
+  if(a < PAD_DEAD) return 0;
+  return Math.sign(v) * (a - PAD_DEAD) / (1 - PAD_DEAD);
+}
+function readPad(){
+  pad.back = pad.hold = pad.sneak = false;
+  if(!navigator.getGamepads) return;
+  var list = navigator.getGamepads(), gp = null;
+  for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
+  if(!gp){ pad.active = false; pad.t = 0; return; }
+  var ax = gp.axes, bt = gp.buttons;
+  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
+  var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
+  var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
+  var used = mx || my || lx || ly;
+  for(var b=0; b<bt.length; b++) if(down(b)) used = true;
+  if(used) pad.active = true;
+  if(!pad.active) return;
+  if(mx || my){ input.fwd = -my; input.side = mx; }
+  /* 視点は経過時間に掛ける（フレームに掛けると端末の速さで回り方が変わる）。
+     最大に倒して感度 1 で、横に 1 秒 2.4 ラジアン、縦に 1.8 ラジアン */
+  var now = performance.now(), pdt = clamp((now - (pad.t || now)) / 1000, 0, 0.1);
+  pad.t = now;
+  input.lookX += lx * 2.4 * pdt * settings.sens;
+  input.lookY += ly * 1.8 * pdt * settings.sens * (settings.invert ? -1 : 1);
+  if(down(7) || down(10)) input.run = true;
+  pad.sneak = down(6);
+  pad.back = down(4);
+  pad.hold = down(1);
+  if(edge(0)) input.use = true;
+  if(edge(2)) toggleLamp();
+  if(edge(5)) throwBottle();
+  if(edge(9)){ if(state === STATE.PLAY) doPause(); else if(state === STATE.PAUSE) doResume(); }
 }
 
 // --- タッチボタン ---
@@ -7158,6 +7355,7 @@ bindHold($('bBack'),
   function(){ backBtnDown = true; },
   function(){ backBtnDown = false; });
 $('bUse').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
+$('bThrow').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
 $('bPause').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
 
 function toggleLamp(){
@@ -7944,6 +8142,7 @@ function startGame(){
   }
   player.pitch = 0;
   player.hp = 100; player.battery = 100; player.stamina = 100; player.sanity = 100;
+  player.sneaking = false; player.bottles = 0; clearThrows();
   player.lamp = true; player.got = 0; player.need = d.records; player.time = 0;
   world.noteOrder = buildNoteOrder(player.need);   // 読む順はその回ごとに引く
   HUDW.t = 4.0; HUDW.bat = 100; HUDW.sta = 100; HUDW.hp = 100; HUDW.got = -1;
@@ -8077,6 +8276,13 @@ function nearestInteractable(){
     dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
     if(d < bd){ bd = d; best = { type:'battery', obj:o }; }
   }
+  if(player.bottles < BOTTLE_MAX){
+    for(i=0;i<world.bottles.length;i++){
+      o = world.bottles[i]; if(o.taken) continue;
+      dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
+      if(d < bd){ bd = d; best = { type:'bottle', obj:o }; }
+    }
+  }
   if(world.exit){
     dx = world.exit.x-player.x; dz = world.exit.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
     if(d < 2.4 && (!best || d < bd)) best = { type:'exit', obj:world.exit };
@@ -8107,7 +8313,7 @@ function updatePlayer(dt){
   player.pitch = clamp(player.pitch, -1.35, 1.35);
 
   // 後ろを見る：体の向き（＝進行方向）はそのままに、視線だけ反転させる
-  var wantBack = (backBtnDown || !!(input.keys.KeyQ || input.keys.KeyC)) && !player.hiding;
+  var wantBack = (backBtnDown || pad.back || !!(input.keys.KeyQ || input.keys.KeyC)) && !player.hiding;
   player.lookBackT = lerp(player.lookBackT, wantBack ? 1 : 0, 1 - Math.pow(0.0009, dt));
   if(player.lookBackT < 0.001) player.lookBackT = 0;
   player.viewYaw = player.yaw + player.lookBackT * Math.PI;
@@ -8123,7 +8329,7 @@ function updatePlayer(dt){
     player.vx = player.vz = 0;
     player.x = H.x; player.z = H.z;
     // 息を止める：ボタン長押し、またはPCは Shift
-    var wantHold = holdBtnDown || !!(input.keys.ShiftLeft || input.keys.ShiftRight);
+    var wantHold = holdBtnDown || pad.hold || !!(input.keys.ShiftLeft || input.keys.ShiftRight);
     if(player.breathLock && player.stamina >= 25) player.breathLock = false;
     player.holdBreath = wantHold && !player.breathLock && player.stamina > 0;
     $('bHold').classList.toggle('hot', player.holdBreath);
@@ -8162,6 +8368,8 @@ function updatePlayer(dt){
   // 壁に押しつけているだけのときは走らない（無駄にスタミナを削らない）
   var wantRun = input.run && f > 0.25 && !player.exhausted && player.blockedT < 0.45;
   player.running = wantRun && moving;
+  // 忍び足。PC は Ctrl / Z で抑える。タッチはスティックを小さく倒すだけで同じ速さになる
+  if(!player.running && (input.keys.ControlLeft || input.keys.KeyZ || pad.sneak)) len = Math.min(len, SNEAK_LEN);
 
   var base = 3.111;                 // 2.55 × 1.22（追跡者も同率で引き上げ）
   var speed = base * (player.running ? 1.85 : 1.0);
@@ -8212,6 +8420,7 @@ function updatePlayer(dt){
 
   // 足音・ヘッドボブ
   var vmag = Math.sqrt(player.vx*player.vx + player.vz*player.vz);
+  player.sneaking = !player.running && vmag > 0.4 && vmag < SNEAK_V;
   // 歩幅。走ると1歩が大きくなる（速度は変えず、接地の間隔だけ伸びる）
   var stride = player.running ? 1.40 : 1.02;
   if(vmag > 0.4){
@@ -8219,7 +8428,7 @@ function updatePlayer(dt){
     player.bob += (adv / stride) * Math.PI;      // 1歩でπ進む＝揺れが歩幅に同期する
     player.stepAcc += adv;
     // 余りを繰り越す（0に戻すと1フレーム分だけ歩幅が伸びて不揃いになる）
-    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z)); }
+    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z), player.sneaking ? 0.4 : 1); }
   }else{
     player.bob += dt*0.8;
     if(player.stepAcc > stride*0.6) player.stepAcc = stride*0.6;
@@ -8312,6 +8521,12 @@ function updatePlayer(dt){
         player.battery = 100;                 // 1 個で満タンまで戻る
         Audio2.pickup();
         toast('ランプを満タンにした', 1.8);
+      }else if(near.type === 'bottle'){
+        near.obj.taken = true;
+        near.obj.mesh.visible = false; near.obj.spr.visible = false;
+        player.bottles++;
+        Audio2.pickup();
+        toast('瓶を拾った（' + player.bottles + '）— 投げると音で気を引ける', 2.4);
       }else if(near.type === 'exit'){
         doWin();
       }else if(near.type === 'key'){
@@ -8562,7 +8777,8 @@ function updateHunter(dt, info){
   var los = info.los;                   // 壁だけの視線。聴覚の減衰に使う
   var canSee = info.sight;              // 壁＋背の高い什器。目視判定に使う
   var d = DIFF[settings.diff];
-  var noise = player.running ? 1.6 : (info.vmag > 0.4 ? 1.0 : 0.45);
+  // 忍び足は立ち止まっているのとほぼ同じだけしか聞こえない（第 10 章 SNEAK_V）
+  var noise = player.running ? 1.6 : (info.vmag > 0.4 ? (player.sneaking ? 0.55 : 1.0) : 0.45);
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
   var hearWall = hearOpen * 0.55;       // 壁越しは届きにくいが、届く
   var seen = false;                     // 目視した＝追跡
@@ -9902,6 +10118,17 @@ function loop(now){
       var bpm = updateEnv(dt, info);
       updateHUD(dt, bpm, info);
       updateCue(dt);
+      updateThrows(dt);
+      // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
+      var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');
+      if((bt.style.display !== 'none') !== wantB) bt.style.display = wantB ? 'flex' : 'none';
+      if(wantB) $('nThrow').textContent = player.bottles;
+      // 忍び足の表示。走りの表示（RUN）と同じ場所に出す
+      var sk = $('stick'), wantS = player.sneaking && !player.running;
+      if(sk.classList.contains('sneak') !== wantS){
+        sk.classList.toggle('sneak', wantS);
+        $('stickLbl').textContent = wantS ? '忍び足' : 'RUN';
+      }
       if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
       else if(BOT.on) botHUD();
     }

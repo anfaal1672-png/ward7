@@ -68,6 +68,13 @@ function nearestInteractable(){
     dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
     if(d < bd){ bd = d; best = { type:'battery', obj:o }; }
   }
+  if(player.bottles < BOTTLE_MAX){
+    for(i=0;i<world.bottles.length;i++){
+      o = world.bottles[i]; if(o.taken) continue;
+      dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
+      if(d < bd){ bd = d; best = { type:'bottle', obj:o }; }
+    }
+  }
   if(world.exit){
     dx = world.exit.x-player.x; dz = world.exit.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
     if(d < 2.4 && (!best || d < bd)) best = { type:'exit', obj:world.exit };
@@ -98,7 +105,7 @@ function updatePlayer(dt){
   player.pitch = clamp(player.pitch, -1.35, 1.35);
 
   // 後ろを見る：体の向き（＝進行方向）はそのままに、視線だけ反転させる
-  var wantBack = (backBtnDown || !!(input.keys.KeyQ || input.keys.KeyC)) && !player.hiding;
+  var wantBack = (backBtnDown || pad.back || !!(input.keys.KeyQ || input.keys.KeyC)) && !player.hiding;
   player.lookBackT = lerp(player.lookBackT, wantBack ? 1 : 0, 1 - Math.pow(0.0009, dt));
   if(player.lookBackT < 0.001) player.lookBackT = 0;
   player.viewYaw = player.yaw + player.lookBackT * Math.PI;
@@ -114,7 +121,7 @@ function updatePlayer(dt){
     player.vx = player.vz = 0;
     player.x = H.x; player.z = H.z;
     // 息を止める：ボタン長押し、またはPCは Shift
-    var wantHold = holdBtnDown || !!(input.keys.ShiftLeft || input.keys.ShiftRight);
+    var wantHold = holdBtnDown || pad.hold || !!(input.keys.ShiftLeft || input.keys.ShiftRight);
     if(player.breathLock && player.stamina >= 25) player.breathLock = false;
     player.holdBreath = wantHold && !player.breathLock && player.stamina > 0;
     $('bHold').classList.toggle('hot', player.holdBreath);
@@ -153,6 +160,8 @@ function updatePlayer(dt){
   // 壁に押しつけているだけのときは走らない（無駄にスタミナを削らない）
   var wantRun = input.run && f > 0.25 && !player.exhausted && player.blockedT < 0.45;
   player.running = wantRun && moving;
+  // 忍び足。PC は Ctrl / Z で抑える。タッチはスティックを小さく倒すだけで同じ速さになる
+  if(!player.running && (input.keys.ControlLeft || input.keys.KeyZ || pad.sneak)) len = Math.min(len, SNEAK_LEN);
 
   var base = 3.111;                 // 2.55 × 1.22（追跡者も同率で引き上げ）
   var speed = base * (player.running ? 1.85 : 1.0);
@@ -203,6 +212,7 @@ function updatePlayer(dt){
 
   // 足音・ヘッドボブ
   var vmag = Math.sqrt(player.vx*player.vx + player.vz*player.vz);
+  player.sneaking = !player.running && vmag > 0.4 && vmag < SNEAK_V;
   // 歩幅。走ると1歩が大きくなる（速度は変えず、接地の間隔だけ伸びる）
   var stride = player.running ? 1.40 : 1.02;
   if(vmag > 0.4){
@@ -210,7 +220,7 @@ function updatePlayer(dt){
     player.bob += (adv / stride) * Math.PI;      // 1歩でπ進む＝揺れが歩幅に同期する
     player.stepAcc += adv;
     // 余りを繰り越す（0に戻すと1フレーム分だけ歩幅が伸びて不揃いになる）
-    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z)); }
+    if(player.stepAcc >= stride){ player.stepAcc -= stride; Audio2.step(player.running, floorMat(player.x, player.z), player.sneaking ? 0.4 : 1); }
   }else{
     player.bob += dt*0.8;
     if(player.stepAcc > stride*0.6) player.stepAcc = stride*0.6;
@@ -303,6 +313,12 @@ function updatePlayer(dt){
         player.battery = 100;                 // 1 個で満タンまで戻る
         Audio2.pickup();
         toast('ランプを満タンにした', 1.8);
+      }else if(near.type === 'bottle'){
+        near.obj.taken = true;
+        near.obj.mesh.visible = false; near.obj.spr.visible = false;
+        player.bottles++;
+        Audio2.pickup();
+        toast('瓶を拾った（' + player.bottles + '）— 投げると音で気を引ける', 2.4);
       }else if(near.type === 'exit'){
         doWin();
       }else if(near.type === 'key'){
@@ -553,7 +569,8 @@ function updateHunter(dt, info){
   var los = info.los;                   // 壁だけの視線。聴覚の減衰に使う
   var canSee = info.sight;              // 壁＋背の高い什器。目視判定に使う
   var d = DIFF[settings.diff];
-  var noise = player.running ? 1.6 : (info.vmag > 0.4 ? 1.0 : 0.45);
+  // 忍び足は立ち止まっているのとほぼ同じだけしか聞こえない（第 10 章 SNEAK_V）
+  var noise = player.running ? 1.6 : (info.vmag > 0.4 ? (player.sneaking ? 0.55 : 1.0) : 0.45);
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
   var hearWall = hearOpen * 0.55;       // 壁越しは届きにくいが、届く
   var seen = false;                     // 目視した＝追跡

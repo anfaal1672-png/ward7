@@ -28,6 +28,17 @@ function loop(now){
       var bpm = updateEnv(dt, info);
       updateHUD(dt, bpm, info);
       updateCue(dt);
+      updateThrows(dt);
+      // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
+      var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');
+      if((bt.style.display !== 'none') !== wantB) bt.style.display = wantB ? 'flex' : 'none';
+      if(wantB) $('nThrow').textContent = player.bottles;
+      // 忍び足の表示。走りの表示（RUN）と同じ場所に出す
+      var sk = $('stick'), wantS = player.sneaking && !player.running;
+      if(sk.classList.contains('sneak') !== wantS){
+        sk.classList.toggle('sneak', wantS);
+        $('stickLbl').textContent = wantS ? '忍び足' : 'RUN';
+      }
       if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
       else if(BOT.on) botHUD();
     }

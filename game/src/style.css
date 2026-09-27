@@ -392,3 +392,12 @@
   #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
   #jList .jdoc.letter.linked{border-left-color:var(--copper)}
   .lede.story{max-width:min(460px,86vw);font-size:14px;line-height:1.95;margin:10px 0 14px;white-space:pre-line}
+
+  /* 投げる。瓶を持っているときだけ出る。ランプの左、親指の届くところ */
+  #bThrow{right:calc(92px + var(--sar));bottom:calc(126px + var(--sab));width:62px;height:62px;line-height:1.25}
+  #bThrow span{font:10px var(--mono);opacity:.7}
+  body.notouch #bThrow{display:none !important}
+
+  /* 忍び足。スティックを小さく倒している間は、輪を青緑に沈めて字を出す */
+  #stick.sneak::after{border-color:rgba(111,191,168,.55)}
+  #stick.sneak #stickLbl{opacity:.8;color:var(--copper)}

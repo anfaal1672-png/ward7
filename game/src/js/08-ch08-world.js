@@ -25,7 +25,7 @@ function clearWorld(){
   }
   world.group = new THREE.Group();
   scene.add(world.group);
-  world.props = []; world.records = []; world.batteries = [];
+  world.props = []; world.records = []; world.batteries = []; world.bottles = [];
   world.lamps = []; world.exit = null; world.hides = [];
   world.key = null; world.lockDoor = null; world.lever = null; world.power = false;
   world.zones = []; world.exitField = null; world.nav = null;
@@ -2758,6 +2758,8 @@ function buildWorld(){
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
 
+  placeBottles(pool, used, startC);
+
   bakeStaticFurniture();
 
   return { start:startC, field:field, reach:reach };
@@ -2945,3 +2947,43 @@ function buildNavGrid(g, seedCell){
   return nav;
 }
 
+
+/* --- 投げる瓶（設計指示書 第 5.2 節） ------------------------------------
+   割れる音で追跡者を呼び寄せ、その間に別の道を行く。
+   置き場所はゲームの乱数（rnd）を引かずに決める。引くと同じ種でも
+   間取りの後に続く全部（追跡者の徘徊など）がずれ、これまでの測定と
+   比べられなくなる。間取りそのものから種を作って別の乱数で引く。 */
+var BOTTLES_PER_RUN = [4, 3, 3];
+var bottleGeo = null;
+function placeBottles(pool, used, startC){
+  if(!bottleGeo){
+    bottleGeo = mergeTinted([
+      { type:'cyl', r:0.050, h:0.170, y:0,     c:0x2f4a3a },   // 胴（緑の硝子）
+      { type:'cyl', r:0.020, h:0.070, y:0.118, c:0x2f4a3a },   // 首
+      { type:'cyl', r:0.024, h:0.012, y:0.157, c:0x9a927e },   // 口
+      { type:'cyl', r:0.051, h:0.060, y:-0.020, c:0xb9ab88 }   // 剥げかけたラベル
+    ]);
+  }
+  var h = (pool.length * 2654435761 ^ (startC.x * 7919) ^ (startC.y * 104729)) >>> 0;
+  var br = mulberry32(h || 1);
+  var free = pool.filter(function(c){ return !used[c.x + ',' + c.y] &&
+    (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
+  var n = BOTTLES_PER_RUN[clamp(settings.diff|0, 0, 2)];
+  for(var i=0; i<n && free.length; i++){
+    var k = (br() * free.length) | 0;
+    var c = free.splice(k, 1)[0];
+    var w = cellToWorld(c.x, c.y);
+    var ox = (br() - 0.5) * 1.2, oz = (br() - 0.5) * 1.2;
+    var mat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.18, metalness:0.1,
+      emissive:0x6fbfa8, emissiveIntensity:0.05 });
+    var m = new THREE.Mesh(bottleGeo, mat);
+    m.position.set(w.x + ox, 0.10, w.z + oz);
+    m.rotation.z = (br() < 0.5) ? Math.PI/2 : 0;           // 倒れているものもある
+    var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: TEX.glowW, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.22
+    }));
+    spr.scale.set(1.0, 1.0, 1); spr.position.copy(m.position);
+    world.group.add(m); world.group.add(spr);
+    world.bottles.push({ mesh:m, spr:spr, x:m.position.x, z:m.position.z, taken:false });
+  }
+}

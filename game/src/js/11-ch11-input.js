@@ -139,6 +139,7 @@ document.addEventListener('keydown', function(e){
   if(e.repeat) return;
   input.keys[e.code] = true; humanKeys[e.code] = true;
   if(e.code === 'KeyF') toggleLamp();
+  if(e.code === 'KeyG') throwBottle();
   if(e.code === 'KeyE' || e.code === 'Space'){ input.use = true; if(e.code==='Space') e.preventDefault(); }
   if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); }
   if(KEYMAP[e.code]) e.preventDefault();
@@ -154,6 +155,54 @@ function readKeys(){
   var s = (k.KeyD||k.ArrowRight?1:0) - (k.KeyA||k.ArrowLeft?1:0);
   if(f||s||!IS_TOUCH){ input.fwd = f; input.side = s; }
   input.run = !!(k.ShiftLeft || k.ShiftRight);
+  readPad();
+}
+
+/* --- ゲームパッド（設計指示書 第 12.2 節） ------------------------------
+   iOS は MFi・Xbox・DualSense を標準で読める。標準配置（mapping 'standard'）で
+     左スティック＝移動  右スティック＝視点
+     A＝使う／隠れる  X＝ランプ  RB＝投げる  LB＝後ろを見る  B＝息を止める
+     LT＝忍び足  RT・L3＝走る  Start＝一時停止
+   ボタンは押した瞬間だけ拾う（押しっぱなしで連打にならないように）。
+   スティックの遊びは 0.15、その外側を 0..1 に引き直してから曲線を通す。 */
+var PAD_DEAD = 0.15;
+var padPrev = [];
+var pad = { back:false, hold:false, sneak:false, active:false, t:0 };
+function padAxis(v){
+  var a = Math.abs(v);
+  if(a < PAD_DEAD) return 0;
+  return Math.sign(v) * (a - PAD_DEAD) / (1 - PAD_DEAD);
+}
+function readPad(){
+  pad.back = pad.hold = pad.sneak = false;
+  if(!navigator.getGamepads) return;
+  var list = navigator.getGamepads(), gp = null;
+  for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
+  if(!gp){ pad.active = false; pad.t = 0; return; }
+  var ax = gp.axes, bt = gp.buttons;
+  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
+  var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
+  var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
+  var used = mx || my || lx || ly;
+  for(var b=0; b<bt.length; b++) if(down(b)) used = true;
+  if(used) pad.active = true;
+  if(!pad.active) return;
+  if(mx || my){ input.fwd = -my; input.side = mx; }
+  /* 視点は経過時間に掛ける（フレームに掛けると端末の速さで回り方が変わる）。
+     最大に倒して感度 1 で、横に 1 秒 2.4 ラジアン、縦に 1.8 ラジアン */
+  var now = performance.now(), pdt = clamp((now - (pad.t || now)) / 1000, 0, 0.1);
+  pad.t = now;
+  input.lookX += lx * 2.4 * pdt * settings.sens;
+  input.lookY += ly * 1.8 * pdt * settings.sens * (settings.invert ? -1 : 1);
+  if(down(7) || down(10)) input.run = true;
+  pad.sneak = down(6);
+  pad.back = down(4);
+  pad.hold = down(1);
+  if(edge(0)) input.use = true;
+  if(edge(2)) toggleLamp();
+  if(edge(5)) throwBottle();
+  if(edge(9)){ if(state === STATE.PLAY) doPause(); else if(state === STATE.PAUSE) doResume(); }
 }
 
 // --- タッチボタン ---
@@ -171,6 +220,7 @@ bindHold($('bBack'),
   function(){ backBtnDown = true; },
   function(){ backBtnDown = false; });
 $('bUse').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
+$('bThrow').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
 $('bPause').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
 
 function toggleLamp(){

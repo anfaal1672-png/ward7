@@ -306,8 +306,9 @@ var Audio2 = (function(){
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
      同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
      その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
-  function step(hard, mat){
+  function step(hard, mat, vol){
     if(!ready) return;
+    vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
     var t = ctx.currentTime;
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
@@ -318,14 +319,14 @@ var Audio2 = (function(){
     var g = ctx.createGain();
     n.connect(f); f.connect(g); g.connect(master);
     // 硬い床ほど短く切れる
-    env(g, t, 0.005, (hard?0.16:0.10) * (1.25 - mat*0.5), hard?0.28:0.16);
+    env(g, t, 0.005, (hard?0.16:0.10) * (1.25 - mat*0.5), (hard?0.28:0.16) * vol);
     n.start(t); n.stop(t+0.3);
     // 硬い床では踵の当たりが上に乗る
     if(mat > 0.55){
       var o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(2400 + Math.random()*900, t);
       var g2 = ctx.createGain(); o.connect(g2); g2.connect(master);
-      env(g2, t, 0.001, 0.035, (hard?0.09:0.05) * (mat-0.55)/0.45);
+      env(g2, t, 0.001, 0.035, (hard?0.09:0.05) * (mat-0.55)/0.45 * vol);
       o.start(t); o.stop(t+0.08);
     }
   }
@@ -629,7 +630,34 @@ var Audio2 = (function(){
     env(g, t, 0.3, 0.7, 0.06);
     o.start(t); o.stop(t+1.2);
   }
-  return { setScore:setScore, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 瓶が割れる音。高い帯域の雑音の粒を数発ばらまき、低い「ごつん」を下に敷く。
+     距離で小さく、高域から先に削る */
+  function glass(dist, pan){
+    if(!ready) return;
+    var t = ctx.currentTime;
+    var att = 6 / (6 + dist);
+    var out = ctx.createGain(); out.gain.value = 0.9 * att;
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 9000 * att + 1200;
+    var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    out.connect(lp);
+    if(pn){ pn.pan.value = clamp(pan, -1, 1); lp.connect(pn); pn.connect(master); } else lp.connect(master);
+    for(var i=0; i<7; i++){
+      var off = i * (0.012 + Math.random()*0.03);
+      var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 1.4 + Math.random();
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9 + Math.random()*12;
+      bp.frequency.value = 2600 + Math.random()*5200;
+      var g = ctx.createGain();
+      n.connect(bp); bp.connect(g); g.connect(out);
+      env(g, t + off, 0.001, 0.05 + Math.random()*0.12, 0.5 - i*0.05);
+      n.start(t + off); n.stop(t + off + 0.3);
+    }
+    var o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+    var og = ctx.createGain(); o.connect(og); og.connect(out);
+    env(og, t, 0.002, 0.12, 0.35);
+    o.start(t); o.stop(t + 0.2);
+  }
+  return { setScore:setScore, glass:glass, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,

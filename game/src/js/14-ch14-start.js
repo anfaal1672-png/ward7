@@ -74,6 +74,7 @@ function startGame(){
   }
   player.pitch = 0;
   player.hp = 100; player.battery = 100; player.stamina = 100; player.sanity = 100;
+  player.sneaking = false; player.bottles = 0; clearThrows();
   player.lamp = true; player.got = 0; player.need = d.records; player.time = 0;
   world.noteOrder = buildNoteOrder(player.need);   // 読む順はその回ごとに引く
   HUDW.t = 4.0; HUDW.bat = 100; HUDW.sta = 100; HUDW.hp = 100; HUDW.got = -1;
