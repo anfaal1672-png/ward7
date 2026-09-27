@@ -409,3 +409,6 @@
   /* 一時停止の地図。紙に鉛筆で描いたような見た目（第 11.3 節） */
   #pauseMap{width:min(260px,68vw);height:min(260px,68vw);margin:14px auto 4px;display:block;
     border-radius:2px;box-shadow:0 8px 28px rgba(0,0,0,.55);transform:rotate(-1.2deg)}
+
+  /* パッド・キーボードで動かしているときの居場所。指で押すときには出ない */
+  .panel button:focus-visible, .panel input:focus-visible{outline:2px solid var(--amber);outline-offset:3px}

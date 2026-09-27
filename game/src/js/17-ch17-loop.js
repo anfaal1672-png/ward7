@@ -90,6 +90,7 @@ function loop(now){
   }
 
   updateDRS(dt);
+  updatePadMenu(dt);
   // FPS 監視・自動品質ダウン
   fpsAcc += dt; fpsN++;
   if(fpsAcc >= 0.5){
