@@ -8,7 +8,7 @@ var player = {
   hiding:null, hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
   got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
-  sneaking:false, bottles:0
+  sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0
 };
 
 // 家具（円で近似）から押し出す。プレイヤーと追跡者の両方で使う
@@ -151,3 +151,20 @@ function shatter(x, z){
     player.lure = (player.lure || 0) + 1;
   }
 }
+
+/* --- 捕獲と振りほどき（設計指示書 第 5.3・5.5 節） ------------------------
+   捕まるたびに一度だけ振りほどける。回数を使い切った状態で捕まると終わり。
+   回数は難易度の dmg から決まる（静穏 3 回・通常 2 回・絶望 1 回）。
+   これは今までの「4/3/2 発で死亡」とちょうど同じ数で、バランスの測定を
+   そのまま引き継げる。内部では体力（hp）をそのまま使い、見せ方だけを
+   「あと何回振りほどけるか」に変える。
+   包帯を拾うと 1 回分戻る。 */
+function escapesLeft(){
+  var dmg = DIFF[settings.diff].dmg;
+  return Math.max(0, Math.ceil(player.hp / dmg) - 1);
+}
+function escapesMax(){
+  return Math.ceil(100 / DIFF[settings.diff].dmg) - 1;
+}
+var GRAB_T = 0.7;        // 掴まれている時間。動けず、視線が追跡者へ引かれる
+var BANDAGES_PER_RUN = [2, 1, 1];

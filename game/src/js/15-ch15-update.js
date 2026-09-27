@@ -68,6 +68,13 @@ function nearestInteractable(){
     dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
     if(d < bd){ bd = d; best = { type:'battery', obj:o }; }
   }
+  if(player.hp < 100){
+    for(i=0;i<world.bandages.length;i++){
+      o = world.bandages[i]; if(o.taken) continue;
+      dx = o.x-player.x; dz = o.z-player.z; d = Math.sqrt(dx*dx+dz*dz);
+      if(d < bd){ bd = d; best = { type:'bandage', obj:o }; }
+    }
+  }
   if(player.bottles < BOTTLE_MAX){
     for(i=0;i<world.bottles.length;i++){
       o = world.bottles[i]; if(o.taken) continue;
@@ -139,6 +146,20 @@ function updatePlayer(dt){
       player.stamina = clamp(player.stamina + dt*20, 0, 100);
     }
     if(player.breathBroken > 0) player.breathBroken -= dt;
+  }
+
+  // 掴まれている間は動けない。視線を追跡者へ引き、終わったら弾かれる
+  if(player.grabT > 0){
+    player.grabT -= dt;
+    var gy = Math.atan2(-(hunter.x - player.x), -(hunter.z - player.z));
+    var gdy = ((gy - player.yaw + Math.PI*3) % TAU) - Math.PI;
+    player.yaw += gdy * (1 - Math.pow(0.002, dt));
+    player.shake = Math.max(player.shake, 0.9);
+    input.fwd = 0; input.side = 0; input.run = false;
+    if(player.grabT <= 0){
+      collideMove(player.x + player.grabX*0.9, player.z + player.grabZ*0.9);
+      haptic([40, 30, 60]);
+    }
   }
 
   // 移動
@@ -313,6 +334,12 @@ function updatePlayer(dt){
         player.battery = 100;                 // 1 個で満タンまで戻る
         Audio2.pickup();
         toast('ランプを満タンにした', 1.8);
+      }else if(near.type === 'bandage'){
+        near.obj.taken = true;
+        near.obj.mesh.visible = false; near.obj.spr.visible = false;
+        player.hp = clamp(player.hp + DIFF[settings.diff].dmg, 0, 100);
+        Audio2.pickup();
+        toast('包帯を巻いた — あと ' + escapesLeft() + ' 回振りほどける', 2.4);
       }else if(near.type === 'bottle'){
         near.obj.taken = true;
         near.obj.mesh.visible = false; near.obj.spr.visible = false;
@@ -1320,11 +1347,17 @@ function updateHunter(dt, info){
     if(!cheats.godmode) player.sanity = clamp(player.sanity-22,0,100);
     Audio2.hurt();
     haptic(120);
-    // 少し弾き飛ばす
+    if(player.hp <= 0){ doDeath(); return; }
+    /* 掴まれる。一瞬動けず、視線が追跡者へ引かれ、振りほどいて弾かれる
+       （弾く向きは掴まれた瞬間の向きで決めておく。0.7 秒の間に相手が
+       回り込んでも、逃げる方向がぶれないように） */
     var kx = player.x - hunter.x, kz = player.z - hunter.z;
     var kl = Math.max(0.001, Math.sqrt(kx*kx+kz*kz));
-    collideMove(player.x + kx/kl*0.9, player.z + kz/kl*0.9);
-    if(player.hp <= 0){ doDeath(); return; }
+    player.grabT = (playAs === 'hunter' || BOT.on) ? 0 : GRAB_T;
+    player.grabX = kx/kl; player.grabZ = kz/kl;
+    if(player.grabT <= 0) collideMove(player.x + kx/kl*0.9, player.z + kz/kl*0.9);
+    else toast(escapesLeft() > 0 ? '掴まれた — 振りほどいた（あと ' + escapesLeft() + ' 回）'
+                                  : '掴まれた — 次はもう振りほどけない', 2.6);
   }
 
   // 緊張感を音に反映
@@ -1642,10 +1675,12 @@ function updateHUD(dt, bpm, info){
 
   updateBar('barBat', player.battery/100);
   updateBar('barSta', player.stamina/100);
-  updateBar('barHp',  player.hp/100);
+  updateBar('barHp',  escapesLeft() / Math.max(1, escapesMax()));
   $('txtBat').textContent = Math.round(player.battery) + '%';
   $('txtSta').textContent = Math.round(player.stamina) + '%';
-  $('txtHp').textContent  = Math.round(player.hp) + '%';
+  // 体力の数字ではなく「あと何回振りほどけるか」を出す（第 10 章 escapesLeft）
+  var escL = escapesLeft();
+  $('txtHp').textContent  = escL > 0 ? 'あと ' + escL + ' 回' : '次で終わり';
   drawECG(dt, bpm);
   drawRadar(dt);
   if(hunterMark){

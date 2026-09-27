@@ -25,7 +25,7 @@ function clearWorld(){
   }
   world.group = new THREE.Group();
   scene.add(world.group);
-  world.props = []; world.records = []; world.batteries = []; world.bottles = [];
+  world.props = []; world.records = []; world.batteries = []; world.bottles = []; world.bandages = [];
   world.lamps = []; world.exit = null; world.hides = [];
   world.key = null; world.lockDoor = null; world.lever = null; world.power = false;
   world.zones = []; world.exitField = null; world.nav = null;
@@ -2759,6 +2759,7 @@ function buildWorld(){
   world.nav = buildNavGrid(g, startC);
 
   placeBottles(pool, used, startC);
+  placeBandages(pool, used, startC);
 
   bakeStaticFurniture();
 
@@ -2985,5 +2986,38 @@ function placeBottles(pool, used, startC){
     spr.scale.set(1.0, 1.0, 1); spr.position.copy(m.position);
     world.group.add(m); world.group.add(spr);
     world.bottles.push({ mesh:m, spr:spr, x:m.position.x, z:m.position.z, taken:false });
+  }
+}
+
+/* --- 包帯（第 5.5 節）。拾うと振りほどける回数が 1 回戻る。
+   瓶と同じく、ゲームの乱数を引かずに置く（間取りと展開を変えない） */
+var bandageGeo = null;
+function placeBandages(pool, used, startC){
+  if(!bandageGeo){
+    bandageGeo = mergeTinted([
+      { type:'cyl', r:0.070, h:0.090, y:0,     c:0xd9d2bf },   // 巻いた包帯
+      { type:'cyl', r:0.030, h:0.092, y:0,     c:0x8f8878 },   // 芯
+      { w:0.16, h:0.004, d:0.05, y:0.047,       c:0x8c2626 }    // 赤い留め紙
+    ]);
+  }
+  var h = (pool.length * 40503 ^ (startC.x * 65537) ^ (startC.y * 257)) >>> 0;
+  var br = mulberry32(h || 7);
+  var taken = {};
+  world.bottles.forEach(function(b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
+  var free = pool.filter(function(c){ var k = c.x + ',' + c.y;
+    return !used[k] && !taken[k] && (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
+  var n = BANDAGES_PER_RUN[clamp(settings.diff|0, 0, 2)];
+  for(var i=0; i<n && free.length; i++){
+    var c = free.splice((br() * free.length) | 0, 1)[0];
+    var w = cellToWorld(c.x, c.y);
+    var mat = new THREE.MeshLambertMaterial({ color:0xffffff, vertexColors:true, emissive:0x8c2626, emissiveIntensity:0.06 });
+    var m = new THREE.Mesh(bandageGeo, mat);
+    m.position.set(w.x + (br()-0.5)*1.0, 0.05, w.z + (br()-0.5)*1.0);
+    var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: TEX.glowW, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.25
+    }));
+    spr.scale.set(1.0, 1.0, 1); spr.position.copy(m.position);
+    world.group.add(m); world.group.add(spr);
+    world.bandages.push({ mesh:m, spr:spr, x:m.position.x, z:m.position.z, taken:false });
   }
 }
