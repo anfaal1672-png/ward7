@@ -1,0 +1,79 @@
+# 署名なしの .ipa を macOS ランナーで作る。
+# 証明書もプロビジョニングプロファイルも使わない（CODE_SIGNING_ALLOWED=NO）。
+# 成果物は Actions の artifact として落とせる。
+name: iOS ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "ward7.html"
+      - "ios/**"
+      - ".github/workflows/ios-ipa.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # XcodeGen は最新の Xcode 形式（objectVersion 77）で書き出す。
+      # project.yml の objectVersion 指定は効かなかったので、
+      # ランナー側を「入っている中でいちばん新しい Xcode」に合わせる。
+      - name: 新しい Xcode を選ぶ
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || echo /Applications/Xcode.app)"
+          xcodebuild -version
+
+      - name: XcodeGen を入れる
+        run: brew install xcodegen
+
+      # ゲームは 1 枚の HTML で完結しているので、そのままバンドルへ入れる
+      - name: ward7.html とアイコンを用意する
+        working-directory: ios
+        run: |
+          cp ../ward7.html Resources/ward7.html
+          python3 make_icon.py Resources/Assets.xcassets/AppIcon.appiconset
+          ls -la Resources
+
+      - name: Xcode プロジェクトを生成する
+        working-directory: ios
+        run: |
+          xcodebuild -version
+          xcodegen generate
+          # 生成された形式がこの Xcode で読めるか、ここで落として原因を明確にする
+          grep -m1 objectVersion Ward7.xcodeproj/project.pbxproj
+
+      - name: ビルド（署名なし）
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project Ward7.xcodeproj \
+            -scheme Ward7 \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      # .ipa は Payload/ に .app を入れて zip したもの。それ以上でも以下でもない
+      - name: .ipa に詰める
+        working-directory: ios
+        run: |
+          APP="build/Build/Products/Release-iphoneos/Ward7.app"
+          test -d "$APP" || { echo "アプリが出来ていない"; ls -R build/Build/Products; exit 1; }
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry Ward7-unsigned.ipa Payload
+          unzip -l Ward7-unsigned.ipa | tail -3
+          ls -lh Ward7-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ward7-unsigned-ipa
+          path: ios/Ward7-unsigned.ipa
+          if-no-files-found: error

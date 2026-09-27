@@ -1,0 +1,57 @@
+# XcodeGen の設定。pbxproj を手書きすると壊れやすいので、CI で生成する。
+name: Ward7
+options:
+  bundleIdPrefix: dev.ward7
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+
+targets:
+  Ward7:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+        # Resources をまるごと入れるので、隠しファイルまで .app に混ざる。
+        # 実際 .gitignore が 28 バイト同梱されていた
+        excludes: [".gitignore", ".DS_Store"]
+    settings:
+      base:
+        PRODUCT_NAME: Ward7
+        PRODUCT_BUNDLE_IDENTIFIER: dev.ward7.game
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"      # iPhone / iPad
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 署名しない
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_BITCODE: "NO"
+    # Info.plist を Resources/ に置くと、リソースとしてコピーされる分と
+    # Info.plist として処理される分がぶつかる
+    #   error: Multiple commands produce '.../Ward7.app/Info.plist'
+    # 生成先は Resources の外にする。
+    info:
+      path: Ward7-Info.plist
+      properties:
+        CFBundleDisplayName: WARD 7
+        CFBundleShortVersionString: "1.0"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
