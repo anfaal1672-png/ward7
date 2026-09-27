@@ -438,7 +438,12 @@ function updatePlayer(dt){
         Audio2.click(world.lever.on);
         Audio2.creak();
         // 大きな音。近くにいれば気づかれる
-        if(hunter.spawnGrace <= 0 && !cheats.invisible){
+        /* 以前は距離を見ずに必ず呼んでいた。第3章（停電）は電源を戻さないと
+           出られないので、戻した瞬間に地図の端からでも駆けつけてきて、
+           出口までの道で倒れるのが負けの 36% を占めた（通常 14.6%）。
+           聴覚の 2.5 倍（通常 32m）より遠くには届かないことにする */
+        var lvd = Math.sqrt((hunter.x-world.lever.x)*(hunter.x-world.lever.x) + (hunter.z-world.lever.z)*(hunter.z-world.lever.z));
+        if(hunter.spawnGrace <= 0 && !cheats.invisible && lvd < DIFF[settings.diff].hearing * 2.5){
           hunter.lastSeen = { x:world.lever.x, z:world.lever.z };
           if(hunter.mode !== 'chase') hunter.mode = 'hunt';
         }
@@ -710,7 +715,11 @@ function updateHunter(dt, info){
   if(cheats.invisible){ seen = false; heard = false; }
 
   // 全て集めた後は、姿が見えていなくても居場所を嗅ぎつけて向かってくる
-  if(world.endgame && hunter.spawnGrace <= 0 && !cheats.invisible && !cheats.blindEnd && !seen){
+  /* 停電の章では、電源を戻すまでは嗅ぎつけない。全部集めてから電源へ回り、
+     さらに非常口まで走る長い道のりを、ずっと居場所を知られたまま歩かせていた
+     （第3章の負けの 37% が「出口へ」）。電源を戻した瞬間から追ってくる */
+  if(world.endgame && (!world.blackout || world.power) &&
+     hunter.spawnGrace <= 0 && !cheats.invisible && !cheats.blindEnd && !seen){
     hunter.lastSeen = { x:player.x, z:player.z };
     if(hunter.mode !== 'chase') hunter.mode = 'hunt';
   }

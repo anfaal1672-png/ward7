@@ -167,4 +167,4 @@ function escapesMax(){
   return Math.ceil(100 / DIFF[settings.diff].dmg) - 1;
 }
 var GRAB_T = 0.7;        // 掴まれている時間。動けず、視線が追跡者へ引かれる
-var BANDAGES_PER_RUN = [2, 1, 1];
+var BANDAGES_PER_RUN = [2, 2, 1];

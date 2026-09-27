@@ -1767,7 +1767,8 @@ function botHands(dt, F){
   if(BOT.useCd <= 0 && !player.hiding){
     var nb = nearestInteractable();
     if(nb && nb.type === 'record' && BOT.seekExit) nb = null;   // 待っている最後の1枚は拾わない
-    if(nb && (nb.type === 'record' || nb.type === 'battery' || nb.type === 'key')){
+    // 包帯も手が届けば拾う（人も通りがかりに拾う。nearestInteractable は減っているときしか返さない）
+    if(nb && (nb.type === 'record' || nb.type === 'battery' || nb.type === 'key' || nb.type === 'bandage')){
       input.use = true; BOT.useCd = 0.35;
       if(nb.type === 'record' && !fleeing) BOT.readT = 0.8;
     }
