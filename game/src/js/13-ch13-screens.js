@@ -1,7 +1,7 @@
 /* =========================================================================
    13. 画面遷移
    ========================================================================= */
-var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal'];
+var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal','credits'];
 function showPanel(name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
@@ -307,6 +307,8 @@ $('btnPauseCheat').addEventListener('click', function(){ openCheats('pause'); })
 $('btnCheatBack').addEventListener('click', function(){ showPanel(cheatReturn); });
 $('btnOpt').addEventListener('click', function(){ showPanel('opt'); });
 $('btnJournal').addEventListener('click', function(){ openJournal('title'); });
+$('btnCredits').addEventListener('click', function(){ showPanel('credits'); });
+$('btnCreditsBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnPauseJournal').addEventListener('click', function(){ openJournal('pause'); });
 $('btnJournalBack').addEventListener('click', function(){ showPanel(journalReturn); });
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });

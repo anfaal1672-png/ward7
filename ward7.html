@@ -535,6 +535,7 @@
       <button class="btn ghost" id="btnCheat" type="button">チート</button>
       <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
       <button class="btn ghost" id="btnJournal" type="button">手帳</button>
+      <button class="btn ghost" id="btnCredits" type="button">クレジット</button>
       <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
     </div>
     <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
@@ -668,6 +669,23 @@
   <div class="stats" id="winStats"></div>
   <button class="btn primary" id="btnAgain" type="button">もう一度</button>
   <button class="btn ghost" id="btnWinTitle" type="button">タイトルへ</button>
+</div>
+
+<!-- クレジット（設計指示書 第 11.2 節）。素材の出所は assets/LICENSES.md と同じ -->
+<div class="panel scrollable" id="credits" hidden>
+  <div class="eyebrow">Credits</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">クレジット</h1>
+  <div class="rule"></div>
+  <div class="chart" style="width:min(460px,88vw)">
+    <div class="row"><span>ゲーム</span><b>WARD 7 — 第七病棟</b></div>
+    <div class="row"><span>描画</span><b>three.js（MIT）</b></div>
+    <div class="row"><span>壁の素材</span><b>Long White Tiles — Poly Haven（CC0）</b></div>
+    <div class="row"><span>床の素材</span><b>Old Linoleum Flooring 01 — Poly Haven（CC0）</b></div>
+    <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
+    <div class="row"><span>音</span><b>すべて WebAudio で合成</b></div>
+  </div>
+  <p class="hint" style="max-width:min(460px,88vw)">写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。</p>
+  <button class="btn" id="btnCreditsBack" type="button" style="margin-top:18px">戻る</button>
 </div>
 
 <!-- 手帳（設計指示書 第 11.3 節）。読んだ文書を、周回をまたいで持っておく -->
@@ -1003,6 +1021,10 @@ var EN = {
   '獲物を探せ':'Find your prey', 'カルテを揃えた。もう隠れられない':'All records taken. It can’t hide now',
   '気配':'Presence', '起動できません':'Cannot start', '再読み込み':'Reload',
   '歩いた場所の地図':'Map of where you have walked',
+  'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio',
+  '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
+
   // --- カルテ ---
   '夜間、第七病棟の患者が廊下を歩き回る。制止しても反応がない。翌朝は全員、何も覚えていないと言う。':
     'At night the Ward 7 patients walk the corridors. They do not respond when stopped. In the morning, every one of them says they remember nothing.',
@@ -8897,7 +8919,7 @@ function drawMap(){
 /* =========================================================================
    13. 画面遷移
    ========================================================================= */
-var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal'];
+var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal','credits'];
 function showPanel(name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
@@ -9203,6 +9225,8 @@ $('btnPauseCheat').addEventListener('click', function(){ openCheats('pause'); })
 $('btnCheatBack').addEventListener('click', function(){ showPanel(cheatReturn); });
 $('btnOpt').addEventListener('click', function(){ showPanel('opt'); });
 $('btnJournal').addEventListener('click', function(){ openJournal('title'); });
+$('btnCredits').addEventListener('click', function(){ showPanel('credits'); });
+$('btnCreditsBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnPauseJournal').addEventListener('click', function(){ openJournal('pause'); });
 $('btnJournalBack').addEventListener('click', function(){ showPanel(journalReturn); });
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });

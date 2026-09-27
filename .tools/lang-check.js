@@ -28,6 +28,7 @@ const fs=require('fs'), path=require('path');
   if(process.argv[3]) await p.screenshot({path:process.argv[3], fullPage:true});
   await p.click('#btnOpt'); await p.waitForTimeout(300); res.push(await leftovers('settings')); await p.click('#btnOptBack');
   await p.click('#btnJournal'); await p.waitForTimeout(300); res.push(await leftovers('journal')); await p.click('#btnJournalBack');
+  await p.click('#btnCredits'); await p.waitForTimeout(300); res.push(await leftovers('credits')); await p.click('#btnCreditsBack');
   await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.start(); A.cheats.invisible=true; });
   await p.waitForTimeout(1500);
   // カルテを 1 枚拾う

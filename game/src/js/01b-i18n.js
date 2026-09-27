@@ -119,6 +119,10 @@ var EN = {
   '獲物を探せ':'Find your prey', 'カルテを揃えた。もう隠れられない':'All records taken. It can’t hide now',
   '気配':'Presence', '起動できません':'Cannot start', '再読み込み':'Reload',
   '歩いた場所の地図':'Map of where you have walked',
+  'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio',
+  '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
+
   // --- カルテ ---
   '夜間、第七病棟の患者が廊下を歩き回る。制止しても反応がない。翌朝は全員、何も覚えていないと言う。':
     'At night the Ward 7 patients walk the corridors. They do not respond when stopped. In the morning, every one of them says they remember nothing.',
