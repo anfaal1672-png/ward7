@@ -118,6 +118,7 @@ var EN = {
   '見えている。逃がすな':'You see it. Don’t let it go', '近い。音がした方へ':'Close. Toward the sound',
   '獲物を探せ':'Find your prey', 'カルテを揃えた。もう隠れられない':'All records taken. It can’t hide now',
   '気配':'Presence', '起動できません':'Cannot start', '再読み込み':'Reload',
+  '歩いた場所の地図':'Map of where you have walked',
   // --- カルテ ---
   '夜間、第七病棟の患者が廊下を歩き回る。制止しても反応がない。翌朝は全員、何も覚えていないと言う。':
     'At night the Ward 7 patients walk the corridors. They do not respond when stopped. In the morning, every one of them says they remember nothing.',

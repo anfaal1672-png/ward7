@@ -391,3 +391,80 @@ function updateHint(dt){
   toast(msg, 5);
   $('objSub').textContent = msg;
 }
+
+/* --- 地図（設計指示書 第 11.3 節） ---------------------------------------
+   歩いた場所だけが描かれる手描きの地図。一時停止で見る。
+   載るのは：歩いた通路、区画の記号、見たことのある非常口、自分の位置と向き。
+   カルテや鍵は載せない（覚えていれば描ける、という以上のことは教えない）。 */
+var MAPV = { exitSeen:false };
+function resetMap(){ world.visited = new Uint8Array(GW*GH); MAPV.exitSeen = false; }
+function markVisited(){
+  if(!world.visited) return;
+  var c = worldToCell(player.x, player.z), g = world.grid;
+  for(var oy=-1; oy<=1; oy++) for(var ox=-1; ox<=1; ox++){
+    var x = c.x + ox, y = c.y + oy;
+    if(inBounds(x, y) && g[idx(x, y)] === 0) world.visited[idx(x, y)] = 1;
+  }
+  if(!MAPV.exitSeen && world.exit){
+    var dx = world.exit.doorX - player.x, dz = world.exit.doorZ - player.z;
+    if(dx*dx + dz*dz < 144 && hasSight(g, player.x, player.z, world.exit.doorX, world.exit.doorZ)) MAPV.exitSeen = true;
+  }
+}
+function drawMap(){
+  var cv = $('pauseMap'); if(!cv || !world.visited) return;
+  var x = cv.getContext('2d'), S = cv.width, g = world.grid;
+  var cs = S / (GW + 2), o = cs;               // 1 マスの大きさと余白
+  // 紙
+  x.fillStyle = '#d9d0bb'; x.fillRect(0, 0, S, S);
+  var hs = 0;
+  function jr(){ hs = (hs * 9301 + 49297) % 233280; return hs / 233280 - 0.5; }   // 描くたびに同じ揺れ
+  for(var k=0; k<900; k++){ x.fillStyle = 'rgba(90,70,40,' + (0.03 + (jr()+0.5)*0.05).toFixed(3) + ')';
+    x.fillRect((jr()+0.5)*S, (jr()+0.5)*S, 2 + (jr()+0.5)*5, 1 + (jr()+0.5)*2); }
+  // 歩いた床を淡く塗る
+  // 1 本の経路にまとめて一度に塗る（半透明を 1 マスずつ重ねると継ぎ目が濃く出た）
+  x.fillStyle = 'rgba(120,100,70,0.16)'; x.beginPath();
+  for(var y=0; y<GH; y++) for(var xx=0; xx<GW; xx++)
+    if(world.visited[idx(xx, y)]) x.rect(o + xx*cs, o + y*cs, cs + 0.5, cs + 0.5);
+  x.fill('nonzero');
+  // 壁の線。歩いた床と壁の境目だけを、少し揺らしながら引く
+  x.strokeStyle = 'rgba(40,32,26,0.85)'; x.lineWidth = Math.max(1.4, cs*0.14); x.lineCap = 'round';
+  x.beginPath();
+  for(var y2=0; y2<GH; y2++) for(var x2=0; x2<GW; x2++){
+    if(!world.visited[idx(x2, y2)]) continue;
+    var px = o + x2*cs, py = o + y2*cs, j = cs*0.08;
+    [[0,-1, px,py, px+cs,py], [0,1, px,py+cs, px+cs,py+cs], [-1,0, px,py, px,py+cs], [1,0, px+cs,py, px+cs,py+cs]]
+    .forEach(function(e){
+      var nx = x2 + e[0], ny = y2 + e[1];
+      if(inBounds(nx, ny) && g[idx(nx, ny)] === 0) return;
+      x.moveTo(e[2] + jr()*j, e[3] + jr()*j); x.lineTo(e[4] + jr()*j, e[5] + jr()*j);
+    });
+  }
+  x.stroke();
+  // 区画の記号（その区画を少しでも歩いたら）
+  x.fillStyle = 'rgba(40,32,26,0.55)'; x.font = 'bold ' + Math.round(cs*2.2) + 'px ' + getComputedStyle(document.body).fontFamily;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  for(var zy=0; zy<3; zy++) for(var zx=0; zx<3; zx++){
+    var seen = false, x0 = Math.floor(zx*GW/3), x1 = Math.floor((zx+1)*GW/3), y0 = Math.floor(zy*GH/3), y1 = Math.floor((zy+1)*GH/3);
+    for(var yy=y0; yy<y1 && !seen; yy++) for(var xz=x0; xz<x1 && !seen; xz++) if(world.visited[idx(xz, yy)]) seen = true;
+    if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
+  }
+  // 非常口（見たことがあれば）
+  function w2m(wx, wz){ var c = worldToCell(wx, wz);
+    var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
+    return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
+  if(MAPV.exitSeen && world.exit){
+    var e = w2m(world.exit.doorX, world.exit.doorZ);
+    x.strokeStyle = '#8c2626'; x.lineWidth = 2.2; x.beginPath();
+    x.moveTo(e.x - cs*0.7, e.y - cs*0.7); x.lineTo(e.x + cs*0.7, e.y + cs*0.7);
+    x.moveTo(e.x + cs*0.7, e.y - cs*0.7); x.lineTo(e.x - cs*0.7, e.y + cs*0.7); x.stroke();
+    x.fillStyle = '#8c2626'; x.font = Math.round(cs*1.1) + 'px sans-serif'; x.fillText('EXIT', e.x, e.y - cs*1.3);
+  }
+  // 自分：向きの付いた三角
+  var me = w2m(player.x, player.z), a = player.yaw;
+  var fx2 = -Math.sin(a), fz2 = -Math.cos(a), r = cs*0.9;
+  x.fillStyle = '#1d2a26'; x.beginPath();
+  x.moveTo(me.x + fx2*r*1.3, me.y + fz2*r*1.3);
+  x.lineTo(me.x - fz2*r*0.7 - fx2*r*0.6, me.y + fx2*r*0.7 - fz2*r*0.6);
+  x.lineTo(me.x + fz2*r*0.7 - fx2*r*0.6, me.y - fx2*r*0.7 - fz2*r*0.6);
+  x.closePath(); x.fill();
+}

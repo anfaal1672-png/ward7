@@ -345,6 +345,8 @@ function doPause(){
     ['難易度', DIFF[settings.diff].key]
   ]);
   showPanel('pause');
+  drawMap();
+  $('pauseMap').style.display = (playAs === 'hunter') ? 'none' : '';
   $('pauseHint').innerHTML = (playAs === 'hunter')
     ? (IS_TOUCH
         ? '左半分でドラッグ＝移動（大きく倒すと突進）<br>右半分でドラッグ＝視点<br>触れれば殴る。殴った直後は自分も固まる<br>相手はこちらより速い。曲がり角で待て'

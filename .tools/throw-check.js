@@ -34,11 +34,16 @@ const fs=require('fs'), path=require('path');
   const r3 = await p.evaluate(()=>{ const A=window.__WARD7, h=A.hunter, pl=A.player;
     return { after:h.mode, lure:pl.lure||0, left:pl.bottles, target:h.lastSeen }; });
   if(process.argv[3]) await p.screenshot({path:process.argv[3]});
-  // 忍び足：Z を押しながら前へ
+  // 忍び足：Z を押しながら前へ。壁に向かって歩くと速さが出ず「歩き」を測れないので、
+  // 見通しの利く方（6m 以上開けている方）を向かせてから歩く（CI で一度これで落ちた）
+  await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player; const s=A.findLOSSpot(pl.x, pl.z, 6, 12);
+    if(s) pl.yaw = Math.atan2(-(s.x-pl.x), -(s.z-pl.z)); });
   await p.keyboard.down('KeyZ'); await p.keyboard.down('KeyW');
   await p.waitForTimeout(1200);
   const sneak = await p.evaluate(()=>({s:window.__WARD7.player.sneaking, v:Math.hypot(window.__WARD7.player.vx, window.__WARD7.player.vz)}));
-  await p.keyboard.up('KeyZ'); await p.waitForTimeout(900);
+  await p.keyboard.up('KeyZ');
+  await p.waitForFunction(()=>!window.__WARD7.player.sneaking && Math.hypot(window.__WARD7.player.vx, window.__WARD7.player.vz) > 1.8,
+                          null, {timeout:6000}).catch(()=>{});
   const walk = await p.evaluate(()=>({s:window.__WARD7.player.sneaking, v:Math.hypot(window.__WARD7.player.vx, window.__WARD7.player.vz)}));
   console.log(JSON.stringify({r1, r2, r3, sneak, walk, errs:errs.slice(0,3)}));
   const ok = r1.placed>=2 && r1.got===1 && r3.left===0 && r3.lure===1 && (r3.after==='hunt' || r3.after==='chase') && sneak.s && !walk.s && !errs.length;
