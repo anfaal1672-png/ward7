@@ -2758,6 +2758,9 @@ function buildWorld(){
     world.propShadows = bn;
   }
 
+  // 章ごとの「顔」になる部屋（第 6.1 節）。中央の大広間を作り込む。経路の格子より先に置く
+  heroRoom(g, bigHall);
+
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
 
@@ -3110,4 +3113,141 @@ function updateWater(dt){
   if(!waterMesh || !waterNTex) return;
   waterNTex.offset.x = (waterNTex.offset.x + dt*0.012) % 1;
   waterNTex.offset.y = (waterNTex.offset.y + dt*0.007) % 1;
+}
+
+/* --- 章の顔になる部屋（設計指示書 第 6.1 節） -----------------------------
+   病棟はどの章も手続き生成で、記憶に残る「場所」が無かった。中央の大広間
+   （7×5 マス）を、章ごとに決まった部屋として作り込む：
+     1 ナースステーション  2 大部屋  3 配電室  4 階段  5 院長室  6 ボイラー室  7 受付
+   家具は壁際にだけ置く。通路の口（壁の向こうが床のところ）は塞がない。
+   置く前に既存の家具・拾い物と重ならないかを見る。ゲームの乱数は引かない
+   （同じ種で間取りと展開が変わらないように）。 */
+var HERO = {
+  1:{ sign:'ナースステーション', kit:['counter','counter','shelf','shelf','clock','charts'] },
+  2:{ sign:'大部屋',             kit:['bed','bed','bed','bed','bed','bed','curtain','curtain'] },
+  3:{ sign:'配電室',             kit:['cabinet','cabinet','cabinet','cabinet','cabinet','cable'] },
+  4:{ sign:'階段　立入禁止',     kit:['rail','rail','rail','debris','debris','shelf'] },
+  5:{ sign:'院長室',             kit:['desk','shelf','shelf','shelf','portrait','cabinet'] },
+  6:{ sign:'ボイラー室',         kit:['boiler','pipe','pipe','cabinet','debris'] },
+  7:{ sign:'受付',               kit:['counter','counter','charts','bench','bench','clock'] }
+};
+HERO[0] = HERO[1];                                         // 夜勤はナースステーション
+function heroPiece(kind){
+  var P = [], r = 0.6, h = 1.0, len = 2.2;
+  var C = { steel:0x6f756f, dark:0x33352f, paper:0xd6cfbb, cream:0xc9c1a8, green:0x55635c, wood:0x5c4632, rust:0x6b4a33 };
+  if(kind === 'counter'){ len = 3.2; h = 1.05; r = 0.9;
+    P.push({ w:len, h:1.0, d:0.62, y:0.5, c:C.green }, { w:len+0.1, h:0.05, d:0.74, y:1.03, c:C.dark },
+           { w:len-0.2, h:0.7, d:0.02, y:0.45, z:0.32, c:0x46514b }); }
+  else if(kind === 'shelf'){ len = 2.0; h = 2.0; r = 0.8;
+    P.push({ w:len, h:2.0, d:0.42, y:1.0, c:C.steel });
+    for(var s=0; s<4; s++){ P.push({ w:len-0.06, h:0.03, d:0.4, y:0.3 + s*0.46, z:0.01, c:C.dark });
+      for(var f=0; f<7; f++) P.push({ w:0.2, h:0.32, d:0.32, x:-len/2 + 0.2 + f*0.26, y:0.48 + s*0.46, z:0.02,
+                                       c:[C.cream, 0x8c7d5c, 0x5c6b5e, C.paper][(s + f) % 4] }); } }
+  else if(kind === 'bed'){ len = 2.0; h = 0.8; r = 0.95;
+    P.push({ w:0.95, h:0.42, d:2.0, y:0.42, c:C.steel }, { w:0.9, h:0.14, d:1.9, y:0.7, c:C.paper },
+           { w:0.6, h:0.1, d:0.34, y:0.82, z:-0.72, c:0xe8e2d4 }, { w:0.95, h:0.9, d:0.05, y:0.6, z:-1.0, c:C.steel }); }
+  else if(kind === 'curtain'){ len = 2.6; h = 2.2; r = 0.15;
+    P.push({ w:len, h:0.03, d:0.03, y:2.3, c:C.steel }, { w:len*0.45, h:1.9, d:0.02, x:-len*0.25, y:1.3, c:0xa9b4a8 }); }
+  else if(kind === 'cabinet'){ len = 1.0; h = 2.0; r = 0.55;
+    P.push({ w:0.95, h:2.0, d:0.55, y:1.0, c:C.green }, { w:0.02, h:1.8, d:0.02, x:0, y:1.0, z:0.28, c:C.dark },
+           { w:0.08, h:0.08, d:0.03, x:0.3, y:1.65, z:0.29, c:0x8c2626 }, { w:0.08, h:0.08, d:0.03, x:0.18, y:1.65, z:0.29, c:0x2fae86 }); }
+  else if(kind === 'cable'){ len = 3.0; h = 0.1; r = 0.2;
+    for(var k=0; k<4; k++) P.push({ type:'cyl', r:0.03, h:len, ax:'x', y:0.04, z:-0.2 + k*0.09, c:C.dark }); }
+  else if(kind === 'rail'){ len = 3.0; h = 1.0; r = 0.2;
+    P.push({ w:len, h:0.05, d:0.06, y:1.0, c:C.steel });
+    for(var k2=0; k2<5; k2++) P.push({ w:0.04, h:1.0, d:0.04, x:-len/2 + k2*len/4, y:0.5, c:C.steel }); }
+  else if(kind === 'debris'){ len = 1.4; h = 0.5; r = 0.7;
+    P.push({ w:0.9, h:0.4, d:0.6, y:0.2, ry:0.3, c:C.cream }, { w:0.6, h:0.3, d:0.5, x:0.4, y:0.15, ry:-0.4, c:C.rust },
+           { w:1.2, h:0.05, d:0.25, y:0.45, rz:0.25, c:C.wood }); }
+  else if(kind === 'desk'){ len = 2.2; h = 0.8; r = 1.0;
+    P.push({ w:2.2, h:0.06, d:0.95, y:0.78, c:C.wood }, { w:0.5, h:0.75, d:0.9, x:-0.82, y:0.38, c:C.wood },
+           { w:0.5, h:0.75, d:0.9, x:0.82, y:0.38, c:C.wood }, { w:0.3, h:0.02, d:0.4, x:0.2, y:0.82, c:C.paper },
+           { w:0.55, h:0.9, d:0.55, z:-0.8, y:0.45, c:C.dark }); }
+  else if(kind === 'portrait'){ len = 1.0; h = 1.2; r = 0.1;
+    P.push({ w:0.9, h:1.15, d:0.05, y:1.8, c:0x3c3a33 }, { w:0.72, h:0.95, d:0.06, y:1.8, c:0x2a2622 },
+           { w:0.3, h:0.4, d:0.07, y:1.9, c:0x6a5d4c }); }
+  else if(kind === 'boiler'){ len = 2.6; h = 2.6; r = 1.3;
+    P.push({ type:'cyl', r:1.1, h:2.5, y:1.25, seg:16, c:C.rust }, { type:'cyl', r:1.14, h:0.1, y:0.6, seg:16, c:C.dark },
+           { type:'cyl', r:1.14, h:0.1, y:1.9, seg:16, c:C.dark }, { type:'cyl', r:0.14, h:1.2, y:3.0, seg:8, c:C.steel }); }
+  else if(kind === 'pipe'){ len = 3.4; h = 0.4; r = 0.25;
+    P.push({ type:'cyl', r:0.12, h:len, ax:'x', y:2.6, c:C.steel }, { type:'cyl', r:0.09, h:len, ax:'x', y:2.35, c:C.rust }); }
+  else if(kind === 'clock'){ len = 0.6; h = 0.5; r = 0.05;
+    P.push({ type:'cyl', r:0.28, h:0.05, ax:'z', y:2.6, seg:20, c:C.paper }, { w:0.02, h:0.2, d:0.02, y:2.68, z:0.03, c:C.dark },
+           { w:0.15, h:0.02, d:0.02, x:0.06, y:2.6, z:0.03, c:C.dark }); }                      // 止まった 4 時 10 分
+  else if(kind === 'charts'){ len = 1.0; h = 1.3; r = 0.5;
+    P.push({ w:0.8, h:1.0, d:0.5, y:0.5, c:C.green });
+    for(var k3=0; k3<6; k3++) P.push({ w:0.34, h:0.03, d:0.26, x:(k3%2)*0.02, y:1.02 + k3*0.035, ry:(k3*0.07), c:C.paper }); }
+  else if(kind === 'bench'){ len = 1.8; h = 0.45; r = 0.8;
+    P.push({ w:1.8, h:0.06, d:0.45, y:0.45, c:C.wood }, { w:0.06, h:0.45, d:0.4, x:-0.8, y:0.22, c:C.steel },
+           { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
+  return { parts:P, len:len, h:h, r:r };
+}
+var heroMat = null, heroSignTex = {};
+function heroSign(text){
+  if(heroSignTex[text]) return heroSignTex[text];
+  var c = makeCanvas(512); c.height = 128;
+  var x = c.getContext('2d');
+  x.fillStyle = '#0f1513'; x.fillRect(0,0,512,128);
+  x.fillStyle = '#cfc9b4'; x.fillRect(8,8,496,112);
+  x.fillStyle = 'rgba(92,74,52,0.25)'; x.fillRect(8,96,496,24);          // 下の方ほど汚れている
+  x.fillStyle = '#1d2a26'; x.font = 'bold 54px ' + getComputedStyle(document.body).fontFamily;
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 256, 62);
+  var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  heroSignTex[text] = t; return t;
+}
+function heroRoom(g, hall){
+  var def = HERO[runDef().n]; if(!def || !hall) return;
+  if(!heroMat) heroMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.8, metalness:0.1,
+                                                         map:TEX.grunge || null });
+  var x0 = cellToWorld(hall.x, hall.y).x - CELL/2, z0 = cellToWorld(hall.x, hall.y).z - CELL/2;
+  var W = hall.w*CELL, D = hall.h*CELL;
+  // 壁 4 面を周回しながら、置ける所に順に置く。n=北（-Z）e=東 s=南 w=西
+  var sides = [ { ax:'x', from:x0, to:x0+W, fix:z0, n:[0,1], cellFix:hall.y, outside:[0,-1] },
+                { ax:'z', from:z0, to:z0+D, fix:x0+W, n:[-1,0], cellFix:hall.x+hall.w-1, outside:[1,0] },
+                { ax:'x', from:x0+W, to:x0, fix:z0+D, n:[0,-1], cellFix:hall.y+hall.h-1, outside:[0,1] },
+                { ax:'z', from:z0+D, to:z0, fix:x0, n:[1,0], cellFix:hall.x, outside:[-1,0] } ];
+  var kit = def.kit.slice(), si = 0, cursor = 0.8, placed = 0, guard = 60;
+  function blockedAt(px, pz, rr){
+    for(var i=0; i<world.props.length; i++){ var o = world.props[i];
+      if((o.x-px)*(o.x-px) + (o.z-pz)*(o.z-pz) < (o.r+rr+0.3)*(o.r+rr+0.3)) return true; }
+    var items = world.records.concat(world.batteries, world.bottles || [], world.bandages || [], world.key ? [world.key] : []);
+    for(var j=0; j<items.length; j++){ var it = items[j];
+      if((it.x-px)*(it.x-px) + (it.z-pz)*(it.z-pz) < (rr+1.0)*(rr+1.0)) return true; }
+    return false;
+  }
+  function openingAt(S, t){          // その位置の壁の向こうが通路なら、口なので塞がない
+    var c = S.ax === 'x' ? worldToCell(t, S.fix + S.n[1]*0.5) : worldToCell(S.fix + S.n[0]*0.5, t);
+    var ox = c.x + S.outside[0], oy = c.y + S.outside[1];
+    return inBounds(ox, oy) && g[idx(ox, oy)] === 0;
+  }
+  while(kit.length && si < 4 && guard-- > 0){
+    var S = sides[si], kind = kit[0], pc = heroPiece(kind);
+    var span = Math.abs(S.to - S.from), dir = S.to > S.from ? 1 : -1;
+    if(cursor + pc.len + 0.6 > span){ si++; cursor = 0.8; continue; }
+    var t = S.from + dir*(cursor + pc.len/2);
+    var depth = kind === 'clock' || kind === 'portrait' ? 0.06 : (kind === 'boiler' ? 1.4 : (kind === 'bed' ? 1.1 : 0.45));
+    var px = S.ax === 'x' ? t : S.fix + S.n[0]*depth, pz = S.ax === 'x' ? S.fix + S.n[1]*depth : t;
+    var tA = S.from + dir*cursor, tB = S.from + dir*(cursor + pc.len);
+    if(openingAt(S, tA) || openingAt(S, t) || openingAt(S, tB) || (pc.r > 0.2 && blockedAt(px, pz, pc.r))){
+      cursor += 1.0; continue;                 // ずらして次を試す
+    }
+    var m = new THREE.Mesh(mergeTinted(pc.parts), heroMat);
+    m.position.set(px, 0, pz);
+    m.rotation.y = Math.atan2(S.n[0], S.n[1]);                     // 部屋の内側を向く
+    if(kind === 'bed') m.rotation.y += Math.PI;                    // 枕を壁側に
+    m.userData.bake = true;
+    world.group.add(m);
+    if(pc.r > 0.2) world.props.push({ x:px, z:pz, r:Math.min(pc.r, 0.95), h:pc.h });
+    kit.shift(); cursor += pc.len + 0.5; placed++;
+  }
+  // 名札。北の壁の、口ではない所の目の高さより少し上に
+  for(var k=0; k<7; k++){
+    var sx = x0 + W*(0.3 + k*0.08);
+    if(openingAt(sides[0], sx)) continue;
+    var sg = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), new THREE.MeshStandardMaterial({ map:heroSign(def.sign), roughness:0.7 }));
+    sg.position.set(sx, 2.55, z0 + 0.03);
+    world.group.add(sg);
+    break;
+  }
+  world.hero = { name:def.sign, pieces:placed };
 }
