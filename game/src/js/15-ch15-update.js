@@ -560,6 +560,10 @@ function updatePlayer(dt){
              + Math.sin(vt*1.4) * 0.0035;                       // 呼吸
     var vz = (player.running ? 0.045 : 0) * spd01;               // 走ると引き寄せる
 
+    /* 扉をそっと開けている間は、手を前へ出して扉を押す（第 9.4 節「扉に手を掛ける」） */
+    var doorW = (world.lockDoor && world.lockDoor.opening > 0) ? 1 : 0;
+    HANDL.door += (doorW - HANDL.door) * (1 - Math.pow(0.004, dt));
+    vz -= 0.07 * HANDL.door; vy += 0.025 * HANDL.door;
     viewArm.position.set(vx, vy, vz);
     viewArm.rotation.set(
       -viewSway.y * 0.10 + Math.sin(player.bob*2) * 0.020 * bAmp * spd01 + (player.running ? 0.10 : 0),
@@ -586,6 +590,19 @@ function updatePlayer(dt){
     if(viewParts.led) viewParts.led.color.setRGB(player.lamp ? 1 : 0.045,
                                                  player.lamp ? 0.16*flickAmt : 0.004, 0.012);
     viewArm.visible = !player.hiding;
+  }
+  // 口を押さえる左手。上がるのは素早く、下ろすのはゆっくり
+  if(viewHandL){
+    var wantM = (player.hiding && player.holdBreath) ? 1 : 0;
+    HANDL.k += (wantM - HANDL.k) * (1 - Math.pow(wantM ? 0.0004 : 0.02, dt));
+    var hk = HANDL.k, he = 1 - (1-hk)*(1-hk);
+    var tr = player.stamina < 30 ? (30 - player.stamina) / 30 * 0.004 : 0;     // 苦しくなると震える
+    viewHandL.visible = hk > 0.01;
+    /* 自分の口を覆う手は、目からは下の縁に人差し指の側が横たわって見えるだけ。
+       左下から上がってきて、指を右へ向けて画面の下の方に収まる */
+    viewHandL.position.set(lerp(-0.16, -0.005, he) + (Math.random()-0.5)*tr,
+                           lerp(-0.30, -0.100, he) + (Math.random()-0.5)*tr, lerp(-0.2, -0.17, he));
+    viewHandL.rotation.set(lerp(0.3, -0.18, he), lerp(0.3, 0.12, he), lerp(-0.6, -1.45, he));
   }
   flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
   playerLight.intensity = player.lamp ? PLIGHT_I*flickAmt : 0.14;

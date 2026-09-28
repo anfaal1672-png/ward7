@@ -43,6 +43,8 @@ function setStickVisual(on, ox, oy, dx, dy){
 }
 
 function onPointerDown(e){
+  if(e.pointerType === 'touch') lastInputKind = 'touch';
+  else if(e.pointerType === 'mouse' && lastInputKind === 'touch') lastInputKind = 'kb';
   if(state !== STATE.PLAY) return;
   if(e.target && e.target.classList && e.target.classList.contains('tbtn')) return;
   if(e.target && e.target.id === 'bPause') return;
@@ -135,19 +137,72 @@ document.addEventListener('mousemove', function(e){
   input.lookX += e.movementX * 0.0022 * settings.sens;
   input.lookY += e.movementY * 0.0022 * settings.sens * (settings.invert ? -1 : 1);
 });
-var KEYMAP = { KeyW:'f', ArrowUp:'f', KeyS:'b', ArrowDown:'b', KeyA:'l', ArrowLeft:'l', KeyD:'r', ArrowRight:'r' };
+/* キーの割り当て（設計指示書 第 12.3 節）。
+   遊びの側（とボット）は「その操作の決まったキー」（KEYACT の canon）が押されているかだけを見る。
+   実際に押されたキーは、ここで割り当てを引いて canon に写す。だから割り当てを変えても
+   遊びの側は何も変えなくてよい。各操作は主キー 1 つ（変えられる）と、控えのキー（矢印など）を持つ。
+   Esc（一時停止）は変えられない */
+var KEYACT = [
+  { a:'fwd',   canon:'KeyW',      alt:['ArrowUp'],    label:'前へ' },
+  { a:'back',  canon:'KeyS',      alt:['ArrowDown'],  label:'後ろへ' },
+  { a:'left',  canon:'KeyA',      alt:['ArrowLeft'],  label:'左へ' },
+  { a:'right', canon:'KeyD',      alt:['ArrowRight'], label:'右へ' },
+  { a:'run',   canon:'ShiftLeft', alt:['ShiftRight'], label:'走る・息を止める' },
+  { a:'sneak', canon:'KeyZ',      alt:['ControlLeft'],label:'忍び足' },
+  { a:'use',   canon:'KeyE',      alt:['Space'],      label:'使う・隠れる' },
+  { a:'lamp',  canon:'KeyF',      alt:[],             label:'ランプ' },
+  { a:'throw', canon:'KeyG',      alt:[],             label:'瓶を投げる' },
+  { a:'peek',  canon:'KeyX',      alt:[],             label:'覗く' },
+  { a:'look',  canon:'KeyQ',      alt:['KeyC'],       label:'振り返る' }
+];
+var KEYACT_BY = {};
+KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
+/* 実キー → canon の表。割り当てを変えたら作り直す */
+var KEYMAP = {};
+function keyOf(a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
+function rebuildKeymap(){
+  KEYMAP = {};
+  KEYACT.forEach(function(k){
+    var main = keyOf(k.a);
+    KEYMAP[main] = k.canon;
+    k.alt.forEach(function(c){ if(!KEYMAP[c]) KEYMAP[c] = k.canon; });
+  });
+  /* 主キーを別のキーに替えた操作の元のキー（canon）は、他の主キーでない限り何もしない。
+     そのままだと未登録のキーは自分自身として読まれ、F を L に替えても F が効き続けた */
+  KEYACT.forEach(function(k){ if(keyOf(k.a) !== k.canon && !KEYMAP[k.canon]) KEYMAP[k.canon] = '_'; });
+  // 主キーに取られた控えは外す（主キーが優先）
+  KEYACT.forEach(function(k){ KEYMAP[keyOf(k.a)] = k.canon; });
+}
+function keyLabel(code){
+  if(!code) return '—';
+  if(/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if(/^Digit[0-9]$/.test(code)) return code.slice(5);
+  return ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
+            Space:'Space', Tab:'Tab', Enter:'Enter', ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→',
+            CapsLock:'Caps', Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Semicolon:';',
+            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
+}
+rebuildKeymap();
+var keyCapture = null;                // 設定画面で「キーを押す」を待っている操作
 document.addEventListener('keydown', function(e){
+  if(keyCapture){ e.preventDefault(); var kc = keyCapture; keyCapture = null; kc(e.code); return; }
   if(e.repeat) return;
-  input.keys[e.code] = true; humanKeys[e.code] = true;
-  if(e.code === 'KeyF') toggleLamp();
-  if(e.code === 'KeyG') throwBottle();
-  if(e.code === 'KeyX') PEEK.want = true;
-  if(e.code === 'KeyE' || e.code === 'Space'){ input.use = true; if(e.code==='Space') e.preventDefault(); }
-  if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); }
+  if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); return; }
+  var c = KEYMAP[e.code] || e.code;
+  input.keys[c] = true; humanKeys[c] = true;
+  if(c === 'KeyF') toggleLamp();
+  if(c === 'KeyG') throwBottle();
+  if(c === 'KeyX') PEEK.want = true;
+  if(c === 'KeyE'){ input.use = true; }
   if(KEYMAP[e.code]) e.preventDefault();
+  lastInputKind = 'kb';
 });
-document.addEventListener('keyup', function(e){ input.keys[e.code] = false; humanKeys[e.code] = false;
-  if(e.code === 'KeyX') PEEK.want = false; });
+document.addEventListener('keyup', function(e){
+  var c = KEYMAP[e.code] || e.code;
+  input.keys[c] = false; humanKeys[c] = false;
+  if(c === 'KeyX') PEEK.want = false; });
+/* いま使っている入力機器（操作説明の出し分け。第 11.4 節）：'touch' | 'kb' | 'pad' */
+var lastInputKind = IS_TOUCH ? 'touch' : 'kb';
 
 function readKeys(){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
@@ -189,7 +244,7 @@ function readPad(){
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
   var used = !!(mx || my || lx || ly);
   for(var b=0; b<bt.length; b++) if(down(b)) used = true;
-  if(used) pad.active = true;
+  if(used){ pad.active = true; lastInputKind = 'pad'; }
   if(!pad.active) return;
   if(mx || my){ input.fwd = -my; input.side = mx; }
   /* 視点は経過時間に掛ける（フレームに掛けると端末の速さで回り方が変わる）。

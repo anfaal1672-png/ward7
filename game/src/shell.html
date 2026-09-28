@@ -229,6 +229,12 @@
       <button type="button" data-l="en" aria-pressed="false">English</button>
     </div>
   </div>
+  <div class="sect" id="keysSect">キーの割り当て</div>
+  <div class="field" id="keysField">
+    <div id="keyList"></div>
+    <button class="btn ghost" id="btnKeysReset" type="button" style="margin-top:8px">既定に戻す</button>
+    <p class="hint">押した操作のボタンを選び、割り当てるキーを押す（Esc で取りやめ）。矢印キーなどの控えは、主キーと重ならない限り残る。</p>
+  </div>
   <div class="sect">恐怖の調整</div>
   <div class="field">
     <label>隠れ場所は安全 <span id="valSH">オフ</span></label>
@@ -254,6 +260,10 @@
       <button type="button" data-v="1" aria-pressed="false">オン</button>
     </div>
     <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
+  </div>
+  <div class="field" id="layoutField">
+    <button class="btn ghost" id="btnLayout" type="button">ボタンの配置を編集</button>
+    <p class="hint">画面のボタンを指で好きな所へ動かす。</p>
   </div>
   <div class="field">
     <label for="sens">視点感度 <span id="valS">1.0</span></label>
@@ -369,6 +379,12 @@
 
 <div id="dbg" hidden></div>
 
+<!-- ボタンの配置の編集（第 12.1 節）。台本より前に置く（台本が読むので） -->
+<div id="layoutBar" hidden>
+  <span>ボタンを指で動かす</span>
+  <button class="btn ghost" id="btnLayoutReset" type="button">元に戻す</button>
+  <button class="btn primary" id="btnLayoutDone" type="button">完了</button>
+</div>
 <script src="three.min.js"></script>
 <!-- 写真素材（第 7.2 節）。大きいので後から読む。無くても遊べる -->
 <script src="assets.js" defer></script>

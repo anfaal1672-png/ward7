@@ -436,6 +436,21 @@
   #bPeek.hot{background:rgba(111,191,168,.22);border-color:rgba(111,191,168,.7);color:#d8fff2}
   body.notouch #bPeek{display:none !important}
   body.lefty #bPeek{left:calc(92px + var(--sal));right:auto}
+  /* キーの割り当て（第 12.3 節） */
+  .keyrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;
+    border-bottom:1px solid rgba(232,226,212,.07);font-size:12px;letter-spacing:.06em;color:var(--bone)}
+  .keybtn{min-width:86px;padding:6px 10px;font:inherit;font-family:var(--mono);color:var(--bone);
+    background:rgba(232,226,212,.05);border:1px solid rgba(232,226,212,.2);border-radius:3px;cursor:pointer}
+  .keybtn.wait{border-color:var(--amber);color:var(--amber)}
+  .keybtn:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+  /* ボタンの配置の編集（第 12.1 節） */
+  #touch.edit{z-index:65;pointer-events:auto;background:rgba(5,9,10,.74)}
+  #touch.edit .tbtn{outline:1px dashed rgba(232,163,61,.8);outline-offset:3px;touch-action:none;cursor:grab}
+  #touch.edit #stick, #touch.edit #bPause{display:none}
+  #layoutBar{position:fixed;z-index:70;left:50%;top:calc(18px + var(--sat));transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(5,9,10,.9);
+    border:1px solid rgba(232,226,212,.18);border-radius:4px;font-size:12px;letter-spacing:.08em;color:var(--bone)}
+  #layoutBar[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -655,6 +670,12 @@
       <button type="button" data-l="en" aria-pressed="false">English</button>
     </div>
   </div>
+  <div class="sect" id="keysSect">キーの割り当て</div>
+  <div class="field" id="keysField">
+    <div id="keyList"></div>
+    <button class="btn ghost" id="btnKeysReset" type="button" style="margin-top:8px">既定に戻す</button>
+    <p class="hint">押した操作のボタンを選び、割り当てるキーを押す（Esc で取りやめ）。矢印キーなどの控えは、主キーと重ならない限り残る。</p>
+  </div>
   <div class="sect">恐怖の調整</div>
   <div class="field">
     <label>隠れ場所は安全 <span id="valSH">オフ</span></label>
@@ -680,6 +701,10 @@
       <button type="button" data-v="1" aria-pressed="false">オン</button>
     </div>
     <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
+  </div>
+  <div class="field" id="layoutField">
+    <button class="btn ghost" id="btnLayout" type="button">ボタンの配置を編集</button>
+    <p class="hint">画面のボタンを指で好きな所へ動かす。</p>
   </div>
   <div class="field">
     <label for="sens">視点感度 <span id="valS">1.0</span></label>
@@ -795,6 +820,12 @@
 
 <div id="dbg" hidden></div>
 
+<!-- ボタンの配置の編集（第 12.1 節）。台本より前に置く（台本が読むので） -->
+<div id="layoutBar" hidden>
+  <span>ボタンを指で動かす</span>
+  <button class="btn ghost" id="btnLayoutReset" type="button">元に戻す</button>
+  <button class="btn primary" id="btnLayoutDone" type="button">完了</button>
+</div>
 <script src="three.min.js"></script>
 <!-- 写真素材（第 7.2 節）。大きいので後から読む。無くても遊べる -->
 <script src="assets.js" defer></script>
@@ -1136,6 +1167,13 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  'ボタンの配置を編集':'Edit button layout', '画面のボタンを指で好きな所へ動かす。':'Drag the on-screen buttons wherever you like.',
+  'ボタンを指で動かす':'Drag the buttons', '元に戻す':'Reset', '完了':'Done',
+  'キーの割り当て':'Key bindings', '既定に戻す':'Reset to defaults', 'キーを押す…':'Press a key…',
+  '前へ':'Forward', '後ろへ':'Back', '左へ':'Left', '右へ':'Right', '走る・息を止める':'Run / hold breath',
+  '使う・隠れる':'Use / hide', 'ランプ':'Lamp', '瓶を投げる':'Throw bottle', '振り返る':'Look back',
+  '押した操作のボタンを選び、割り当てるキーを押す（Esc で取りやめ）。矢印キーなどの控えは、主キーと重ならない限り残る。':
+    'Pick an action, then press the key to bind (Esc cancels). Backup keys such as the arrows stay unless they clash with a main key.',
   '画面効果':'Effects', '光の筋':'Light shafts', '接地の陰':'Contact shadows', '輪郭を均す':'Anti-aliasing', '読む間の背景ぼかし':'Blur while reading',
   'ランプの光が空気中の埃に散って、筋として見える。高精細以上。':'Your lamp\u2019s light scatters in the dust and shows as a beam. High and above.',
   '物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。':'Soft shadows where objects meet floors and walls. Ultra only.',
@@ -3273,7 +3311,9 @@ var settings = {
   fxBeam: true,    // ランプの光の筋（空気中の埃に散る光）
   fxAO: true,      // 接地の陰（最高品質のみ）
   fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
-  fxDof: true      // 書類を読む間、奥をぼかす
+  fxDof: true,     // 書類を読む間、奥をぼかす
+  keys: {},        // キーの割り当て（第 12.3 節）。操作名 → KeyboardEvent.code。空なら既定
+  btnPos: {}       // タッチのボタンの配置（第 12.1 節）。id → { x, y }（画面に対する中心の割合）
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -3292,6 +3332,13 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
+    if(saved.btnPos && typeof saved.btnPos === 'object'){
+      Object.keys(saved.btnPos).forEach(function(k){ var v = saved.btnPos[k];
+        if(v && isFinite(v.x) && isFinite(v.y)) settings.btnPos[k] = { x:clamp(+v.x, 0.03, 0.97), y:clamp(+v.y, 0.03, 0.97) }; });
+    }
+    if(saved.keys && typeof saved.keys === 'object'){
+      Object.keys(saved.keys).forEach(function(k){ if(typeof saved.keys[k] === 'string' && /^[A-Za-z0-9]+$/.test(saved.keys[k])) settings.keys[k] = saved.keys[k]; });
+    }
     ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
@@ -3932,6 +3979,7 @@ var lightPool = [];   // 非常灯用の固定ポイントライト（付け外�
 var flashlight, flashTarget, playerLight, ambient, hemi, hunterMark, hunterEyeLight;
 // 一人称の腕。壁にめり込まないよう専用のシーンで最後に描く
 var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts = null;
+var viewHandL = null, HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
@@ -5414,6 +5462,22 @@ function buildViewModel(){
     }
   })();
 
+  /* 左手（設計指示書 第 9.4 節「口を押さえる（息を止めるとき）」）。
+     隠れて息を止めている間だけ、画面の下から上がって口元を覆う。掌は平たい球、指は 4 本と親指。
+     肌は右手と同じ質感。隠れている間は右手（ランプ）は見えないので、この手だけが映る */
+  (function(){
+    /** @type {Array<any>} */
+    var hs = [ { type:'sph', r:0.05, sx:0.95, sy:1.12, sz:0.42, y:0 } ];
+    for(var fi=0; fi<4; fi++){
+      var fx = -0.03 + fi*0.02, fl = 0.07 - Math.abs(fi-1.3)*0.008;
+      hs.push({ type:'cyl', rt:0.0078, rb:0.0095, h:fl, x:fx, y:0.05 + fl/2, rz:(fi-1.5)*0.05 });
+      hs.push({ type:'sph', r:0.0079, x:fx - (fi-1.5)*0.05*fl/2, y:0.05 + fl });
+    }
+    hs.push({ type:'cyl', rt:0.009, rb:0.011, h:0.055, x:0.05, y:0.0, z:0.006, rz:-0.9 });
+    viewHandL = new THREE.Mesh(mergeBoxes(hs), skin);
+    viewHandL.visible = false;
+    viewScene.add(viewHandL);
+  })();
   viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
                 base:{ x:0, y:0, z:0 }, root:ARM,
@@ -9056,6 +9120,8 @@ function setStickVisual(on, ox, oy, dx, dy){
 }
 
 function onPointerDown(e){
+  if(e.pointerType === 'touch') lastInputKind = 'touch';
+  else if(e.pointerType === 'mouse' && lastInputKind === 'touch') lastInputKind = 'kb';
   if(state !== STATE.PLAY) return;
   if(e.target && e.target.classList && e.target.classList.contains('tbtn')) return;
   if(e.target && e.target.id === 'bPause') return;
@@ -9148,19 +9214,72 @@ document.addEventListener('mousemove', function(e){
   input.lookX += e.movementX * 0.0022 * settings.sens;
   input.lookY += e.movementY * 0.0022 * settings.sens * (settings.invert ? -1 : 1);
 });
-var KEYMAP = { KeyW:'f', ArrowUp:'f', KeyS:'b', ArrowDown:'b', KeyA:'l', ArrowLeft:'l', KeyD:'r', ArrowRight:'r' };
+/* キーの割り当て（設計指示書 第 12.3 節）。
+   遊びの側（とボット）は「その操作の決まったキー」（KEYACT の canon）が押されているかだけを見る。
+   実際に押されたキーは、ここで割り当てを引いて canon に写す。だから割り当てを変えても
+   遊びの側は何も変えなくてよい。各操作は主キー 1 つ（変えられる）と、控えのキー（矢印など）を持つ。
+   Esc（一時停止）は変えられない */
+var KEYACT = [
+  { a:'fwd',   canon:'KeyW',      alt:['ArrowUp'],    label:'前へ' },
+  { a:'back',  canon:'KeyS',      alt:['ArrowDown'],  label:'後ろへ' },
+  { a:'left',  canon:'KeyA',      alt:['ArrowLeft'],  label:'左へ' },
+  { a:'right', canon:'KeyD',      alt:['ArrowRight'], label:'右へ' },
+  { a:'run',   canon:'ShiftLeft', alt:['ShiftRight'], label:'走る・息を止める' },
+  { a:'sneak', canon:'KeyZ',      alt:['ControlLeft'],label:'忍び足' },
+  { a:'use',   canon:'KeyE',      alt:['Space'],      label:'使う・隠れる' },
+  { a:'lamp',  canon:'KeyF',      alt:[],             label:'ランプ' },
+  { a:'throw', canon:'KeyG',      alt:[],             label:'瓶を投げる' },
+  { a:'peek',  canon:'KeyX',      alt:[],             label:'覗く' },
+  { a:'look',  canon:'KeyQ',      alt:['KeyC'],       label:'振り返る' }
+];
+var KEYACT_BY = {};
+KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
+/* 実キー → canon の表。割り当てを変えたら作り直す */
+var KEYMAP = {};
+function keyOf(a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
+function rebuildKeymap(){
+  KEYMAP = {};
+  KEYACT.forEach(function(k){
+    var main = keyOf(k.a);
+    KEYMAP[main] = k.canon;
+    k.alt.forEach(function(c){ if(!KEYMAP[c]) KEYMAP[c] = k.canon; });
+  });
+  /* 主キーを別のキーに替えた操作の元のキー（canon）は、他の主キーでない限り何もしない。
+     そのままだと未登録のキーは自分自身として読まれ、F を L に替えても F が効き続けた */
+  KEYACT.forEach(function(k){ if(keyOf(k.a) !== k.canon && !KEYMAP[k.canon]) KEYMAP[k.canon] = '_'; });
+  // 主キーに取られた控えは外す（主キーが優先）
+  KEYACT.forEach(function(k){ KEYMAP[keyOf(k.a)] = k.canon; });
+}
+function keyLabel(code){
+  if(!code) return '—';
+  if(/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if(/^Digit[0-9]$/.test(code)) return code.slice(5);
+  return ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
+            Space:'Space', Tab:'Tab', Enter:'Enter', ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→',
+            CapsLock:'Caps', Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Semicolon:';',
+            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
+}
+rebuildKeymap();
+var keyCapture = null;                // 設定画面で「キーを押す」を待っている操作
 document.addEventListener('keydown', function(e){
+  if(keyCapture){ e.preventDefault(); var kc = keyCapture; keyCapture = null; kc(e.code); return; }
   if(e.repeat) return;
-  input.keys[e.code] = true; humanKeys[e.code] = true;
-  if(e.code === 'KeyF') toggleLamp();
-  if(e.code === 'KeyG') throwBottle();
-  if(e.code === 'KeyX') PEEK.want = true;
-  if(e.code === 'KeyE' || e.code === 'Space'){ input.use = true; if(e.code==='Space') e.preventDefault(); }
-  if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); }
+  if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); return; }
+  var c = KEYMAP[e.code] || e.code;
+  input.keys[c] = true; humanKeys[c] = true;
+  if(c === 'KeyF') toggleLamp();
+  if(c === 'KeyG') throwBottle();
+  if(c === 'KeyX') PEEK.want = true;
+  if(c === 'KeyE'){ input.use = true; }
   if(KEYMAP[e.code]) e.preventDefault();
+  lastInputKind = 'kb';
 });
-document.addEventListener('keyup', function(e){ input.keys[e.code] = false; humanKeys[e.code] = false;
-  if(e.code === 'KeyX') PEEK.want = false; });
+document.addEventListener('keyup', function(e){
+  var c = KEYMAP[e.code] || e.code;
+  input.keys[c] = false; humanKeys[c] = false;
+  if(c === 'KeyX') PEEK.want = false; });
+/* いま使っている入力機器（操作説明の出し分け。第 11.4 節）：'touch' | 'kb' | 'pad' */
+var lastInputKind = IS_TOUCH ? 'touch' : 'kb';
 
 function readKeys(){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
@@ -9202,7 +9321,7 @@ function readPad(){
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
   var used = !!(mx || my || lx || ly);
   for(var b=0; b<bt.length; b++) if(down(b)) used = true;
-  if(used) pad.active = true;
+  if(used){ pad.active = true; lastInputKind = 'pad'; }
   if(!pad.active) return;
   if(mx || my){ input.fwd = -my; input.side = mx; }
   /* 視点は経過時間に掛ける（フレームに掛けると端末の速さで回り方が変わる）。
@@ -9843,6 +9962,62 @@ function teleExport(){
     try{ navigator.clipboard.writeText(text); toast('記録をクリップボードに写した', 2.4); }catch(e2){}
   }
 }
+
+/* ---- その場の操作説明（設計指示書 第 11.4 節） ----
+   最初から一覧を見せず、その操作が要る場面に初めて来たときに 1 度だけ出す。
+   出した物は端末に控え、周回しても繰り返さない。表示は使っている入力機器に合わせる
+   （キーは割り当てを引く）。追われている間は「走れ」以外を出さない。 */
+var TIPS = { seen:{}, cool:0, still:0 };
+try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
+var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
+function tipKey(a){
+  var ja = LANG !== 'en';
+  if(lastInputKind === 'pad') return PAD_NAME[a];
+  if(lastInputKind === 'touch'){
+    return ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
+              throw: ja ? '「投げる」' : '“Throw”', peek: ja ? '「覗く」' : '“Peek”',
+              run: ja ? 'スティックを大きく倒して' : 'Push the stick all the way',
+              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' })[a];
+  }
+  return keyLabel(keyOf(a === 'hold' ? 'run' : a));
+}
+function tipShow(id, ja, en){
+  if(TIPS.seen[id] || BOT.on || playAs === 'hunter' || TIPS.cool > 0) return false;
+  TIPS.seen[id] = 1; TIPS.cool = 7;
+  try{ Store.set('ward7.tips', JSON.stringify(TIPS.seen)); }catch(e){}
+  toast(LANG === 'en' ? en : ja, 4.8);
+  return true;
+}
+function updateTips(dt){
+  if(state !== STATE.PLAY || BOT.on || playAs === 'hunter') return;
+  TIPS.cool = Math.max(0, TIPS.cool - dt);
+  var k = tipKey, touch = lastInputKind === 'touch', chase = hunter.mode === 'chase';
+  if(chase){
+    if(touch) tipShow('run', 'スティックを大きく倒して走る。角を曲がって見失わせる', 'Push the stick all the way to run. Break line of sight at corners.');
+    else tipShow('run', k('run') + ' を押しながら走る。角を曲がって見失わせる', 'Hold ' + k('run') + ' to run. Break line of sight at corners.');
+    return;
+  }
+  var near = nearestInteractable();
+  if(near && near.type === 'hide' && !player.hiding)
+    tipShow('hide', k('use') + ' で隠れる', k('use') + ' to hide');
+  if(near && near.type === 'record')
+    tipShow('record', k('use') + ' でカルテを拾う', k('use') + ' to pick up the record');
+  if(near && near.type === 'lock' && player.hasKey)
+    tipShow('door', '止まって開けると静か。走ったまま開けると響いて、あれを呼ぶ', 'Stop to ease the door open quietly. Barging through while running is loud.');
+  var hd = Math.sqrt((hunter.x-player.x)*(hunter.x-player.x) + (hunter.z-player.z)*(hunter.z-player.z));
+  if(player.hiding && hd < 12)
+    tipShow('hold', k('hold') + ' を押している間、息を止める（長くは続かない）', 'Hold ' + k('hold') + ' to hold your breath (not for long).');
+  if(player.bottles > 0)
+    tipShow('throw', k('throw') + ' で瓶を投げる。割れた音の方へ、あれが向かう', k('throw') + ' to throw a bottle. It goes where the glass breaks.');
+  if(player.lamp && player.time > 30 && RUN.ch === 0)
+    tipShow('lamp', k('lamp') + ' でランプを消せる。灯りは遠くからでも見える', k('lamp') + ' turns the lamp off. Its light can be seen from far away.');
+  if(!touch && hunter.mode === 'hunt' && hd < 18)
+    tipShow('sneak', k('sneak') + ' を押しながら歩くと忍び足（足音が小さい）', 'Hold ' + k('sneak') + ' to sneak (quieter steps).');
+  var still = Math.sqrt(player.vx*player.vx + player.vz*player.vz) < 0.2;
+  TIPS.still = still ? TIPS.still + dt : 0;
+  if(TIPS.still > 2 && !player.hiding && player.time > 60 && peekSide() !== 0)
+    tipShow('peek', k('peek') + ' で角から覗く', k('peek') + ' to peek around the corner');
+}
 /* =========================================================================
    13. 画面遷移
    ========================================================================= */
@@ -10272,6 +10447,99 @@ document.addEventListener('visibilitychange', function(){
 });
 window.addEventListener('blur', function(){ if(state === STATE.PLAY) doPause(); });
 
+/* キーの割り当ての画面（設計指示書 第 12.3 節）。指だけの端末（細かい指し示しが無い）では出さない */
+function buildKeyUI(){
+  var list = $('keyList'); if(!list) return;
+  var fine = !window.matchMedia || window.matchMedia('(pointer:fine)').matches || !IS_TOUCH;
+  $('keysSect').hidden = !fine; $('keysField').hidden = !fine;
+  list.innerHTML = '';
+  KEYACT.forEach(function(k){
+    var row = document.createElement('div'); row.className = 'keyrow';
+    var lb = document.createElement('span'); lb.textContent = k.label;
+    var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'keybtn';
+    bt.textContent = keyLabel(keyOf(k.a));
+    bt.addEventListener('click', function(){
+      bt.textContent = 'キーを押す…'; bt.classList.add('wait');
+      keyCapture = function(code){
+        bt.classList.remove('wait');
+        if(code !== 'Escape'){
+          /* 他の操作が同じキーを主キーにしていたら、入れ替える（1 つのキーに 2 つの操作を載せず、
+             取られた側も主キーを失わない） */
+          var prev = keyOf(k.a);
+          KEYACT.forEach(function(o){
+            if(o.a !== k.a && keyOf(o.a) === code){ if(prev === o.canon) delete settings.keys[o.a]; else settings.keys[o.a] = prev; }
+          });
+          if(code === k.canon) delete settings.keys[k.a]; else settings.keys[k.a] = code;
+          rebuildKeymap(); saveSettings();
+        }
+        buildKeyUI();
+      };
+    });
+    row.appendChild(lb); row.appendChild(bt); list.appendChild(row);
+  });
+}
+$('btnKeysReset').addEventListener('click', function(){ settings.keys = {}; rebuildKeymap(); saveSettings(); buildKeyUI(); });
+buildKeyUI();
+
+/* タッチのボタンの配置（設計指示書 第 12.1 節「ボタンの配置を指で動かせる」）。
+   位置は画面に対する中心の割合で持つので、縦横や機種が変わっても同じ辺りに来る。
+   置いていないボタンは CSS の既定（左手持ちならその配置）のまま */
+var LAYOUT_IDS = ['bUse', 'bLight', 'bBack', 'bHold', 'bThrow', 'bPeek'];
+var layoutEdit = null;
+function btnHalf(el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
+function applyBtnLayout(){
+  LAYOUT_IDS.forEach(function(id){
+    var el = $(id), p = settings.btnPos && settings.btnPos[id];
+    if(!el) return;
+    if(p){
+      var hh = btnHalf(el);
+      el.style.left = 'calc(' + (p.x*100).toFixed(2) + '% - ' + hh.w + 'px)';
+      el.style.top = 'calc(' + (p.y*100).toFixed(2) + '% - ' + hh.h + 'px)';
+      el.style.right = 'auto'; el.style.bottom = 'auto';
+    }else{ el.style.left = el.style.top = el.style.right = el.style.bottom = ''; }
+  });
+}
+function openLayoutEdit(){
+  var t = $('touch');
+  layoutEdit = { disp:{}, drag:null, wasOn:t.classList.contains('on') };
+  LAYOUT_IDS.forEach(function(id){ layoutEdit.disp[id] = $(id).style.display; $(id).style.display = 'flex'; });
+  $('opt').hidden = true;
+  t.classList.add('on', 'edit');
+  $('layoutBar').hidden = false;
+}
+function closeLayoutEdit(){
+  if(!layoutEdit) return;
+  var t = $('touch');
+  LAYOUT_IDS.forEach(function(id){ $(id).style.display = layoutEdit.disp[id]; });
+  t.classList.remove('edit'); if(!layoutEdit.wasOn) t.classList.remove('on');
+  $('layoutBar').hidden = true;
+  $('opt').hidden = false;
+  layoutEdit = null;
+  saveSettings();
+}
+// 編集中は捕獲の段で拾い、ボタン本来の働き（ランプを点けるなど）には渡さない
+$('touch').addEventListener('pointerdown', function(e){
+  if(!layoutEdit) return;
+  var el = e.target && e.target.closest ? e.target.closest('.tbtn') : null;
+  e.preventDefault(); e.stopPropagation();
+  if(!el || LAYOUT_IDS.indexOf(el.id) < 0) return;
+  layoutEdit.drag = { id:el.id, pid:e.pointerId };
+  try{ el.setPointerCapture(e.pointerId); }catch(err){}
+}, true);
+window.addEventListener('pointermove', function(e){
+  if(!layoutEdit || !layoutEdit.drag || e.pointerId !== layoutEdit.drag.pid) return;
+  settings.btnPos[layoutEdit.drag.id] = { x:clamp(e.clientX / window.innerWidth, 0.05, 0.95),
+                                          y:clamp(e.clientY / window.innerHeight, 0.08, 0.95) };
+  applyBtnLayout();
+}, true);
+window.addEventListener('pointerup', function(e){
+  if(layoutEdit && layoutEdit.drag && e.pointerId === layoutEdit.drag.pid) layoutEdit.drag = null;
+}, true);
+$('btnLayout').addEventListener('click', openLayoutEdit);
+$('btnLayoutDone').addEventListener('click', closeLayoutEdit);
+$('btnLayoutReset').addEventListener('click', function(){ settings.btnPos = {}; applyBtnLayout(); });
+if(!IS_TOUCH) $('layoutField').hidden = true;         // 画面のボタンが無い端末では出さない
+applyBtnLayout();
 /* =========================================================================
    14. ゲーム開始
    ========================================================================= */
@@ -10407,7 +10675,15 @@ function startGame(){
   setTimeout(function(){ blackout(false); }, 60);
   toast('カルテを ' + d.records + ' 枚 集めろ', 3);
   setTimeout(function(){
-    if(state === STATE.PLAY) toast(IS_TOUCH ? '左で移動（大きく倒すと走る）' : 'WASD で移動 · Shift で走る', 3);
+    if(state === STATE.PLAY){
+      // 入力機器に合わせる（第 11.4 節）。キーは割り当てを引く
+      if(lastInputKind === 'pad') toast(LANG === 'en' ? 'Left stick to move · RT to run' : '左スティックで移動 · RT で走る', 3);
+      else if(lastInputKind === 'touch') toast('左で移動（大きく倒すと走る）', 3);
+      else if(settings.keys && Object.keys(settings.keys).length){
+        var mv = [keyOf('fwd'), keyOf('left'), keyOf('back'), keyOf('right')].map(keyLabel).join('');
+        toast(LANG === 'en' ? mv + ' to move · ' + keyLabel(keyOf('run')) + ' to run' : mv + ' で移動 · ' + keyLabel(keyOf('run')) + ' で走る', 3);
+      }else toast('WASD で移動 · Shift で走る', 3);
+    }
   }, 3400);
 
   /* 環境音のタイマーは読み込み時に一度決まったきり持ち越されていた。
@@ -10415,6 +10691,7 @@ function startGame(){
      プロセスごとに変わり、そこで rnd() の消費がひとつずれて以降が全部
      食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
   ambientCreakT = 6 + rndFx()*8;
+  TIPS.cool = 5;                 // 始まりの「移動」の表示と重ねない
 
   buildDust();
   buildExitShaft();
@@ -10987,6 +11264,10 @@ function updatePlayer(dt){
              + Math.sin(vt*1.4) * 0.0035;                       // 呼吸
     var vz = (player.running ? 0.045 : 0) * spd01;               // 走ると引き寄せる
 
+    /* 扉をそっと開けている間は、手を前へ出して扉を押す（第 9.4 節「扉に手を掛ける」） */
+    var doorW = (world.lockDoor && world.lockDoor.opening > 0) ? 1 : 0;
+    HANDL.door += (doorW - HANDL.door) * (1 - Math.pow(0.004, dt));
+    vz -= 0.07 * HANDL.door; vy += 0.025 * HANDL.door;
     viewArm.position.set(vx, vy, vz);
     viewArm.rotation.set(
       -viewSway.y * 0.10 + Math.sin(player.bob*2) * 0.020 * bAmp * spd01 + (player.running ? 0.10 : 0),
@@ -11013,6 +11294,19 @@ function updatePlayer(dt){
     if(viewParts.led) viewParts.led.color.setRGB(player.lamp ? 1 : 0.045,
                                                  player.lamp ? 0.16*flickAmt : 0.004, 0.012);
     viewArm.visible = !player.hiding;
+  }
+  // 口を押さえる左手。上がるのは素早く、下ろすのはゆっくり
+  if(viewHandL){
+    var wantM = (player.hiding && player.holdBreath) ? 1 : 0;
+    HANDL.k += (wantM - HANDL.k) * (1 - Math.pow(wantM ? 0.0004 : 0.02, dt));
+    var hk = HANDL.k, he = 1 - (1-hk)*(1-hk);
+    var tr = player.stamina < 30 ? (30 - player.stamina) / 30 * 0.004 : 0;     // 苦しくなると震える
+    viewHandL.visible = hk > 0.01;
+    /* 自分の口を覆う手は、目からは下の縁に人差し指の側が横たわって見えるだけ。
+       左下から上がってきて、指を右へ向けて画面の下の方に収まる */
+    viewHandL.position.set(lerp(-0.16, -0.005, he) + (Math.random()-0.5)*tr,
+                           lerp(-0.30, -0.100, he) + (Math.random()-0.5)*tr, lerp(-0.2, -0.17, he));
+    viewHandL.rotation.set(lerp(0.3, -0.18, he), lerp(0.3, 0.12, he), lerp(-0.6, -1.45, he));
   }
   flashlight.intensity = player.lamp ? LAMP_I*flickAmt : 0;
   playerLight.intensity = player.lamp ? PLIGHT_I*flickAmt : 0.14;
@@ -12590,6 +12884,7 @@ function loop(now){
       updateWater(dt);
       if(shade.enabled){ updatePathField(dt); updateShade(dt); }
       updateHint(dt);
+      updateTips(dt);
       markVisited();
       // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
       var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');

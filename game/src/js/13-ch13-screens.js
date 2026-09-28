@@ -427,3 +427,96 @@ document.addEventListener('visibilitychange', function(){
 });
 window.addEventListener('blur', function(){ if(state === STATE.PLAY) doPause(); });
 
+/* キーの割り当ての画面（設計指示書 第 12.3 節）。指だけの端末（細かい指し示しが無い）では出さない */
+function buildKeyUI(){
+  var list = $('keyList'); if(!list) return;
+  var fine = !window.matchMedia || window.matchMedia('(pointer:fine)').matches || !IS_TOUCH;
+  $('keysSect').hidden = !fine; $('keysField').hidden = !fine;
+  list.innerHTML = '';
+  KEYACT.forEach(function(k){
+    var row = document.createElement('div'); row.className = 'keyrow';
+    var lb = document.createElement('span'); lb.textContent = k.label;
+    var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'keybtn';
+    bt.textContent = keyLabel(keyOf(k.a));
+    bt.addEventListener('click', function(){
+      bt.textContent = 'キーを押す…'; bt.classList.add('wait');
+      keyCapture = function(code){
+        bt.classList.remove('wait');
+        if(code !== 'Escape'){
+          /* 他の操作が同じキーを主キーにしていたら、入れ替える（1 つのキーに 2 つの操作を載せず、
+             取られた側も主キーを失わない） */
+          var prev = keyOf(k.a);
+          KEYACT.forEach(function(o){
+            if(o.a !== k.a && keyOf(o.a) === code){ if(prev === o.canon) delete settings.keys[o.a]; else settings.keys[o.a] = prev; }
+          });
+          if(code === k.canon) delete settings.keys[k.a]; else settings.keys[k.a] = code;
+          rebuildKeymap(); saveSettings();
+        }
+        buildKeyUI();
+      };
+    });
+    row.appendChild(lb); row.appendChild(bt); list.appendChild(row);
+  });
+}
+$('btnKeysReset').addEventListener('click', function(){ settings.keys = {}; rebuildKeymap(); saveSettings(); buildKeyUI(); });
+buildKeyUI();
+
+/* タッチのボタンの配置（設計指示書 第 12.1 節「ボタンの配置を指で動かせる」）。
+   位置は画面に対する中心の割合で持つので、縦横や機種が変わっても同じ辺りに来る。
+   置いていないボタンは CSS の既定（左手持ちならその配置）のまま */
+var LAYOUT_IDS = ['bUse', 'bLight', 'bBack', 'bHold', 'bThrow', 'bPeek'];
+var layoutEdit = null;
+function btnHalf(el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
+function applyBtnLayout(){
+  LAYOUT_IDS.forEach(function(id){
+    var el = $(id), p = settings.btnPos && settings.btnPos[id];
+    if(!el) return;
+    if(p){
+      var hh = btnHalf(el);
+      el.style.left = 'calc(' + (p.x*100).toFixed(2) + '% - ' + hh.w + 'px)';
+      el.style.top = 'calc(' + (p.y*100).toFixed(2) + '% - ' + hh.h + 'px)';
+      el.style.right = 'auto'; el.style.bottom = 'auto';
+    }else{ el.style.left = el.style.top = el.style.right = el.style.bottom = ''; }
+  });
+}
+function openLayoutEdit(){
+  var t = $('touch');
+  layoutEdit = { disp:{}, drag:null, wasOn:t.classList.contains('on') };
+  LAYOUT_IDS.forEach(function(id){ layoutEdit.disp[id] = $(id).style.display; $(id).style.display = 'flex'; });
+  $('opt').hidden = true;
+  t.classList.add('on', 'edit');
+  $('layoutBar').hidden = false;
+}
+function closeLayoutEdit(){
+  if(!layoutEdit) return;
+  var t = $('touch');
+  LAYOUT_IDS.forEach(function(id){ $(id).style.display = layoutEdit.disp[id]; });
+  t.classList.remove('edit'); if(!layoutEdit.wasOn) t.classList.remove('on');
+  $('layoutBar').hidden = true;
+  $('opt').hidden = false;
+  layoutEdit = null;
+  saveSettings();
+}
+// 編集中は捕獲の段で拾い、ボタン本来の働き（ランプを点けるなど）には渡さない
+$('touch').addEventListener('pointerdown', function(e){
+  if(!layoutEdit) return;
+  var el = e.target && e.target.closest ? e.target.closest('.tbtn') : null;
+  e.preventDefault(); e.stopPropagation();
+  if(!el || LAYOUT_IDS.indexOf(el.id) < 0) return;
+  layoutEdit.drag = { id:el.id, pid:e.pointerId };
+  try{ el.setPointerCapture(e.pointerId); }catch(err){}
+}, true);
+window.addEventListener('pointermove', function(e){
+  if(!layoutEdit || !layoutEdit.drag || e.pointerId !== layoutEdit.drag.pid) return;
+  settings.btnPos[layoutEdit.drag.id] = { x:clamp(e.clientX / window.innerWidth, 0.05, 0.95),
+                                          y:clamp(e.clientY / window.innerHeight, 0.08, 0.95) };
+  applyBtnLayout();
+}, true);
+window.addEventListener('pointerup', function(e){
+  if(layoutEdit && layoutEdit.drag && e.pointerId === layoutEdit.drag.pid) layoutEdit.drag = null;
+}, true);
+$('btnLayout').addEventListener('click', openLayoutEdit);
+$('btnLayoutDone').addEventListener('click', closeLayoutEdit);
+$('btnLayoutReset').addEventListener('click', function(){ settings.btnPos = {}; applyBtnLayout(); });
+if(!IS_TOUCH) $('layoutField').hidden = true;         // 画面のボタンが無い端末では出さない
+applyBtnLayout();

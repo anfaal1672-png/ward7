@@ -127,6 +127,13 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  'ボタンの配置を編集':'Edit button layout', '画面のボタンを指で好きな所へ動かす。':'Drag the on-screen buttons wherever you like.',
+  'ボタンを指で動かす':'Drag the buttons', '元に戻す':'Reset', '完了':'Done',
+  'キーの割り当て':'Key bindings', '既定に戻す':'Reset to defaults', 'キーを押す…':'Press a key…',
+  '前へ':'Forward', '後ろへ':'Back', '左へ':'Left', '右へ':'Right', '走る・息を止める':'Run / hold breath',
+  '使う・隠れる':'Use / hide', 'ランプ':'Lamp', '瓶を投げる':'Throw bottle', '振り返る':'Look back',
+  '押した操作のボタンを選び、割り当てるキーを押す（Esc で取りやめ）。矢印キーなどの控えは、主キーと重ならない限り残る。':
+    'Pick an action, then press the key to bind (Esc cancels). Backup keys such as the arrows stay unless they clash with a main key.',
   '画面効果':'Effects', '光の筋':'Light shafts', '接地の陰':'Contact shadows', '輪郭を均す':'Anti-aliasing', '読む間の背景ぼかし':'Blur while reading',
   'ランプの光が空気中の埃に散って、筋として見える。高精細以上。':'Your lamp\u2019s light scatters in the dust and shows as a beam. High and above.',
   '物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。':'Soft shadows where objects meet floors and walls. Ultra only.',

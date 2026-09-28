@@ -513,3 +513,59 @@ function teleExport(){
     try{ navigator.clipboard.writeText(text); toast('記録をクリップボードに写した', 2.4); }catch(e2){}
   }
 }
+
+/* ---- その場の操作説明（設計指示書 第 11.4 節） ----
+   最初から一覧を見せず、その操作が要る場面に初めて来たときに 1 度だけ出す。
+   出した物は端末に控え、周回しても繰り返さない。表示は使っている入力機器に合わせる
+   （キーは割り当てを引く）。追われている間は「走れ」以外を出さない。 */
+var TIPS = { seen:{}, cool:0, still:0 };
+try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
+var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
+function tipKey(a){
+  var ja = LANG !== 'en';
+  if(lastInputKind === 'pad') return PAD_NAME[a];
+  if(lastInputKind === 'touch'){
+    return ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
+              throw: ja ? '「投げる」' : '“Throw”', peek: ja ? '「覗く」' : '“Peek”',
+              run: ja ? 'スティックを大きく倒して' : 'Push the stick all the way',
+              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' })[a];
+  }
+  return keyLabel(keyOf(a === 'hold' ? 'run' : a));
+}
+function tipShow(id, ja, en){
+  if(TIPS.seen[id] || BOT.on || playAs === 'hunter' || TIPS.cool > 0) return false;
+  TIPS.seen[id] = 1; TIPS.cool = 7;
+  try{ Store.set('ward7.tips', JSON.stringify(TIPS.seen)); }catch(e){}
+  toast(LANG === 'en' ? en : ja, 4.8);
+  return true;
+}
+function updateTips(dt){
+  if(state !== STATE.PLAY || BOT.on || playAs === 'hunter') return;
+  TIPS.cool = Math.max(0, TIPS.cool - dt);
+  var k = tipKey, touch = lastInputKind === 'touch', chase = hunter.mode === 'chase';
+  if(chase){
+    if(touch) tipShow('run', 'スティックを大きく倒して走る。角を曲がって見失わせる', 'Push the stick all the way to run. Break line of sight at corners.');
+    else tipShow('run', k('run') + ' を押しながら走る。角を曲がって見失わせる', 'Hold ' + k('run') + ' to run. Break line of sight at corners.');
+    return;
+  }
+  var near = nearestInteractable();
+  if(near && near.type === 'hide' && !player.hiding)
+    tipShow('hide', k('use') + ' で隠れる', k('use') + ' to hide');
+  if(near && near.type === 'record')
+    tipShow('record', k('use') + ' でカルテを拾う', k('use') + ' to pick up the record');
+  if(near && near.type === 'lock' && player.hasKey)
+    tipShow('door', '止まって開けると静か。走ったまま開けると響いて、あれを呼ぶ', 'Stop to ease the door open quietly. Barging through while running is loud.');
+  var hd = Math.sqrt((hunter.x-player.x)*(hunter.x-player.x) + (hunter.z-player.z)*(hunter.z-player.z));
+  if(player.hiding && hd < 12)
+    tipShow('hold', k('hold') + ' を押している間、息を止める（長くは続かない）', 'Hold ' + k('hold') + ' to hold your breath (not for long).');
+  if(player.bottles > 0)
+    tipShow('throw', k('throw') + ' で瓶を投げる。割れた音の方へ、あれが向かう', k('throw') + ' to throw a bottle. It goes where the glass breaks.');
+  if(player.lamp && player.time > 30 && RUN.ch === 0)
+    tipShow('lamp', k('lamp') + ' でランプを消せる。灯りは遠くからでも見える', k('lamp') + ' turns the lamp off. Its light can be seen from far away.');
+  if(!touch && hunter.mode === 'hunt' && hd < 18)
+    tipShow('sneak', k('sneak') + ' を押しながら歩くと忍び足（足音が小さい）', 'Hold ' + k('sneak') + ' to sneak (quieter steps).');
+  var still = Math.sqrt(player.vx*player.vx + player.vz*player.vz) < 0.2;
+  TIPS.still = still ? TIPS.still + dt : 0;
+  if(TIPS.still > 2 && !player.hiding && player.time > 60 && peekSide() !== 0)
+    tipShow('peek', k('peek') + ' で角から覗く', k('peek') + ' to peek around the corner');
+}

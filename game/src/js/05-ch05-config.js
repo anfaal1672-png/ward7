@@ -92,7 +92,9 @@ var settings = {
   fxBeam: true,    // ランプの光の筋（空気中の埃に散る光）
   fxAO: true,      // 接地の陰（最高品質のみ）
   fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
-  fxDof: true      // 書類を読む間、奥をぼかす
+  fxDof: true,     // 書類を読む間、奥をぼかす
+  keys: {},        // キーの割り当て（第 12.3 節）。操作名 → KeyboardEvent.code。空なら既定
+  btnPos: {}       // タッチのボタンの配置（第 12.1 節）。id → { x, y }（画面に対する中心の割合）
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -111,6 +113,13 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
+    if(saved.btnPos && typeof saved.btnPos === 'object'){
+      Object.keys(saved.btnPos).forEach(function(k){ var v = saved.btnPos[k];
+        if(v && isFinite(v.x) && isFinite(v.y)) settings.btnPos[k] = { x:clamp(+v.x, 0.03, 0.97), y:clamp(+v.y, 0.03, 0.97) }; });
+    }
+    if(saved.keys && typeof saved.keys === 'object'){
+      Object.keys(saved.keys).forEach(function(k){ if(typeof saved.keys[k] === 'string' && /^[A-Za-z0-9]+$/.test(saved.keys[k])) settings.keys[k] = saved.keys[k]; });
+    }
     ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}

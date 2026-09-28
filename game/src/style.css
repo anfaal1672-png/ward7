@@ -425,3 +425,18 @@
   #bPeek.hot{background:rgba(111,191,168,.22);border-color:rgba(111,191,168,.7);color:#d8fff2}
   body.notouch #bPeek{display:none !important}
   body.lefty #bPeek{left:calc(92px + var(--sal));right:auto}
+  /* キーの割り当て（第 12.3 節） */
+  .keyrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;
+    border-bottom:1px solid rgba(232,226,212,.07);font-size:12px;letter-spacing:.06em;color:var(--bone)}
+  .keybtn{min-width:86px;padding:6px 10px;font:inherit;font-family:var(--mono);color:var(--bone);
+    background:rgba(232,226,212,.05);border:1px solid rgba(232,226,212,.2);border-radius:3px;cursor:pointer}
+  .keybtn.wait{border-color:var(--amber);color:var(--amber)}
+  .keybtn:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+  /* ボタンの配置の編集（第 12.1 節） */
+  #touch.edit{z-index:65;pointer-events:auto;background:rgba(5,9,10,.74)}
+  #touch.edit .tbtn{outline:1px dashed rgba(232,163,61,.8);outline-offset:3px;touch-action:none;cursor:grab}
+  #touch.edit #stick, #touch.edit #bPause{display:none}
+  #layoutBar{position:fixed;z-index:70;left:50%;top:calc(18px + var(--sat));transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(5,9,10,.9);
+    border:1px solid rgba(232,226,212,.18);border-radius:4px;font-size:12px;letter-spacing:.08em;color:var(--bone)}
+  #layoutBar[hidden]{display:none}

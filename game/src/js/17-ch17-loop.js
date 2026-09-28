@@ -47,6 +47,7 @@ function loop(now){
       updateWater(dt);
       if(shade.enabled){ updatePathField(dt); updateShade(dt); }
       updateHint(dt);
+      updateTips(dt);
       markVisited();
       // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
       var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');

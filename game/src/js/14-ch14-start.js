@@ -133,7 +133,15 @@ function startGame(){
   setTimeout(function(){ blackout(false); }, 60);
   toast('カルテを ' + d.records + ' 枚 集めろ', 3);
   setTimeout(function(){
-    if(state === STATE.PLAY) toast(IS_TOUCH ? '左で移動（大きく倒すと走る）' : 'WASD で移動 · Shift で走る', 3);
+    if(state === STATE.PLAY){
+      // 入力機器に合わせる（第 11.4 節）。キーは割り当てを引く
+      if(lastInputKind === 'pad') toast(LANG === 'en' ? 'Left stick to move · RT to run' : '左スティックで移動 · RT で走る', 3);
+      else if(lastInputKind === 'touch') toast('左で移動（大きく倒すと走る）', 3);
+      else if(settings.keys && Object.keys(settings.keys).length){
+        var mv = [keyOf('fwd'), keyOf('left'), keyOf('back'), keyOf('right')].map(keyLabel).join('');
+        toast(LANG === 'en' ? mv + ' to move · ' + keyLabel(keyOf('run')) + ' to run' : mv + ' で移動 · ' + keyLabel(keyOf('run')) + ' で走る', 3);
+      }else toast('WASD で移動 · Shift で走る', 3);
+    }
   }, 3400);
 
   /* 環境音のタイマーは読み込み時に一度決まったきり持ち越されていた。
@@ -141,6 +149,7 @@ function startGame(){
      プロセスごとに変わり、そこで rnd() の消費がひとつずれて以降が全部
      食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
   ambientCreakT = 6 + rndFx()*8;
+  TIPS.cool = 5;                 // 始まりの「移動」の表示と重ねない
 
   buildDust();
   buildExitShaft();

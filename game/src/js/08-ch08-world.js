@@ -36,6 +36,7 @@ var lightPool = [];   // 非常灯用の固定ポイントライト（付け外�
 var flashlight, flashTarget, playerLight, ambient, hemi, hunterMark, hunterEyeLight;
 // 一人称の腕。壁にめり込まないよう専用のシーンで最後に描く
 var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts = null;
+var viewHandL = null, HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
@@ -1518,6 +1519,22 @@ function buildViewModel(){
     }
   })();
 
+  /* 左手（設計指示書 第 9.4 節「口を押さえる（息を止めるとき）」）。
+     隠れて息を止めている間だけ、画面の下から上がって口元を覆う。掌は平たい球、指は 4 本と親指。
+     肌は右手と同じ質感。隠れている間は右手（ランプ）は見えないので、この手だけが映る */
+  (function(){
+    /** @type {Array<any>} */
+    var hs = [ { type:'sph', r:0.05, sx:0.95, sy:1.12, sz:0.42, y:0 } ];
+    for(var fi=0; fi<4; fi++){
+      var fx = -0.03 + fi*0.02, fl = 0.07 - Math.abs(fi-1.3)*0.008;
+      hs.push({ type:'cyl', rt:0.0078, rb:0.0095, h:fl, x:fx, y:0.05 + fl/2, rz:(fi-1.5)*0.05 });
+      hs.push({ type:'sph', r:0.0079, x:fx - (fi-1.5)*0.05*fl/2, y:0.05 + fl });
+    }
+    hs.push({ type:'cyl', rt:0.009, rb:0.011, h:0.055, x:0.05, y:0.0, z:0.006, rz:-0.9 });
+    viewHandL = new THREE.Mesh(mergeBoxes(hs), skin);
+    viewHandL.visible = false;
+    viewScene.add(viewHandL);
+  })();
   viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
                 base:{ x:0, y:0, z:0 }, root:ARM,
