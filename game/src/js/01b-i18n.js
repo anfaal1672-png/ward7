@@ -127,6 +127,7 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  '覗く':'Peek', '扉を押し開けた — 音が響いた':'Shoved the door open \u2014 it echoed', '扉をそっと開けている…':'Easing the door open\u2026',
   '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',

@@ -141,11 +141,13 @@ document.addEventListener('keydown', function(e){
   input.keys[e.code] = true; humanKeys[e.code] = true;
   if(e.code === 'KeyF') toggleLamp();
   if(e.code === 'KeyG') throwBottle();
+  if(e.code === 'KeyX') PEEK.want = true;
   if(e.code === 'KeyE' || e.code === 'Space'){ input.use = true; if(e.code==='Space') e.preventDefault(); }
   if(e.code === 'Escape'){ if(state===STATE.PLAY) doPause(); else if(state===STATE.PAUSE) doResume(); }
   if(KEYMAP[e.code]) e.preventDefault();
 });
-document.addEventListener('keyup', function(e){ input.keys[e.code] = false; humanKeys[e.code] = false; });
+document.addEventListener('keyup', function(e){ input.keys[e.code] = false; humanKeys[e.code] = false;
+  if(e.code === 'KeyX') PEEK.want = false; });
 
 function readKeys(){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
@@ -198,6 +200,7 @@ function readPad(){
   input.lookY += ly * 1.8 * pdt * settings.sens * (settings.invert ? -1 : 1);
   if(down(7) || down(10)) input.run = true;
   pad.sneak = down(6);
+  PEEK.padWant = down(11);                                     // R3 で覗く
   pad.back = down(4);
   pad.hold = down(1);
   if(edge(0)) input.use = true;
@@ -221,6 +224,7 @@ bindHold($('bBack'),
   function(){ backBtnDown = true; },
   function(){ backBtnDown = false; });
 $('bUse').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
+bindHold($('bPeek'), function(){ PEEK.touchWant = true; }, function(){ PEEK.touchWant = false; });
 $('bThrow').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
 $('bPause').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
 

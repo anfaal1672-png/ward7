@@ -419,3 +419,9 @@
   body.lefty #bHold{left:calc(96px + var(--sal));right:auto}
   body.lefty #bUse{left:calc(20px + var(--sal));right:auto}
   body.lefty #bThrow{left:calc(92px + var(--sal));right:auto}
+
+  /* 覗く。立ち止まっているときだけ出る。投げるの上 */
+  #bPeek{right:calc(92px + var(--sar));bottom:calc(200px + var(--sab));width:62px;height:62px}
+  #bPeek.hot{background:rgba(111,191,168,.22);border-color:rgba(111,191,168,.7);color:#d8fff2}
+  body.notouch #bPeek{display:none !important}
+  body.lefty #bPeek{left:calc(92px + var(--sal));right:auto}

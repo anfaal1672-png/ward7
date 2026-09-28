@@ -424,11 +424,25 @@ function updatePlayer(dt){
         player.hasKey = true;
         Audio2.pickup();
         toast('鍵を手に入れた', 2.4);
-      }else if(near.type === 'lock'){
-        world.lockDoor.open = true;
-        world.lockDoor.group.visible = false;
+      }else if(near.type === 'lock' && !world.lockDoor.opening){
+        /* 開け方（設計指示書 第 5.2 節）。音と速さの交換：
+           走ったまま → 体で押し開ける。すぐ通れるが、大きな音で聞こえる範囲のあれを呼ぶ
+           止まって   → そっと開ける。1.4 秒かかる（その間は通れない）が、音はほとんど出ない */
         Audio2.unlock();
-        toast('扉が開いた', 2.2);
+        if(input.run || player.running){
+          world.lockDoor.open = true;
+          world.lockDoor.group.visible = false;
+          Audio2.creak(); Audio2.clang(0, 0, 0.9);
+          var ldd = Math.sqrt((hunter.x-world.lockDoor.x)*(hunter.x-world.lockDoor.x) + (hunter.z-world.lockDoor.z)*(hunter.z-world.lockDoor.z));
+          if(hunter.spawnGrace <= 0 && !cheats.invisible && ldd < DIFF[settings.diff].hearing * 2){
+            hunter.lastSeen = { x:world.lockDoor.x, z:world.lockDoor.z };
+            if(hunter.mode !== 'chase') hunter.mode = 'hunt';
+          }
+          toast('扉を押し開けた — 音が響いた', 2.4);
+        }else{
+          world.lockDoor.opening = DOOR_SLOW;
+          toast('扉をそっと開けている…', 1.6);
+        }
       }else if(near.type === 'lever'){
         world.lever.on = !world.lever.on;
         world.power = world.lever.on;
@@ -522,6 +536,10 @@ function updatePlayer(dt){
   );
   camera.rotation.set(player.pitch, player.viewYaw,
     Math.sin(player.bob) * (player.running ? 0.019 : 0.010) * spd01 * MO + (Math.random()-0.5)*sh*0.4);
+  // 覗く（第 10 章 updatePeek）。頭だけを横へ出す
+  updatePeek(dt);
+  var pk = peekOffset();
+  if(pk){ camera.position.x += pk.x; camera.position.z += pk.z; camera.rotation.z += pk.roll; }
 
   // ランプの明かり
   var flickAmt = player.battery < 22 ? (0.45 + 0.55*Math.abs(Math.sin(performance.now()*0.017))) : 1;

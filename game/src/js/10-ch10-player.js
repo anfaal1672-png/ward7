@@ -168,3 +168,44 @@ function escapesMax(){
 }
 var GRAB_T = 0.7;        // 掴まれている時間。動けず、視線が追跡者へ引かれる
 var BANDAGES_PER_RUN = [2, 2, 1];
+
+/* --- 扉をそっと開ける・覗く（設計指示書 第 5.2 節） -----------------------------
+   扉：そっと開けている間（DOOR_SLOW 秒）は扉が少しずつ畳まれていき、終わるまで通れない。
+   覗く：立ち止まっている間だけ、開けている側へ頭を 0.42m 出す。体はその場に残るので、
+   角の向こうを、姿を見せずに（あれの目はこちらの体の位置で見る）確かめられる。 */
+var DOOR_SLOW = 1.4;
+function updateDoor(dt){
+  var L = world.lockDoor;
+  if(!L || !L.opening) return;
+  L.opening = Math.max(0, L.opening - dt);
+  var k = 1 - L.opening / DOOR_SLOW;
+  L.group.children.forEach(function(leaf){ leaf.scale.x = Math.max(0.04, 1 - k); });
+  if(L.opening <= 0){ L.open = true; L.group.visible = false; L.opening = 0; toast('扉が開いた', 1.6); }
+}
+var PEEK = { k:0, side:0, want:false };
+var PEEK_OUT = 0.42;
+function peekSide(){
+  // 右と左、どちらに頭を出せるか。壁のすぐ手前なら出せない
+  var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+  function open(s){
+    var x = player.x + rx*s*0.9, z = player.z + rz*s*0.9, c = worldToCell(x, z);
+    return inBounds(c.x, c.y) && world.grid[idx(c.x, c.y)] === 0;
+  }
+  return open(1) ? 1 : (open(-1) ? -1 : 0);
+}
+function updatePeek(dt){
+  var moving = Math.sqrt(player.vx*player.vx + player.vz*player.vz) > 0.3;
+  var want = PEEK.want && !moving && !player.hiding && player.grabT <= 0;
+  if(want && PEEK.k < 0.05) PEEK.side = peekSide();
+  var target = (want && PEEK.side) ? 1 : 0;
+  PEEK.k += (target - PEEK.k) * (1 - Math.pow(0.0005, dt));
+  if(PEEK.k < 0.002) PEEK.k = 0;
+}
+/* カメラの位置に足す横ずれ。壁に頭がめり込まないよう押し出す */
+function peekOffset(){
+  if(PEEK.k <= 0 || !PEEK.side) return null;
+  var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
+  var px = player.x + rx*PEEK.side*PEEK_OUT*PEEK.k, pz = player.z + rz*PEEK.side*PEEK_OUT*PEEK.k;
+  var q = pushOutOfWalls(px, pz, 0.14);
+  return { x:q.x - player.x, z:q.z - player.z, roll:-0.10*PEEK.side*PEEK.k };
+}

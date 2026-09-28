@@ -92,6 +92,7 @@ try{
     seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
     skipUI: function(v){ skipUI = !!v; },
     settings: settings, act: doCheatAct,      // cheats は上で公開済み（同じキーが 2 つあった）
+    peek: PEEK, peekSide: peekSide, peekOffset: peekOffset,
     openCheats: openCheats, detectMode: detectMode
   };
 }catch(e){

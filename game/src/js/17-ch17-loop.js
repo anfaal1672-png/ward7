@@ -29,6 +29,12 @@ function loop(now){
       updateHUD(dt, bpm, info);
       updateCue(dt);
       updateThrows(dt);
+      updateDoor(dt);
+      // 覗く：キー・パッド・ボタンのどれか。ボタンは立ち止まっていて頭を出せるときだけ出す
+      PEEK.want = !!(input.keys.KeyX || PEEK.padWant || PEEK.touchWant);
+      var bp = $('bPeek'), wantP = IS_TOUCH && playAs !== 'hunter' && !player.hiding &&
+               Math.sqrt(player.vx*player.vx + player.vz*player.vz) < 0.3 && (PEEK.k > 0 || peekSide() !== 0);
+      if((bp.style.display !== 'none') !== wantP) bp.style.display = wantP ? 'flex' : 'none';
       updatePatients(dt);
       updateWater(dt);
       if(shade.enabled){ updatePathField(dt); updateShade(dt); }
