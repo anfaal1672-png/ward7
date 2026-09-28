@@ -1536,6 +1536,7 @@ function buildViewModel(){
   })();
   viewArm.traverse(function(o: any){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
+                band:band, nail:nailMat, idBand:idBandMat, handModel:null,
                 base:{ x:0, y:0, z:0 }, root:ARM,
                 /* ランプから出た光（直接・跳ね返り）は、消灯したら消える。
                    固定にしていたので、灯りを消しても手だけが暖かく

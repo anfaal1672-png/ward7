@@ -217,6 +217,49 @@ var PHOTO = { tex:(null as any), loading:false, wait:([] as any[]) };
 /* 最初の案（壁 3.8×3.3・床 1 マス 1 枚）は、壁の目地が細かすぎて白い面に溶け、
    床の八角形が大きすぎて手前が柄に見えた。撮って合わせた値 */
 var PHOTO_REPEAT = ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] } as Record<string, any>);
+/* ---- 一人称の右手（設計指示書 第 9.4 節） ----
+   MakeHuman（CC0）の手を .tools/hand-bake.py でランプの胴に巻き付けた物。握りは焼くときに
+   指の節ごとに胴の表面まで曲げて決めてある。包帯・患者用バンド・爪も同じ皮膚から作ってあるので、
+   手続きの手と同じ材質を貼るだけでよい。模型は胴の軸が +Z（人差し指がランプの頭の側）。
+   Z まわりに 90 度回すと、手の甲が上を向き、前腕が画面の下から入る（手首の曲げは焼くときに付けてある）。
+   高精細以上で assets.js が届いたら替える（写真の壁と同じ条件）。手続きの手は描かないだけで残す */
+/* Z まわりの向き。4 通りと中間を撮り比べて決めた：これより手のひら側へ回すと、手が胴の下から
+   支えているように見える（手のひらが画面を向く）。手の甲が上、包帯の巻いた甲が見える向き */
+var HAND_ROLL = Math.PI*0.5;
+function viewHandModel(){
+  var VP = viewParts;
+  if(!VP || VP.handModel || !photoWanted()) return;
+  var A = window.W7_ASSETS; if(!A || !A['models/hand/meta']) return;
+  var meta = JSON.parse(A['models/hand/meta']);
+  var bin = atob(A['models/hand/bin']), u8 = new Uint8Array(bin.length);
+  for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+  var buf = u8.buffer, mn = meta.box[0], mx = meta.box[1], umn = meta.uv[0], umx = meta.uv[1];
+  // 皮膚の絵の細かさを手続きの手に合わせる：模型の UV は体全体で 0〜1 なので、手の範囲を広げる
+  var uvK = 2.2 / Math.max(umx[0] - umn[0], umx[1] - umn[1]);
+  var mats = ({ skin:VP.skin, gauze:VP.band, band:VP.idBand, nail:VP.nail } as Record<string, any>);
+  var g = new THREE.Group();
+  meta.parts.forEach(function(L: any){
+    var P = new Int16Array(buf, L.off[0], L.v*3), N = new Int8Array(buf, L.off[1], L.v*3), U = new Int16Array(buf, L.off[2], L.v*2);
+    var pos = new Float32Array(L.v*3), nor = new Float32Array(L.v*3), uv = new Float32Array(L.v*2);
+    for(var k=0; k<L.v*3; k++){ var a = k % 3; pos[k] = mn[a] + (P[k] + 32767) / 65534 * (mx[a] - mn[a]); nor[k] = N[k] / 127; }
+    for(var k2=0; k2<L.v*2; k2++){ var a2 = k2 % 2; uv[k2] = (U[k2] + 32767) / 65534 * (umx[a2] - umn[a2]) * uvK; }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(new THREE.BufferAttribute(new Uint16Array(buf.slice(L.off[3], L.off[3] + L.i*2)), 1));
+    var m = new THREE.Mesh(geo, mats[L.name] || VP.skin);
+    m.userData.handModel = true;
+    g.add(m);
+  });
+  g.rotation.z = HAND_ROLL;
+  g.position.set(0, 0, -0.022);
+  // 手続きの手（皮膚・包帯・爪・バンドを焼き固めた物）を隠す。ランプの部品はそのまま
+  var hideM = [VP.skin, VP.band, VP.nail, VP.idBand];
+  VP.root.children.forEach(function(o: any){ if(o.isMesh && hideM.indexOf(o.material) >= 0) o.visible = false; });
+  VP.root.add(g);
+  VP.handModel = g;
+}
 /* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
 var PHOTO_TINT = ({ wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 } as Record<string, any>);
 /* 起動の時点では assets.js はまだ届いていない（defer）。置いてあるかどうかで見込む */
@@ -272,4 +315,4 @@ function applyPhoto(){
   });
 }
 // assets.js は defer で後から届く。遊んでいる最中に届いたら、その場で貼る
-window.addEventListener('load', function(){ if(state === STATE.PLAY || (state === STATE.TITLE && titleCam.ready)){ applyPhoto(); applyModels(); hunterSkin(); } });
+window.addEventListener('load', function(){ if(state === STATE.PLAY || (state === STATE.TITLE && titleCam.ready)){ applyPhoto(); applyModels(); hunterSkin(); viewHandModel(); } });

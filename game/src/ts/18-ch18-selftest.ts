@@ -356,6 +356,12 @@ function runSelfTest(){
     Hm.meshes.forEach(function(m: any){ var w = m.geometry.attributes.skinWeight.array;
       for(var i=0; i<w.length; i+=4) if(w[i] + w[i+1] + w[i+2] + w[i+3] < 250) nanW++; });
     t('模型の重みが頂点ごとに 1 に揃っている', nanW === 0);
+    // 一人称の手（第 9.4 節）：模型が付き、手続きの手の皮膚は描かれていない
+    if(viewParts && window.W7_ASSETS['models/hand/meta']){
+      var procShown = 0;
+      viewParts.root.children.forEach(function(o: any){ if(o.isMesh && o.material === viewParts.skin && o.visible) procShown++; });
+      t('一人称の手が模型になっている', !!viewParts.handModel && procShown === 0);
+    }
   })();
 
   var hc = worldToCell(hunter.x, hunter.z);

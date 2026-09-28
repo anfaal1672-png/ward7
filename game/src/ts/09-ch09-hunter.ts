@@ -866,7 +866,7 @@ function buildHunter(){
     spine:spine, neck:neck, head:headPivot, jaw:jawPivot,
     armL:armL, armR:armR, legL:legL, legR:legR,
     pupL:pupL, pupR:pupR, pupRBase:{ x:0.055, y:0.075, s:1 }, eyeMatL:eyeL_, eyeMatR:eyeR_, glowL:glowL, glowR:glowR,
-    strands:strands, gown:gown, skin:skin, stainMat:stain, mawMat:maw, boneMat:bone_, baseY:(0.02 + THIGH + SOLE)
+    strands:strands, gown:gown, hair:hairMesh, headMesh:headMesh, skin:skin, stainMat:stain, mawMat:maw, boneMat:bone_, baseY:(0.02 + THIGH + SOLE)
   };
   /* 組み上がった全メッシュに対して、最後にもう一度だけ法線を検める。
      途中の各所で守ってはいるが、部品の作り方は 6 通りあり、どれかを
@@ -942,6 +942,24 @@ function hunterSkin(){
   P.pupRBase = { x:P.pupR.position.x, y:P.pupR.position.y, s:0.35 };   // 泳ぎ方も小さな目に合わせる
   P.glowL.scale.set(0.22, 0.22, 1); P.glowR.scale.set(0.22, 0.22, 1);
   P.jaw.position.copy(toHead(J.jaw));
+  /* 頭の髪を模型の頭に合わせる。手続きの頭は模型より大きく前に出ていたので、髪の帽子が
+     そのまま顔を突き抜け、目と耳の所に黒い塊が出ていた（1.6m で撮って見つけた）。
+     両方の頭の外接箱を比べ、髪を縮めて模型の頭の中心へ移す */
+  if(P.hair && P.headMesh){
+    P.headMesh.geometry.computeBoundingBox();
+    var pb = P.headMesh.geometry.boundingBox.clone().translate(P.headMesh.position);
+    var L0 = H.lods[0], hi = H.meta.bones.indexOf('head'), ji = H.meta.bones.indexOf('jaw');
+    var mb = new THREE.Box3(), v3 = new THREE.Vector3();
+    for(var q=0; q<L0.si.length/4; q++){
+      var b0 = L0.si[q*4];
+      if((b0 === hi || b0 === ji) && L0.sw[q*4] > 200){ v3.set(L0.pos[q*3], L0.pos[q*3+1], L0.pos[q*3+2]).sub(headR); mb.expandByPoint(v3); }
+    }
+    var ps = pb.getSize(new THREE.Vector3()), ms = mb.getSize(new THREE.Vector3());
+    var sc = (ms.x/ps.x + ms.y/ps.y + ms.z/ps.z) / 3 * 1.04;       // 髪は頭より 4% 大きく
+    var pc = pb.getCenter(new THREE.Vector3()), mc = mb.getCenter(new THREE.Vector3());
+    P.hair.position.sub(pc).multiplyScalar(sc).add(mc);
+    P.hair.scale.multiplyScalar(sc);
+  }
   // 指の付け根と中ほどに 1 段ずつ。丸めの軸は焼くときに手のひらから求めてある
   function fingers(A: any, side: any){
     var hR = restOf(A.hand);
