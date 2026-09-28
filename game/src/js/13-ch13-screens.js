@@ -293,7 +293,7 @@ $('segQ').querySelectorAll('button').forEach(function(b){
 $('segI').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){ settings.invert = (+b.dataset.i === 1); saveSettings(); syncSettingsUI(); });
 });
-$('gam').addEventListener('input', function(){
+$('gam').addEventListener('input', /** @this {HTMLInputElement} */ function(){
   settings.gamma = +this.value;
   $('valG').textContent = settings.gamma.toFixed(2);
   paintCalib();
@@ -323,14 +323,14 @@ Array.prototype.forEach.call($('segL').children, function(b){
     setTimeout(function(){ location.reload(); }, 80);
   });
 });
-$('fovA').addEventListener('input', function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
-$('motion').addEventListener('input', function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
-$('flash').addEventListener('input', function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
+$('fovA').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
+$('motion').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
+$('flash').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
 Array.prototype.forEach.call($('segC').children, function(b){
   b.addEventListener('click', function(){ settings.cues = (+b.dataset.c === 1); syncSettingsUI(); saveSettings(); });
 });
-$('sens').addEventListener('input', function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
-$('vol').addEventListener('input', function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
+$('sens').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
+$('vol').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
 $('segD').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){ settings.detect = +b.dataset.d; saveSettings(); syncSettingsUI(); });

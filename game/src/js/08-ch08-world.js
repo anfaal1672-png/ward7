@@ -704,7 +704,6 @@ function buildFx(size){
   fxScene.add(q);
 }
 function dropFx(){ if(fxRT){ fxRT.dispose(); fxRT = null; } }
-var _fxTmp = null;
 /* 本編を postRT に描いた直後（手を描く前）に呼ぶ。作ったら true */
 function renderFx(dt){
   var fw = fxWant();

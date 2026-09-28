@@ -2,7 +2,6 @@
    14. ゲーム開始
    ========================================================================= */
 var buildInfo = null;
-var startedAt = 0;
 
 var forcedSeed = null;
 var skipUI = false;
@@ -128,7 +127,6 @@ function startGame(){
   Audio2.startAmbient();
   state = STATE.PLAY;
   showPanel(null);
-  startedAt = performance.now();
   blackout(true, true);
   setTimeout(function(){ blackout(false); }, 60);
   toast('カルテを ' + d.records + ' 枚 集めろ', 3);

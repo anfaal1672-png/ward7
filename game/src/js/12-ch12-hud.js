@@ -449,7 +449,7 @@ function drawMap(){
     if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
   }
   // 非常口（見たことがあれば）
-  function w2m(wx, wz){ var c = worldToCell(wx, wz);
+  function w2m(wx, wz){
     var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
     return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
   if(MAPV.exitSeen && world.exit){

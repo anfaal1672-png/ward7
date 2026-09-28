@@ -21,8 +21,15 @@ try{
 
   if(/[?&]bot=1/.test(location.search)) BOT.on = true;
 
-  bootStep('titleScene', buildTitleScene);
-  bootStep('dust', buildDust);
+  /* タイトルの情景（病棟を丸ごと 1 つ建てる）は重いので、タイトルの画面を先に出してから建てる
+     （第 1.1 節「起動からタイトルまで 5 秒」）。建つまでは背景が暗いだけで、ボタンはもう押せる。
+     建つ前に「病棟に入る」が押されたら、startGame が自分で建てるのでここでは建てない */
+  setTimeout(function(){
+    if(state !== STATE.TITLE) return;
+    bootStep('titleScene', buildTitleScene);
+    bootStep('dust', buildDust);
+    BOOT_T.scene = Math.round(performance.now() - BOOT_T.t0);
+  }, 30);
   BOOT_T.total = Math.round(performance.now() - BOOT_T.t0);
 
   bootedOK = true;

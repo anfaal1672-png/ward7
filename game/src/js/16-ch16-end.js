@@ -159,7 +159,6 @@ function doWin(){
   while(dyaw < -Math.PI) dyaw += TAU;
   var px0 = camera.position.x, pz0 = camera.position.z, py0 = camera.position.y;
   var eL = world.exitLight, eCol0 = eL ? eL.color.clone() : null, eInt0 = eL ? eL.intensity : 0;
-  var eQ = clamp(settings.quality|0, 0, 3);
   var winDone = false;
   function winPanel(){
     if(winDone) return;

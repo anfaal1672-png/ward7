@@ -177,7 +177,7 @@ function runSelfTest(){
     var A0 = new THREE.Vector3(), B0 = new THREE.Vector3(), C0 = new THREE.Vector3();
     var E1 = new THREE.Vector3(), E2 = new THREE.Vector3(),
         CR = new THREE.Vector3(), NV = new THREE.Vector3();
-    var flipped = 0, tri = ix.count/3;
+    var flipped = 0;
     for(var i=0; i<ix.count; i+=3){
       A0.fromBufferAttribute(pa, ix.getX(i));
       B0.fromBufferAttribute(pa, ix.getX(i+1));
@@ -585,7 +585,7 @@ function runSelfTest(){
     var px0 = player.x, pz0 = player.z;
     player.x += 40; player.z -= 25;                 // 遠くへ跳ばす
     for(var du=0; du<40; du++) updateDust(1/60);
-    var da = dustPts.geometry.attributes.position.array, far = 0, moved = 0;
+    var da = dustPts.geometry.attributes.position.array, far = 0;
     for(var di=0; di<da.length; di+=3){
       var ex = Math.abs(da[di] - player.x), ez = Math.abs(da[di+2] - player.z);
       if(Math.max(ex, ez) > far) far = Math.max(ex, ez);

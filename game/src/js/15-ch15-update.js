@@ -87,7 +87,6 @@ function floorMat(x, z){
 
 var lampFlick = 0, ambientCreakT = 6 + rndFx()*8;
 // 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
-var BOOTH = { was:null };
 var heartT = 0;
 
 function nearestInteractable(){
@@ -781,7 +780,6 @@ function updateHunter(dt, info){
     if(hunter.mode !== 'chase') hunter.mode = 'hunt';
   }
 
-  var prevMode = hunter.mode;
   if(cheats.invisible){ hunter.memT = 0; hunter.lastSeen = null; }
   hunter.memT = Math.max(0, hunter.memT - dt);
 

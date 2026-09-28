@@ -123,10 +123,10 @@ function carveAlcoves(g, count){
   for(var i=0;i<count*6 && made<count;i++){
     var x = 2 + ((rnd()*(GW-4))|0), y = 2 + ((rnd()*(GH-4))|0);
     if(g[idx(x,y)] !== 1) continue;
-    var open = 0, od = null;
+    var open = 0;
     for(var k=0;k<4;k++){
       var nx = x+D[k][0], ny = y+D[k][1];
-      if(inBounds(nx,ny) && g[idx(nx,ny)] === 0){ open++; od = D[k]; }
+      if(inBounds(nx,ny) && g[idx(nx,ny)] === 0) open++;
     }
     if(open !== 1) continue;      // 通路にひとつだけ面している壁を窪みにする
     g[idx(x,y)] = 0;

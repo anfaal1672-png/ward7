@@ -3161,10 +3161,10 @@ function carveAlcoves(g, count){
   for(var i=0;i<count*6 && made<count;i++){
     var x = 2 + ((rnd()*(GW-4))|0), y = 2 + ((rnd()*(GH-4))|0);
     if(g[idx(x,y)] !== 1) continue;
-    var open = 0, od = null;
+    var open = 0;
     for(var k=0;k<4;k++){
       var nx = x+D[k][0], ny = y+D[k][1];
-      if(inBounds(nx,ny) && g[idx(nx,ny)] === 0){ open++; od = D[k]; }
+      if(inBounds(nx,ny) && g[idx(nx,ny)] === 0) open++;
     }
     if(open !== 1) continue;      // 通路にひとつだけ面している壁を窪みにする
     g[idx(x,y)] = 0;
@@ -4703,7 +4703,6 @@ function buildFx(size){
   fxScene.add(q);
 }
 function dropFx(){ if(fxRT){ fxRT.dispose(); fxRT = null; } }
-var _fxTmp = null;
 /* 本編を postRT に描いた直後（手を描く前）に呼ぶ。作ったら true */
 function renderFx(dt){
   var fw = fxWant();
@@ -9954,7 +9953,7 @@ function drawMap(){
     if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
   }
   // 非常口（見たことがあれば）
-  function w2m(wx, wz){ var c = worldToCell(wx, wz);
+  function w2m(wx, wz){
     var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
     return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
   if(MAPV.exitSeen && world.exit){
@@ -10369,7 +10368,7 @@ $('segQ').querySelectorAll('button').forEach(function(b){
 $('segI').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){ settings.invert = (+b.dataset.i === 1); saveSettings(); syncSettingsUI(); });
 });
-$('gam').addEventListener('input', function(){
+$('gam').addEventListener('input', /** @this {HTMLInputElement} */ function(){
   settings.gamma = +this.value;
   $('valG').textContent = settings.gamma.toFixed(2);
   paintCalib();
@@ -10399,14 +10398,14 @@ Array.prototype.forEach.call($('segL').children, function(b){
     setTimeout(function(){ location.reload(); }, 80);
   });
 });
-$('fovA').addEventListener('input', function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
-$('motion').addEventListener('input', function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
-$('flash').addEventListener('input', function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
+$('fovA').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
+$('motion').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
+$('flash').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
 Array.prototype.forEach.call($('segC').children, function(b){
   b.addEventListener('click', function(){ settings.cues = (+b.dataset.c === 1); syncSettingsUI(); saveSettings(); });
 });
-$('sens').addEventListener('input', function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
-$('vol').addEventListener('input', function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
+$('sens').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
+$('vol').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
 $('segD').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){ settings.detect = +b.dataset.d; saveSettings(); syncSettingsUI(); });
@@ -10600,7 +10599,6 @@ applyBtnLayout();
    14. ゲーム開始
    ========================================================================= */
 var buildInfo = null;
-var startedAt = 0;
 
 var forcedSeed = null;
 var skipUI = false;
@@ -10726,7 +10724,6 @@ function startGame(){
   Audio2.startAmbient();
   state = STATE.PLAY;
   showPanel(null);
-  startedAt = performance.now();
   blackout(true, true);
   setTimeout(function(){ blackout(false); }, 60);
   toast('カルテを ' + d.records + ' 枚 集めろ', 3);
@@ -10847,7 +10844,6 @@ function floorMat(x, z){
 
 var lampFlick = 0, ambientCreakT = 6 + rndFx()*8;
 // 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
-var BOOTH = { was:null };
 var heartT = 0;
 
 function nearestInteractable(){
@@ -11541,7 +11537,6 @@ function updateHunter(dt, info){
     if(hunter.mode !== 'chase') hunter.mode = 'hunt';
   }
 
-  var prevMode = hunter.mode;
   if(cheats.invisible){ hunter.memT = 0; hunter.lastSeen = null; }
   hunter.memT = Math.max(0, hunter.memT - dt);
 
@@ -12803,7 +12798,6 @@ function doWin(){
   while(dyaw < -Math.PI) dyaw += TAU;
   var px0 = camera.position.x, pz0 = camera.position.z, py0 = camera.position.y;
   var eL = world.exitLight, eCol0 = eL ? eL.color.clone() : null, eInt0 = eL ? eL.intensity : 0;
-  var eQ = clamp(settings.quality|0, 0, 3);
   var winDone = false;
   function winPanel(){
     if(winDone) return;
@@ -13268,7 +13262,7 @@ function runSelfTest(){
     var A0 = new THREE.Vector3(), B0 = new THREE.Vector3(), C0 = new THREE.Vector3();
     var E1 = new THREE.Vector3(), E2 = new THREE.Vector3(),
         CR = new THREE.Vector3(), NV = new THREE.Vector3();
-    var flipped = 0, tri = ix.count/3;
+    var flipped = 0;
     for(var i=0; i<ix.count; i+=3){
       A0.fromBufferAttribute(pa, ix.getX(i));
       B0.fromBufferAttribute(pa, ix.getX(i+1));
@@ -13676,7 +13670,7 @@ function runSelfTest(){
     var px0 = player.x, pz0 = player.z;
     player.x += 40; player.z -= 25;                 // 遠くへ跳ばす
     for(var du=0; du<40; du++) updateDust(1/60);
-    var da = dustPts.geometry.attributes.position.array, far = 0, moved = 0;
+    var da = dustPts.geometry.attributes.position.array, far = 0;
     for(var di=0; di<da.length; di+=3){
       var ex = Math.abs(da[di] - player.x), ez = Math.abs(da[di+2] - player.z);
       if(Math.max(ex, ez) > far) far = Math.max(ex, ez);
@@ -16008,8 +16002,15 @@ try{
 
   if(/[?&]bot=1/.test(location.search)) BOT.on = true;
 
-  bootStep('titleScene', buildTitleScene);
-  bootStep('dust', buildDust);
+  /* タイトルの情景（病棟を丸ごと 1 つ建てる）は重いので、タイトルの画面を先に出してから建てる
+     （第 1.1 節「起動からタイトルまで 5 秒」）。建つまでは背景が暗いだけで、ボタンはもう押せる。
+     建つ前に「病棟に入る」が押されたら、startGame が自分で建てるのでここでは建てない */
+  setTimeout(function(){
+    if(state !== STATE.TITLE) return;
+    bootStep('titleScene', buildTitleScene);
+    bootStep('dust', buildDust);
+    BOOT_T.scene = Math.round(performance.now() - BOOT_T.t0);
+  }, 30);
   BOOT_T.total = Math.round(performance.now() - BOOT_T.t0);
 
   bootedOK = true;
