@@ -50,6 +50,7 @@ jobs:
           for t in chapter-check story-check capture-check throw-check door-check look-check bench-check keys-check tips-check layout-check sfx-check store-check pad-check padmenu-check drs-check hrtf-check tele-check; do
             echo "== $t"; node .tools/$t.js "$PWD/ward7.html"
           done
+          echo "== model-shot"; node .tools/model-shot.js "$PWD/ward7.html" /tmp/md medbox
           node .tools/lang-check.js "$PWD/ward7.html" | tee /tmp/lang.txt
           ! grep -E "残り [1-9]" /tmp/lang.txt
           node .tools/offline-check.js

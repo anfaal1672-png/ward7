@@ -10,9 +10,12 @@ const { chromium, EXEC } = require('./pw.js');
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.addInitScript((q)=>{ try{ localStorage.setItem('ward7.settings', JSON.stringify({quality:q, diff:1, lang:'ja'})); }catch(e){} }, q);
   const t0=Date.now();
-  await p.goto('file://'+process.argv[2],{waitUntil:'load'});
-  await p.waitForFunction(()=>{ const t=document.getElementById('title'); return window.__WARD7 && t && !t.hidden; }, null, {timeout:60000});
+  /* タイトルが見えた時点を測る。load まで待つと、後から読む assets.js（写真・音・模型、defer）の
+     読み込みまで数えてしまうが、タイトルはそれより前に出ている */
+  await p.goto('file://'+process.argv[2],{waitUntil:'commit'});
+  await p.waitForFunction(()=>{ const t=document.getElementById('title'); return window.__WARD7 && t && !t.hidden; }, null, {timeout:60000, polling:50});
   const title=(Date.now()-t0)/1000;
+  await p.waitForLoadState('load');
   const boot = await p.evaluate(()=>window.__W7BOOT && { steps:window.__W7BOOT.steps, total:window.__W7BOOT.total });
   const chs=[];
   for(let ch=0; ch<7; ch++){

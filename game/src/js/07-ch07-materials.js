@@ -272,4 +272,4 @@ function applyPhoto(){
   });
 }
 // assets.js は defer で後から届く。遊んでいる最中に届いたら、その場で貼る
-window.addEventListener('load', function(){ if(state === STATE.PLAY || (state === STATE.TITLE && titleCam.ready)) applyPhoto(); });
+window.addEventListener('load', function(){ if(state === STATE.PLAY || (state === STATE.TITLE && titleCam.ready)){ applyPhoto(); applyModels(); } });

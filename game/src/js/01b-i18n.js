@@ -145,7 +145,7 @@ var EN = {
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
   'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
-  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', 'WebAudio で合成':'Synthesized with WebAudio',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', '小道具の模型':'Prop models', 'Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工':'Metal Office Desk, Wall Clock, Fire Extinguisher, Medical Box, Metal Stool — Poly Haven (CC0), processed', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', 'WebAudio で合成':'Synthesized with WebAudio',
   '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
 
   // --- カルテ ---

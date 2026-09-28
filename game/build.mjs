@@ -42,6 +42,18 @@ function buildAssets(){
       out['sfx/' + f.replace(/\.wav$/, '')] = 'data:audio/wav;base64,' + fs.readFileSync(path.join(sfxRoot, f)).toString('base64');
     }
   }
+  /* 小道具の立体素材（第 7.2 節）。meta は文字列、mesh.bin は base64、色の絵は data URI */
+  const mdRoot = path.join(assetsDir, 'models');
+  if(fs.existsSync(mdRoot)){
+    if(lic.indexOf('| models/') < 0) throw new Error('assets/LICENSES.md に models/ の記録が無い');
+    for(const name of fs.readdirSync(mdRoot).sort()){
+      const d = path.join(mdRoot, name);
+      out['models/' + name + '/meta'] = fs.readFileSync(path.join(d, 'meta.json'), 'utf8');
+      out['models/' + name + '/bin'] = fs.readFileSync(path.join(d, 'mesh.bin')).toString('base64');
+      for(const f of fs.readdirSync(d).sort()) if(/\.jpg$/.test(f))
+        out['models/' + name + '/' + f.replace(/\.jpg$/, '')] = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(d, f)).toString('base64');
+    }
+  }
   return '/* 生成物（game/build.mjs）。assets/ の加工済み素材（画と音）。出所は assets/LICENSES.md */\n' +
          'window.W7_ASSETS=' + JSON.stringify(out) + ';\n';
 }

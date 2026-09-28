@@ -29,6 +29,7 @@ function clearWorld(){
   world.lamps = []; world.exit = null; world.hides = [];
   world.key = null; world.lockDoor = null; world.lever = null; world.power = false; world.blackout = false;
   world.mats = null; world.photo = false;
+  world.modelSlots = []; world.modelsPlaced = 0;   // 立体素材を置く場所（第 7.2 節 applyModels）
   world.zones = []; world.exitField = null; world.nav = null;
 }
 
@@ -2679,6 +2680,12 @@ function buildWorld(){
     dgrp.rotation.y = Math.atan2(-dspot.dir[0], -dspot.dir[1]);
     dgrp.userData.bake = true;
     world.group.add(dgrp);
+    // 机の上に救急箱、机の脇に丸椅子（立体素材。見た目だけで当たりは持たない）
+    world.modelSlots.push({ kind:'medbox', x:dgrp.position.x, y:0.80, z:dgrp.position.z, ry:dgrp.rotation.y + 0.3 });
+    if(((dspot.cell.x * 7 + dspot.cell.y * 13) & 1) === 0){
+      var sdx = Math.cos(dgrp.rotation.y) * 0.85, sdz = -Math.sin(dgrp.rotation.y) * 0.85;
+      world.modelSlots.push({ kind:'stool', x:dgrp.position.x + sdx, y:0, z:dgrp.position.z + sdz, ry:dgrp.rotation.y + 1.1 });
+    }
     world.props.push({ x:dgrp.position.x, z:dgrp.position.z, r:0.62, h:0.80 });
     world.hides.push({
       type:'desk', group:dgrp,
@@ -3568,6 +3575,7 @@ function heroRoom(g, hall, def){
                 { ax:'x', from:x0+W, to:x0, fix:z0+D, n:[0,-1], cellFix:hall.y+hall.h-1, outside:[0,1] },
                 { ax:'z', from:z0+D, to:z0, fix:x0, n:[1,0], cellFix:hall.x, outside:[-1,0] } ];
   var kit = def.kit.slice(), si = 0, cursor = 0.8, placed = 0, guard = 60;
+  var occ0 = [];                       // 北の壁（名札の壁）で什器が占めている区間
   function blockedAt(px, pz, rr){
     for(var i=0; i<world.props.length; i++){ var o = world.props[i];
       if((o.x-px)*(o.x-px) + (o.z-pz)*(o.z-pz) < (o.r+rr+0.3)*(o.r+rr+0.3)) return true; }
@@ -3609,6 +3617,8 @@ function heroRoom(g, hall, def){
     m.position.set(px, 0, pz);
     m.rotation.y = Math.atan2(S.n[0], S.n[1]);                     // 部屋の内側を向く
     if(kind === 'bed') m.rotation.y += Math.PI;                    // 枕を壁側に
+    if(si === 0) occ0.push([Math.min(tA, tB), Math.max(tA, tB)]);
+    if(kind === 'clock') world.modelSlots.push({ kind:'clock', x:px, y:2.44, z:pz, ry:m.rotation.y, scale:1.5, hide:m, tint:0xa8a294 });   // 白い文字盤はランプで飛ぶので沈める
     /* 焼き固め（bakeStaticFurniture）には入れない。あちらは頂点色を運ばないので、
        頂点色で塗ったこの家具は真っ黒になる（自己診断が一度落とした）。1 品 1 描画のまま */
     world.group.add(m);
@@ -3625,6 +3635,15 @@ function heroRoom(g, hall, def){
     var sg = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), new THREE.MeshStandardMaterial({ map:heroSign(def.sign), roughness:0.7 }));
     if(W < 16){ sg.scale.setScalar(0.8); }                          // 小部屋は名札も一回り小さく
     sg.position.set(sx, 2.55, z0 + 0.03);
+    // 名札の横の壁際に消火器（立体素材。細いので当たりは持たない）
+    // 口でなく、壁際の什器（棚・ベッドなど）と重ならない側に掛ける
+    [1.3, -1.3, 2.2, -2.2].some(function(dx){
+      var ex = sx + dx, ez = z0 + 0.2;
+      if(openingAt(sides[0], ex) || openingAt(sides[0], ex + Math.sign(dx)*0.3)) return false;
+      for(var oi=0; oi<occ0.length; oi++) if(ex > occ0[oi][0] - 0.45 && ex < occ0[oi][1] + 0.45) return false;
+      world.modelSlots.push({ kind:'extinguisher', x:ex, y:0, z:ez, ry:0 });   // 台付きなので床に置く
+      return true;
+    });
     world.group.add(sg);
     break;
   }
@@ -3721,4 +3740,64 @@ function moonWindows(g){
     world.group.add(grp);
     world.moon.push({ x:wx, z:wz, nx:nx, nz:nz });
   });
+}
+
+/* ---- 小道具の立体素材（設計指示書 第 7.2 節） ----
+   Poly Haven（CC0）の写真計測の模型（model-bake.js で詰めた物）を、写真の壁と同じく
+   高精細以上で assets.js が届いたら置く。置き場所は病棟を建てるときに world.modelSlots に
+   控えてある（見た目だけ。当たり・視線・乱数には関わらないので遊びは変わらない）。
+   hide を持つ場所は手続きの物（時計）の代わりなので、そちらを隠す */
+var MODELS = { cache:{}, mats:{} };
+function modelGeo(name){
+  if(MODELS.cache[name] !== undefined) return MODELS.cache[name];
+  var A = window.W7_ASSETS; if(!A || !A['models/' + name + '/meta']){ MODELS.cache[name] = null; return null; }
+  var meta = JSON.parse(A['models/' + name + '/meta']);
+  var bin = atob(A['models/' + name + '/bin']), u8 = new Uint8Array(bin.length);
+  for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+  var buf = u8.buffer, mn = meta.box[0], mx = meta.box[1], umn = meta.uv[0], umx = meta.uv[1];
+  var cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2, by = mn[1];
+  var L = new THREE.TextureLoader();
+  var parts = meta.groups.map(function(g){
+    var P = new Int16Array(buf, g.off[0], g.v*3), N = new Int8Array(buf, g.off[1], g.v*3),
+        U = new Int16Array(buf, g.off[2], g.v*2), I = g.big ? new Uint32Array(buf, g.off[3], g.i) : new Uint16Array(buf, g.off[3], g.i);
+    var pos = new Float32Array(g.v*3), nor = new Float32Array(g.v*3), uv = new Float32Array(g.v*2);
+    for(var k=0; k<g.v*3; k++){
+      var a = k % 3, t = (P[k] + 32767) / 65534;
+      pos[k] = mn[a] + t * (mx[a] - mn[a]) - (a === 0 ? cx : (a === 1 ? by : cz));   // 底の真ん中を原点に
+      nor[k] = N[k] / 127;
+    }
+    for(var k2=0; k2<g.v*2; k2++){ var a2 = k2 % 2; uv[k2] = umn[a2] + (U[k2] + 32767) / 65534 * (umx[a2] - umn[a2]); }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(new THREE.BufferAttribute(g.big ? new Uint32Array(I) : new Uint16Array(I), 1));
+    geo.computeBoundingSphere();
+    var map = null;
+    if(g.tex && A['models/' + name + '/' + g.tex]){ map = L.load(A['models/' + name + '/' + g.tex]); map.colorSpace = THREE.SRGBColorSpace; map.flipY = false; }
+    var mat = g.glass
+      ? new THREE.MeshStandardMaterial({ color:0xdfe6e4, transparent:true, opacity:g.opacity, roughness:0.08, metalness:0, depthWrite:false })
+      : new THREE.MeshStandardMaterial({ map:map, metalness:g.metal, roughness:Math.max(0.35, g.rough) });
+    if(!g.glass && !map && g.color) mat.color.setRGB(g.color[0], g.color[1], g.color[2]);
+    return { geo:geo, mat:mat };
+  });
+  MODELS.cache[name] = parts;
+  return parts;
+}
+function applyModels(){
+  if(!photoWanted() || !world.modelSlots || world.modelsPlaced) return;
+  var placed = 0;
+  world.modelSlots.forEach(function(sl){
+    var parts = modelGeo(sl.kind); if(!parts) return;
+    var g = new THREE.Group();
+    parts.forEach(function(p){
+      var mt = p.mat;
+      if(sl.tint){ mt = p.mat.clone(); mt.color.setHex(sl.tint); }
+      var m = new THREE.Mesh(p.geo, mt); m.castShadow = false; m.receiveShadow = true; g.add(m); });
+    g.position.set(sl.x, sl.y, sl.z); g.rotation.y = sl.ry; if(sl.scale) g.scale.setScalar(sl.scale);
+    world.group.add(g);
+    if(sl.hide) sl.hide.visible = false;
+    placed++;
+  });
+  world.modelsPlaced = placed;
 }
