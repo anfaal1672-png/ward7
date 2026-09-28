@@ -91,7 +91,7 @@ try{
     humanKeys: humanKeys, stickIn: stickIn,
     seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
     skipUI: function(v){ skipUI = !!v; },
-    cheats: cheats, settings: settings, act: doCheatAct,
+    settings: settings, act: doCheatAct,      // cheats は上で公開済み（同じキーが 2 つあった）
     openCheats: openCheats, detectMode: detectMode
   };
 }catch(e){

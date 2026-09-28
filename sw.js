@@ -1,7 +1,7 @@
 /* Web 版をオフラインでも遊べるようにする（設計指示書 第 15.5 節）。
    一度開いたら本体・three.js・写真素材を端末にしまい、次からは回線なしで起動する。
    しまった物はすぐ返し、裏で新しい版を取りに行く（次に開いたときから新しい版）。
-   キャッシュの名前は組み立てのたびに中身から作る（game/build.mjs が bb98efe64616 を埋める）。 */
+   キャッシュの名前は組み立てのたびに中身から作る（game/build.mjs が 96ef97c0d4bf を埋める）。 */
 var CACHE = 'ward7-__HASH__';
 var FILES = ['./', './index.html', './ward7.html', './three.min.js', './assets.js'];
 self.addEventListener('install', function(e){

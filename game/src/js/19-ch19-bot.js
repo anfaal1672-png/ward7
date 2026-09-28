@@ -1240,7 +1240,6 @@ function botHidden(dt, F){
       holdBtnDown = false; botSay('出る');
     }
     return true;
-  return true;
 }
 
 /* --- 気分：逃走・警戒・被弾への反応 ---------------------------------------- */

@@ -19,6 +19,8 @@ jobs:
       - run: npm ci
       - name: 源と ward7.html・three.min.js の一致・構文
         run: npm run check
+      - name: 静的な検め（未定義の名前など。設計指示書 第 15.2 節）
+        run: mkdir -p .check && npm run lint
 
   # 実ブラウザ（Chromium + SwiftShader）での自己診断と、遊びの確認。
   # ハーネス（jsdom）はシェーダを通さないので、ここでしか見えない壊れ方がある（.tools/README）。
