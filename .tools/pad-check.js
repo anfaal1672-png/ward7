@@ -24,10 +24,14 @@ const fs=require('fs'), path=require('path');
   // 描画の遅い所ではゲームの時間が遅れて進む（回りも刻みで掛かる）ので、決め打ちの 3 秒でなく結果を待つ
   await p.waitForFunction((s0)=>{ const pl=window.__WARD7.player; return Math.abs(pl.yaw - s0.yaw) > 2.2 && Math.hypot(pl.x-s0.x, pl.z-s0.z) > 1.2; },
                           s0, {timeout:30000}).catch(()=>{});
+  /* ボタンも押したまま結果を待つ（200ms 決め打ちだと CI の遅い機械でパッドが読まれる前に離していた：
+     ランプは切り替わったが一時停止に入らず state 2 で落ちた） */
   await p.evaluate(()=>{ window.__pad.axes[1] = 0; window.__pad.axes[2] = 0; window.__pad.buttons[2] = {pressed:true, value:1}; });
-  await p.waitForTimeout(200);
-  await p.evaluate(()=>{ window.__pad.buttons[2] = {pressed:false, value:0}; window.__pad.buttons[9] = {pressed:true, value:1}; });
-  await p.waitForTimeout(200);
+  await p.waitForFunction((l0)=>window.__WARD7.player.lamp !== l0, s0.lamp, {timeout:15000}).catch(()=>{});
+  await p.evaluate(()=>{ window.__pad.buttons[2] = {pressed:false, value:0}; });
+  await p.waitForTimeout(100);
+  await p.evaluate(()=>{ window.__pad.buttons[9] = {pressed:true, value:1}; });
+  await p.waitForFunction(()=>window.__WARD7.state() === 3, null, {timeout:15000}).catch(()=>{});
   const s1 = await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player; return {x:pl.x, z:pl.z, yaw:pl.yaw, lamp:pl.lamp, state:A.state()}; });
   const moved = Math.hypot(s1.x-s0.x, s1.z-s0.z);
   console.log(JSON.stringify({moved:+moved.toFixed(2), turned:+(s0.yaw-s1.yaw).toFixed(2), lamp:[s0.lamp, s1.lamp], state:s1.state, errs}));
