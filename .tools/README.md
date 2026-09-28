@@ -135,6 +135,7 @@ Chromium（SwiftShader）で実 WebGL を通し、PNG を書き出す。
     node .tools/layout-check.js <html>   タッチのボタン配置の編集（第 12.1 節）
     node .tools/sfx-check.js    <html>   収録素材の音が解けて鳴ること（第 10.1 節）
     node .tools/tape-check.js   <html>   録音テープが流れ、字幕が行ごとに送られ、英語字幕・書き起こしに切り替わること（第 11.5 節）
+    node .tools/foot-check.js   <html>   追跡者の立脚の足が床に留まって滑らないこと（第 9.2 節）
     node .tools/load-check.js   <html> [q]  起動からタイトル・章の読み込みの時間と内訳（第 1.1 節）
     node .tools/fx-shot.js      <html> <接頭辞> [q]  画面効果の有無を同じ場所で撮る（第 8.2 節）
     node .tools/graffiti-shot.js <html> <png> [章]  小部屋の落書きを正面から撮る（第 6.3 節）

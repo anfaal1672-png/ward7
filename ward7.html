@@ -10122,7 +10122,7 @@ function buildHunter() {
     hunter.parts = {
         spine: spine, neck: neck, head: headPivot, jaw: jawPivot,
         armL: armL, armR: armR, legL: legL, legR: legR,
-        pupL: pupL, pupR: pupR, eyeMatL: eyeL_, eyeMatR: eyeR_, glowL: glowL, glowR: glowR,
+        pupL: pupL, pupR: pupR, pupRBase: { x: 0.055, y: 0.075, s: 1 }, eyeMatL: eyeL_, eyeMatR: eyeR_, glowL: glowL, glowR: glowR,
         strands: strands, gown: gown, skin: skin, stainMat: stain, mawMat: maw, boneMat: bone_, baseY: (0.02 + THIGH + SOLE)
     };
     /* 組み上がった全メッシュに対して、最後にもう一度だけ法線を検める。
@@ -10219,6 +10219,7 @@ function hunterSkin() {
     P.pupR.scale.setScalar(0.72);
     P.pupL.position.z += 0.013 * 0.72;
     P.pupR.position.z += 0.013 * 0.72;
+    P.pupRBase = { x: P.pupR.position.x, y: P.pupR.position.y, s: 0.35 }; // 泳ぎ方も小さな目に合わせる
     P.glowL.scale.set(0.22, 0.22, 1);
     P.glowR.scale.set(0.22, 0.22, 1);
     P.jaw.position.copy(toHead(J.jaw));
@@ -10305,6 +10306,97 @@ function hunterSkin() {
     P.jaw.add(teeth);
     P.human = { meshes: meshes, gown: gmeshes, lod: -1, base: (settings.quality | 0) >= 3 ? 0 : 1 };
     hunterLOD(0);
+}
+/* 足の接地（設計指示書 第 9.2 節「足の接地は 2 骨の IK で合わせる。足が滑る問題を根本から断つ」）。
+   歩容の表は体の速さと合っていないので、接地している足が床の上を滑っていた（実測：歩きで 4.3m/s、
+   追跡で 6.9m/s。体は 2.4・2.9m/s）。立脚に入った瞬間の足先の位置を床に留め、立脚のあいだ腿とすねの角度を
+   2 骨の IK で解いてそこへ届かせる。立脚を抜ける・歩容の足先から 40cm 離れたら留めを外し、
+   0.12 秒で元の歩容へ戻す。角度は背骨から見た脚の面（前後）だけで解く（脚は左右へ開かない作り）。
+   2 つある解のうち、歩容の表が出した角度に近いほうを取る（膝の向きが入れ替わらない）。
+   見た目だけ：位置も乱数も触らない */
+var _ik1 = new THREE.Vector3(), _ik2 = new THREE.Vector3(), _ikM = new THREE.Matrix4();
+function footIK(P, dt) {
+    if (!P || state !== STATE.PLAY || !hunter.group.visible) {
+        if (P) {
+            P.legL.plant = P.legR.plant = null;
+        }
+        return;
+    }
+    var A = 0.50, B = 0.57; // 腿（股関節→膝）、すね（膝→足先）。buildHunter の THIGH・SOLE
+    var move = hunter.walkK > 0.3;
+    hunter.group.updateMatrixWorld(true);
+    /* 留めた足に届かないときは腰を落とす。立ち姿の股関節は脚の長さぎりぎりの高さにあるので、
+       足が前後へ少しでもずれると届かず、留めても結局引きずられていた。人も歩くときは
+       両脚で支える瞬間に腰がいちばん低くなる。落とすのは最大 8cm、戻しは緩やかに */
+    var need = 0;
+    [P.legL, P.legR].forEach(function (L) {
+        if (!L.plant)
+            return;
+        L.thigh.getWorldPosition(_ik2);
+        var h = Math.hypot(_ik2.x - L.plant.x, _ik2.z - L.plant.z), R = (A + B) * 0.985;
+        if (h < R)
+            need = Math.max(need, (_ik2.y - 0.004) - Math.sqrt(R * R - h * h));
+    });
+    P.drop = Math.max(clamp(need, 0, 0.08), lerp(P.drop || 0, 0, 1 - Math.pow(0.02, dt)));
+    if (P.drop > 0.0005) {
+        hunter.group.position.y -= P.drop;
+        hunter.group.updateMatrixWorld(true);
+    }
+    [P.legL, P.legR].forEach(function (L) {
+        if (L.thigh.rotation.z !== 0) {
+            L.thigh.rotation.z = 0;
+            L.thigh.updateMatrixWorld(true);
+        } // 横の傾けは毎フレーム解き直す
+        L.tip.getWorldPosition(_ik1); // 歩容の表の足先
+        /* 立脚かどうかは歩容の位相で決める（位相 0 が踵接地、右脚は半周期ずれ）。
+           離地は歩きで 6 割、走りで 4 割の所（歩容の表の足首の蹴り出しに合わせてある）。
+           足先の高さで決めようとして一度失敗した：表の脚は両脚支持の瞬間を持たず、
+           揺らぎ（glitch）で体ごと上下するので、留めたり外したりがちらついた */
+        var ph = hunter.bob / TAU + (L === P.legR ? 0.5 : 0);
+        ph -= Math.floor(ph);
+        var stance = move && ph < lerp(0.60, 0.40, hunter.gaitRun);
+        if (stance && !L.wasStance)
+            L.plant = { x: _ik1.x, z: _ik1.z };
+        if (!stance)
+            L.plant = null;
+        L.wasStance = stance;
+        if (L.plant && Math.hypot(_ik1.x - L.plant.x, _ik1.z - L.plant.z) > 0.40)
+            L.plant = null;
+        L.ikK = clamp((L.ikK || 0) + (L.plant ? dt / 0.06 : -dt / 0.12), 0, 1);
+        if (L.ikK <= 0)
+            return;
+        if (L.plant) {
+            L.ikX = L.plant.x;
+            L.ikZ = L.plant.z;
+        }
+        if (L.ikX === undefined)
+            return;
+        // 目標を背骨の座標へ。腿の付け根から見た前後（z）と上下（y）
+        _ikM.copy(P.spine.matrixWorld).invert();
+        _ik2.set(L.ikX, 0.004, L.ikZ).applyMatrix4(_ikM);
+        var ty = _ik2.y - L.thigh.position.y, tz = _ik2.z - L.thigh.position.z, tx = _ik2.x - L.thigh.position.x;
+        /* 横。脚は前後にしか曲がらない作りなので、骨盤のひねりや体の向きが変わると留めた足が横へ引きずられた
+           （中央値で 0.33m/s）。腿を横へ少し傾け（回転の順は Z が先）、脚の面ごと足の方へ向ける */
+        var gam = Math.atan2(tx, Math.hypot(ty, tz));
+        var D = Math.min(Math.hypot(ty, tz, tx), (A + B) * 0.999);
+        if (D < 0.05)
+            return;
+        var phi = Math.atan2(-tz, -ty); // 目標の向き：(y,z) = (-cos, -sin)
+        var g = Math.acos(clamp((A * A + D * D - B * B) / (2 * A * D), -1, 1));
+        var k = Math.PI - Math.acos(clamp((A * A + B * B - D * D) / (2 * A * B), -1, 1));
+        var a0 = L.thigh.rotation.x, b0 = L.shin.rotation.x;
+        var s1a = phi - g, s1b = k, s2a = phi + g, s2b = -k;
+        var pick1 = Math.abs(s1a - a0) + Math.abs(s1b - b0) < Math.abs(s2a - a0) + Math.abs(s2b - b0);
+        var ta = pick1 ? s1a : s2a, tb = pick1 ? s1b : s2b;
+        var w = L.ikK * L.ikK * (3 - 2 * L.ikK);
+        L.thigh.rotation.x = lerp(a0, ta, w);
+        L.shin.rotation.x = lerp(b0, tb, w);
+        L.thigh.rotation.z = clamp(gam, -0.35, 0.35) * w;
+        // 足の裏を床へ寝かせる（背骨の傾きと腿・すねの角度を打ち消す）
+        if (L.foot)
+            L.foot.rotation.x = lerp(L.foot.rotation.x, -(P.spine.rotation.x + L.thigh.rotation.x + L.shin.rotation.x), w * 0.8);
+        L.thigh.updateMatrixWorld(true);
+    });
 }
 /* 近いほど細かい段。切り替えの境に揺れないよう 1m の幅を持たせる */
 function hunterLOD(d) {
@@ -14679,8 +14771,12 @@ function updateHunter(dt, info) {
        undefined を掛けることになり、腕の回転が NaN になって画面から
        消えていた（実測：reach は 1.15 まで正しく送られているのに
        armL.up.rotation.x が NaN）。 */
-    var hipL = gaitMix(GAIT_HIP_W, GAIT_HIP_R, ph, rk) * walkK;
-    var hipR = gaitMix(GAIT_HIP_W, GAIT_HIP_R, ph + 0.5, rk) * walkK;
+    /* 歩容の表は逆関節の脚のときに書いたもので、前後が裏返っている（位相 0〜0.6 で足が
+       体の後ろから前へ動く＝床に着いた足が前へ滑る。実測で接地した足が体の 1.8 倍の速さで動いていた）。
+       人の脚に替えたので、腿・膝・足首とも符号を反転して前後を鏡に写す。これで位相 0 が踵接地、
+       0〜0.6 が立脚（足が前から後ろへ送られる）、膝は人の向きに曲がる。腕は脚の値を使うので一緒に直る */
+    var hipL = -gaitMix(GAIT_HIP_W, GAIT_HIP_R, ph, rk) * walkK;
+    var hipR = -gaitMix(GAIT_HIP_W, GAIT_HIP_R, ph + 0.5, rk) * walkK;
     hunter.twitchT -= dt;
     if (hunter.twitchT <= 0) {
         hunter.twitchT = chasing ? (0.25 + rndFx() * 0.4) : (0.7 + rndFx() * 1.6);
@@ -14755,8 +14851,10 @@ function updateHunter(dt, info) {
     P.head.rotation.x = -lean * 0.86 + Math.sin(now * 0.71) * 0.06;
     P.head.rotation.z = Math.sin(now * 0.61) * 0.24 + hunter.twitch + (rndFx() - 0.5) * 1.1 * gl;
     // 瞳：片方だけ勝手に泳ぎ、ときどき両方消える
-    P.pupR.position.x = 0.055 + Math.sin(now * 0.53) * 0.016;
-    P.pupR.position.y = 0.075 + Math.sin(now * 0.37) * 0.008;
+    /* 基準の位置は人体の模型に替えると顔に合わせて動く（hunterSkin）。定数で書いていたら
+       右目だけが手続きの頭の位置へ戻り、模型の眼窩が空いて見えた */
+    P.pupR.position.x = P.pupRBase.x + Math.sin(now * 0.53) * 0.016 * P.pupRBase.s;
+    P.pupR.position.y = P.pupRBase.y + Math.sin(now * 0.37) * 0.008 * P.pupRBase.s;
     hunter.eyeT -= dt;
     if (hunter.eyeT <= 0) {
         hunter.eyeT = 1.8 + rndFx() * 4;
@@ -14811,20 +14909,20 @@ function updateHunter(dt, info) {
     /* 脚。位相 0 が踵接地。右脚は半周期ずらす。
        移動していないときは表を引かず、立ち姿勢へ寄せる（その場で
        脚だけが動き続けると、床の上を滑っているように見える）。 */
-    var kneL = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph, rk) * walkK - 0.10;
-    var kneR = gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph + 0.5, rk) * walkK - 0.10;
-    var ankL = gaitMix(GAIT_ANK_W, GAIT_ANK_R, ph, rk) * walkK;
-    var ankR = gaitMix(GAIT_ANK_W, GAIT_ANK_R, ph + 0.5, rk) * walkK;
+    var kneL = -gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph, rk) * walkK + 0.10;
+    var kneR = -gaitMix(GAIT_KNEE_W, GAIT_KNEE_R, ph + 0.5, rk) * walkK + 0.10;
+    var ankL = -gaitMix(GAIT_ANK_W, GAIT_ANK_R, ph, rk) * walkK;
+    var ankR = -gaitMix(GAIT_ANK_W, GAIT_ANK_R, ph + 0.5, rk) * walkK;
     /* 立ち姿。歩容の表は止まると全部 0 に落ちるので、両足を揃えた棒立ちに
        なっていた。人は片脚に体重を預け、反対の腰が下がり、片足がやや前へ
        出る。止まっているぶん（1-walkK）だけその形へ寄せ、ごくゆっくり
        重心を移す（同じ姿勢で固まっていると、それはそれで人形に見える）。 */
     var idle = 1 - walkK;
     var shift = Math.sin(now * 0.31) * 0.5 + 0.5; // 0..1 をゆっくり往復
-    hipL += idle * (0.13 - 0.18 * shift);
-    hipR += idle * (-0.05 + 0.18 * shift);
-    kneL += idle * (-0.04 - 0.10 * (1 - shift));
-    kneR += idle * (-0.04 - 0.10 * shift);
+    hipL -= idle * (0.13 - 0.18 * shift);
+    hipR -= idle * (-0.05 + 0.18 * shift);
+    kneL -= idle * (-0.04 - 0.10 * (1 - shift));
+    kneR -= idle * (-0.04 - 0.10 * shift);
     P.legL.thigh.rotation.x = hipL;
     P.legR.thigh.rotation.x = hipR;
     P.legL.shin.rotation.x = kneL;
@@ -14999,10 +15097,62 @@ function updateHunter(dt, info) {
         P.neck.scale.y = lerp(P.neck.scale.y, 1 + stunK * 0.45, 0.5);
         P.head.scale.y = 1 / P.neck.scale.y;
     }
+    /* 止まっているときの所作（設計指示書 第 9.2 節の動きの一覧）。どれも既存の状態から引く見た目だけの層で、
+       位置・判定・乱数には触れない（時刻の正弦だけで揺らす）。
+       - 点検：ロッカーは扉へ手を伸ばし、ベッド・机は上体を折って下を覗き込む
+       - 探索中に立ち止まったら、首を大きく傾けて聞く／顔を上げて短く嗅ぐ、を交互に
+       - 徘徊中の待機は 3 通り（揺れて立つ・首を垂れる・首を回して指を握り込む）を 6 秒ごとに */
+    var MO = P.motion || (P.motion = { ins: 0, bend: 0, listen: 0, sniff: 0, idle: [0, 0, 0] });
+    var inspecting = !!(hunter.inspect && hunter.inspectT > 0);
+    var low = inspecting && hunter.inspect.type !== 'locker';
+    MO.ins = lerp(MO.ins, inspecting && !low ? 1 : 0, 1 - Math.pow(0.01, dt));
+    MO.bend = lerp(MO.bend, low ? 1 : 0, 1 - Math.pow(0.01, dt));
+    var still = 1 - walkK;
+    var searching = hunter.mode === 'hunt' && !inspecting;
+    var sniffing = Math.sin(now * 0.45) > 0.2;
+    MO.listen = lerp(MO.listen, searching && !sniffing ? still : 0, 1 - Math.pow(0.03, dt));
+    MO.sniff = lerp(MO.sniff, searching && sniffing ? still : 0, 1 - Math.pow(0.03, dt));
+    var idleSlot = Math.floor(now / 6) % 3;
+    for (var iv = 0; iv < 3; iv++)
+        MO.idle[iv] = lerp(MO.idle[iv], hunter.mode === 'patrol' && iv === idleSlot ? still : 0, 1 - Math.pow(0.1, dt));
+    if (MO.ins > 0.01) { // ロッカーの扉へ右手を伸ばす
+        P.armR.up.rotation.x = lerp(P.armR.up.rotation.x, -1.30, MO.ins);
+        P.armR.up.rotation.z = lerp(P.armR.up.rotation.z, 0.10, MO.ins);
+        P.armR.fore.rotation.x = lerp(P.armR.fore.rotation.x, -0.35, MO.ins);
+        P.head.rotation.z += 0.32 * MO.ins;
+        P.head.rotation.y *= 1 - MO.ins;
+    }
+    if (MO.bend > 0.01) { // ベッド・机の下を覗く
+        P.spine.rotation.x += 0.95 * MO.bend;
+        P.head.rotation.x -= 0.55 * MO.bend; // 顔は下ではなく奥（隙間の中）を向く
+        P.head.rotation.z += 0.45 * MO.bend;
+        [P.armL, P.armR].forEach(function (A, ai) {
+            A.up.rotation.x = lerp(A.up.rotation.x, -0.55 - 0.15 * ai, MO.bend);
+            A.fore.rotation.x = lerp(A.fore.rotation.x, -0.20, MO.bend);
+        });
+    }
+    if (MO.listen > 0.01) { // 首を大きく傾けて、音のした方へ耳を向ける
+        P.head.rotation.z += 0.55 * MO.listen;
+        P.head.rotation.x += 0.12 * MO.listen;
+        P.spine.rotation.z += 0.08 * MO.listen;
+    }
+    if (MO.sniff > 0.01) { // 顔を上げ、短く何度も吸い込む
+        var burst = Math.max(0, Math.sin(now * 1.7)) * Math.max(0, Math.sin(now * 15));
+        P.head.rotation.x -= (0.38 + 0.07 * burst) * MO.sniff;
+        P.spine.rotation.x -= 0.10 * MO.sniff;
+    }
+    if (MO.idle[1] > 0.01) { // 首を垂れて立ち尽くす
+        P.head.rotation.x += 0.55 * MO.idle[1];
+        P.spine.rotation.x += 0.12 * MO.idle[1];
+    }
+    if (MO.idle[2] > 0.01) { // ゆっくり首を回し、指を握り込む
+        P.head.rotation.y += Math.sin(now * 0.9) * 0.9 * MO.idle[2];
+        P.head.rotation.z += Math.sin(now * 0.9 + 1.2) * 0.25 * MO.idle[2];
+    }
     /* 人体の模型（第 9.1 節）の指。手続きの体は丸め違いの手を 2 体持って見せ分けていたが、
        模型は指の付け根と中ほどの 2 段を実際に曲げる。走るときは獲物へ伸ばし、歩くときは半握り */
     if (P.human) {
-        var ck = claw ? 0.12 : 0.75;
+        var ck = claw ? 0.12 : 0.75 + 0.55 * MO.idle[2] * (0.5 + 0.5 * Math.sin(now * 1.3));
         [P.armL, P.armR].forEach(function (A) {
             A.curlK = lerp(A.curlK, ck, 1 - Math.pow(0.02, dt));
             A.fingP.quaternion.setFromAxisAngle(A.curlAx, A.curlK * 0.85);
@@ -15019,6 +15169,7 @@ function updateHunter(dt, info) {
     var lowest = Math.min(_hv1.y, _hv2.y);
     if (isFinite(lowest))
         hunter.group.position.y = -lowest + (rndFx() - 0.5) * 0.14 * gl;
+    footIK(P, dt);
     // 目の光源を頭の位置へ
     if (hunterEyeLight) {
         hunter.group.updateMatrixWorld(true);
