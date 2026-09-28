@@ -32,6 +32,7 @@ function buildTitleScene(){
     }
     titleCam.yaw = best;
     titleCam.ready = true;
+    applyPhoto();                 // タイトルの廊下にも写真の壁を（素材がもう届いていれば）
   }catch(e){ titleCam.ready = false; console.warn('タイトル情景の構築に失敗:', e && e.message); }
 }
 

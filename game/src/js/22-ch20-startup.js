@@ -10,8 +10,6 @@ try{
   bootStep('grain', function(){ $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')'; });
   bootStep('textures', buildTextures);
   bootStep('lights', setupLights);
-  bootStep('viewModel', buildViewModel);
-  bootStep('envMap', buildEnvMap);          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
   texBuiltQ = settings.quality|0;
   bootStep('post', buildPost);
   resize();
@@ -26,6 +24,8 @@ try{
      建つ前に「病棟に入る」が押されたら、startGame が自分で建てるのでここでは建てない */
   setTimeout(function(){
     if(state !== STATE.TITLE) return;
+    // 一人称の腕と映り込みもタイトルには要らない。画面を出してから作る（startGame も要れば作る）
+    if(!viewArm){ bootStep('viewModel', buildViewModel); bootStep('envMap', buildEnvMap); }
     bootStep('titleScene', buildTitleScene);
     bootStep('dust', buildDust);
     BOOT_T.scene = Math.round(performance.now() - BOOT_T.t0);

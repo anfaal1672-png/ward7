@@ -103,7 +103,8 @@ function disposeTextures(){
 }
 function ensureTextures(){
   var q = settings.quality|0;
-  if(texBuiltQ === q) return;
+  // 写真を当てにして仮の絵で作ったのに、写真が使えない（素材が届かない等）なら作り直す
+  if(texBuiltQ === q && !(TEX.photoLite && !photoWanted())) return;
   if(texBuiltQ >= 0) disposeTextures();
   buildTextures();
   buildEnvMap();
@@ -122,11 +123,16 @@ function buildTextures(){
     t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
     return t;
   }
-  var wc = texWall(s), fc = texFloor(s), cc = texCeil(s);
+  /* 写真素材が貼られる品質では、壁・床・天井の手続きの絵は届くまでの間の仮でしかない。
+     512px で作ると起動の 4 秒の大半をここで使っていた（第 1.1 節「タイトルまで 5 秒」）。
+     仮は 128px・法線なしで作り、写真が使えないと分かったら ensureTextures が作り直す */
+  var lite = photoExpected(), sw = lite ? Math.min(128, s) : s;
+  TEX.photoLite = lite;
+  var wc = texWall(sw), fc = texFloor(sw), cc = texCeil(sw);
   TEX.wall  = mk(wc, 1, 1);
   TEX.floor = mk(fc, GW, GH);
   TEX.ceil  = mk(cc, GW/2, GH/2);
-  if(QC.normalMaps){
+  if(QC.normalMaps && !lite){
     var wn = new THREE.CanvasTexture(normalFrom(wc, 3.0));
     wn.wrapS = wn.wrapT = THREE.RepeatWrapping;
     TEX.wallN = wn;
@@ -213,6 +219,11 @@ var PHOTO = { tex:null, loading:false, wait:[] };
 var PHOTO_REPEAT = { wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] };
 /* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
 var PHOTO_TINT = { wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 };
+/* 起動の時点では assets.js はまだ届いていない（defer）。置いてあるかどうかで見込む */
+function photoExpected(){
+  return (settings.quality|0) >= 2 && !!(renderer.capabilities && renderer.capabilities.isWebGL2) &&
+         (!!window.W7_ASSETS || !!document.querySelector('script[src$="assets.js"]'));
+}
 function photoWanted(){
   return (settings.quality|0) >= 2 && !!window.W7_ASSETS &&
          !!(renderer.capabilities && renderer.capabilities.isWebGL2);
@@ -261,4 +272,4 @@ function applyPhoto(){
   });
 }
 // assets.js は defer で後から届く。遊んでいる最中に届いたら、その場で貼る
-window.addEventListener('load', function(){ if(state === STATE.PLAY) applyPhoto(); });
+window.addEventListener('load', function(){ if(state === STATE.PLAY || (state === STATE.TITLE && titleCam.ready)) applyPhoto(); });
