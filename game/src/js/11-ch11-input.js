@@ -110,7 +110,7 @@ window.addEventListener('pointerup', onPointerUp, {passive:true});
 window.addEventListener('pointercancel', onPointerUp, {passive:true});
 document.addEventListener('touchmove', function(e){
   // メニュー画面は縦スクロールを許可する（ゲーム中は画面が無いので影響なし）
-  var t = e.target;
+  var t = /** @type {any} */ (e.target);
   while(t && t !== document.body){
     if(t.classList && t.classList.contains('panel')) return;
     t = t.parentNode;
@@ -187,7 +187,7 @@ function readPad(){
   function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
   var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
-  var used = mx || my || lx || ly;
+  var used = !!(mx || my || lx || ly);
   for(var b=0; b<bt.length; b++) if(down(b)) used = true;
   if(used) pad.active = true;
   if(!pad.active) return;
@@ -254,9 +254,11 @@ function focusables(root){
 }
 function moveFocus(root, dx, dy){
   var list = focusables(root); if(!list.length) return;
-  var cur = document.activeElement;
+  var cur = /** @type {any} */ (document.activeElement);
   if(list.indexOf(cur) < 0){ list[0].focus(); return; }
-  var a = cur.getBoundingClientRect(), ax = a.left + a.width/2, ay = a.top + a.height/2, best = null, bs = 1e9;
+  var a = cur.getBoundingClientRect(), ax = a.left + a.width/2, ay = a.top + a.height/2, bs = 1e9;
+  /** @type {any} */
+  var best = null;
   list.forEach(function(el){
     if(el === cur) return;
     var r = el.getBoundingClientRect(), x = r.left + r.width/2 - ax, y = r.top + r.height/2 - ay;
@@ -291,7 +293,7 @@ function updatePadMenu(dt){
   padMenu.rep -= dt;
   if(dir && (dir !== padMenu.dir || padMenu.rep <= 0)){
     padMenu.rep = (dir === padMenu.dir) ? 0.12 : 0.38;
-    var cur = document.activeElement;
+    var cur = /** @type {any} */ (document.activeElement);
     if(cur && cur.type === 'range' && root.contains(cur) && (dir === 'l' || dir === 'r')){
       var st = +cur.step || 0.05, v = +cur.value + (dir === 'r' ? st : -st);
       cur.value = clamp(v, +cur.min, +cur.max);
@@ -303,12 +305,12 @@ function updatePadMenu(dt){
   }
   padMenu.dir = dir;
   if(edge(0)){                                        // A：押す
-    var f = document.activeElement;
+    var f = /** @type {any} */ (document.activeElement);
     if(f && root.contains(f) && f.tagName === 'BUTTON') f.click();
     else { var fl = focusables(root); if(fl.length) fl[0].focus(); }
   }
   if(edge(1)){                                        // B：戻る
-    var back = root.querySelector('[id$=Back]') || (root.id === 'pause' ? $('btnResume') : null);
+    var back = /** @type {any} */ (root.querySelector('[id$=Back]')) || (root.id === 'pause' ? $('btnResume') : null);
     if(back) back.click();
   }
   if(edge(9) && root.id === 'pause') $('btnResume').click();   // Start で続きへ

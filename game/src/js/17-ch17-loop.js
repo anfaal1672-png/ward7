@@ -19,6 +19,10 @@ function loop(now){
 
   if(CTX_LOST) return;
 
+  /* 着信などで音が奪われたら止めて待つ。画面は隠れないことがある（着信の帯だけ出る）ので
+     visibilitychange だけでは拾えない。戻ったら「続ける」を押す＝音を戻す操作になる */
+  if(state === STATE.PLAY && Audio2.state() === 'interrupted') doPause();
+
   if(state === STATE.PLAY){
     player.time += dt;
     // 追う側で遊ぶときは、人間の操作をボットに上書きされる前に写し取る
@@ -114,6 +118,7 @@ function loop(now){
   }
 
   updateDRS(realDt);
+  updateBench(realDt);
   teleFrame(dt);
   updatePadMenu(dt);
   // FPS 監視・自動品質ダウン
@@ -159,3 +164,29 @@ function updateDbg(){
     '\ntris ' + renderer.info.render.triangles;
 }
 
+/* 初回起動の実測（第 8.4 節）。タイトルの情景が出てから 1 秒の暖気を捨て、5 秒のフレーム時間の
+   中央値で決める。タイトルは本編より軽いので、下げる閾値は 20ms（本編では 30ms 前後になる）、
+   上げるのは 10ms を切るときだけ（上げた先で重ければ戻して終わる） */
+function updateBench(dt){
+  if(!BENCH.on || state !== STATE.TITLE || !titleCam.ready) return;
+  BENCH.t += dt;
+  if(BENCH.t < 1) return;
+  BENCH.dts.push(dt * 1000);
+  if(BENCH.t < 6) return;
+  BENCH.on = false;
+  var a = BENCH.dts.slice().sort(function(x, y){ return x - y; }), med = a[a.length >> 1] || 16;
+  var q = settings.quality|0, nq = q, up = false;
+  if(med > 20 && q > 0) nq = q - 1;
+  else if(med < 10 && q < 3 && !BENCH.up && BENCH.round === 0){ nq = q + 1; up = true; }
+  if(nq !== q && BENCH.round < 2){
+    settings.quality = nq; saveSettings();
+    // 上げた先で重かったら戻して終える（行き来させない）
+    var last = BENCH.up && nq < q;
+    Store.set('ward7.bench', JSON.stringify(last ? { done:1, q:nq, ms:+med.toFixed(1) } : { round:BENCH.round + 1, up:up }));
+    toast('この端末に合わせて画質を調整しています…', 2);
+    setTimeout(function(){ location.reload(); }, 700);
+  }else{
+    saveSettings();                                   // 決まった画質を控える（次からは仮の推定をしない）
+    Store.set('ward7.bench', JSON.stringify({ done:1, q:q, ms:+med.toFixed(1) }));
+  }
+}

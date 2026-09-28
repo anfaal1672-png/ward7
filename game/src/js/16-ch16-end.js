@@ -105,7 +105,7 @@ function doDeath(){
           ['被弾', (player.hits||0) + ' 回'],
           ['難易度', DIFF[settings.diff].key],
           ['これまで', recLine(settings.diff)]
-        ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
+        ]) + (cheatUsed ? '<div class="warnline">アシスト使用のため記録に残していない</div>' : '');
         showPanel('dead');
       }, hold);
     }
@@ -182,7 +182,7 @@ function doWin(){
         ['残ランプ', Math.round(player.battery) + '%'],
         ['難易度', DIFF[settings.diff].key],
         ['これまで', recLine(settings.diff)]
-      ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
+      ]) + (cheatUsed ? '<div class="warnline">アシスト使用のため記録に残していない</div>' : '');
     showPanel('win');
   }
   if(playAs === 'hunter' || !world.exit){

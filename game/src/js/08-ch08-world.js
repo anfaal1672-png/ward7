@@ -2625,7 +2625,7 @@ function buildWorld(){
   for(var dk=0; dk<7; dk++){
     var dspot = wallCellNear();
     if(!dspot) break;
-    var dw = cellToWorld(dspot.cell.x, dspot.cell.y);
+    var dkw = cellToWorld(dspot.cell.x, dspot.cell.y);
     var dgrp = new THREE.Group();
     var top = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.07, 0.68), deskTop);
     top.position.y = 0.74; dgrp.add(top);
@@ -2659,7 +2659,7 @@ function buildWorld(){
       stack.rotation.y = rnd()*0.6 - 0.3;
       dgrp.add(stack);
     }
-    dgrp.position.set(dw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dw.z + dspot.dir[1]*(CELL/2 - 0.5));
+    dgrp.position.set(dkw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dkw.z + dspot.dir[1]*(CELL/2 - 0.5));
     dgrp.rotation.y = Math.atan2(-dspot.dir[0], -dspot.dir[1]);
     dgrp.userData.bake = true;
     world.group.add(dgrp);
@@ -2667,7 +2667,7 @@ function buildWorld(){
     world.hides.push({
       type:'desk', group:dgrp,
       x:dgrp.position.x, z:dgrp.position.z,
-      exitX:dw.x, exitZ:dw.z,
+      exitX:dkw.x, exitZ:dkw.z,
       reach:2.00, outDist:1.35,
       camY:0.38, yaw:dgrp.rotation.y + Math.PI, span:Math.PI
     });
@@ -2889,7 +2889,7 @@ function buildWorld(){
 
   // 車椅子：壁を向いて置かれている
   var wcN = Math.max(1, Math.round(QC.props / 16));
-  for(var wc2=0; wc2<wcN; wc2++){
+  for(var wcI=0; wcI<wcN; wcI++){
     var wsp = wallCellNear();
     if(!wsp) break;
     var ww = cellToWorld(wsp.cell.x, wsp.cell.y);
@@ -3003,9 +3003,9 @@ function buildWorld(){
      浮いて見えていた。真上から見た遮蔽を 1 枚の板で置く。
      全部まとめて 1 つのメッシュにするのでドローコールは 1 つ。 */
   if(TEX.shadow && world.props.length){
-    var bp = [], bu = [], bi = [], bn = 0;
-    for(var bs=0; bs<world.props.length; bs++){
-      var op2 = world.props[bs];
+    var bp = [], bu = [], bix = [], bn = 0;
+    for(var bsI=0; bsI<world.props.length; bsI++){
+      var op2 = world.props[bsI];
       // 背の高い物ほど影を広く薄く。実際の面光源の下ではそうなる
       var br = op2.r * (1.5 + Math.min(op2.h, 2.1)*0.22);
       var b0 = bn*4;
@@ -3014,13 +3014,13 @@ function buildWorld(){
         bp.push(op2.x + bq[bk][0]*br, 0.018, op2.z + bq[bk][1]*br);
         bu.push((bq[bk][0]+1)*0.5, (bq[bk][1]+1)*0.5);
       }
-      bi.push(b0, b0+2, b0+1, b0, b0+3, b0+2);
+      bix.push(b0, b0+2, b0+1, b0, b0+3, b0+2);
       bn++;
     }
     var bg2 = new THREE.BufferGeometry();
     bg2.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
     bg2.setAttribute('uv',       new THREE.Float32BufferAttribute(bu, 2));
-    bg2.setIndex(bi);
+    bg2.setIndex(bix);
     bg2.computeVertexNormals(); fixNormals(bg2);
     /* 乗算合成にすると、透明な縁まで黒を掛けてしまって板の四角が出る
        （TEX.shadow は「黒の不透明度」で描いてあるので、色ではなく
@@ -3035,7 +3035,7 @@ function buildWorld(){
   }
 
   // 章ごとの「顔」になる部屋（第 6.1 節）。中央の大広間を作り込む。経路の格子より先に置く
-  heroRoom(g, bigHall);
+  heroRooms(g, bigHall, startC);
 
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
@@ -3407,6 +3407,33 @@ var HERO = {
   6:{ sign:'ボイラー室',         kit:['boiler','pipe','pipe','cabinet','debris'] },
   7:{ sign:'受付',               kit:['counter','counter','charts','bench','bench','clock'] }
 };
+/* 章ごとの小部屋（第 6.1 節「各章 3〜5 部屋」・第 6.3 節「部屋ごとに物語の小道具を 1 つ」）。
+   大広間とは別に、掘った部屋のうち大きい順に 3 つを作り込む。最後の 1 品が物語の小道具
+   （患者の私物・落書き・止まった時計など）。落書きは '#' の後ろが壁に書かれる文 */
+var HERO_ROOMS = {
+  1:[ { sign:'処置室', kit:['bed','ivstand','cabinet','sink'] },
+      { sign:'病室　三号', kit:['bed','bed','curtain','toys'] },
+      { sign:'倉庫', kit:['shelf','shelf','debris','wheelchair'] } ],
+  2:[ { sign:'隔離室', kit:['bed','ivstand','graffiti#ここから出して'] },
+      { sign:'看護記録室', kit:['desk','shelf','charts','clock'] },
+      { sign:'洗面所', kit:['sink','sink','sink','toys'] } ],
+  3:[ { sign:'事務室', kit:['desk','desk','cabinet','shelf'] },
+      { sign:'機械室', kit:['cabinet','pipe','cable','graffiti#電源を戻すな'] },
+      { sign:'当直室', kit:['bed','bench','clock'] } ],
+  4:[ { sign:'踊り場', kit:['rail','debris','wheelchair'] },
+      { sign:'資材置き場', kit:['shelf','debris','debris','cabinet'] },
+      { sign:'非常階段前', kit:['rail','bench','graffiti#上へ行くな'] } ],
+  5:[ { sign:'閲覧室', kit:['desk','bench','shelf','clock'] },
+      { sign:'書庫', kit:['shelf','shelf','shelf','shelf'] },
+      { sign:'鏡の病室', kit:['bed','sink','portrait'] } ],
+  6:[ { sign:'霊安室', kit:['bed','bed','cabinet','toys'] },
+      { sign:'ポンプ室', kit:['pipe','pipe','cabinet','debris'] },
+      { sign:'図面室', kit:['desk','charts','graffiti#図面に無い線'] } ],
+  7:[ { sign:'病室　七号', kit:['bed','curtain','toys','clock'] },
+      { sign:'処置室', kit:['bed','ivstand','sink'] },
+      { sign:'詰所', kit:['counter','charts','graffiti#出口は ここ'] } ]
+};
+HERO_ROOMS[0] = HERO_ROOMS[1];
 HERO[0] = HERO[1];                                         // 夜勤はナースステーション
 function heroPiece(kind){
   var P = [], r = 0.6, h = 1.0, len = 2.2;
@@ -3453,6 +3480,23 @@ function heroPiece(kind){
   else if(kind === 'charts'){ len = 1.0; h = 1.3; r = 0.5;
     P.push({ w:0.8, h:1.0, d:0.5, y:0.5, c:C.green });
     for(var k3=0; k3<6; k3++) P.push({ w:0.34, h:0.03, d:0.26, x:(k3%2)*0.02, y:1.02 + k3*0.035, ry:(k3*0.07), c:C.paper }); }
+  else if(kind === 'wheelchair'){ len = 1.0; h = 1.0; r = 0.5;
+    P.push({ w:0.5, h:0.06, d:0.46, y:0.5, c:C.dark }, { w:0.5, h:0.5, d:0.05, y:0.78, z:-0.22, rx:-0.12, c:C.dark },
+           { type:'cyl', r:0.3, h:0.04, ax:'x', x:-0.3, y:0.3, seg:14, c:C.steel },
+           { type:'cyl', r:0.3, h:0.04, ax:'x', x:0.3, y:0.3, seg:14, c:C.steel },
+           { w:0.04, h:0.3, d:0.04, x:-0.2, y:0.15, z:0.26, c:C.steel }, { w:0.04, h:0.3, d:0.04, x:0.2, y:0.15, z:0.26, c:C.steel }); }
+  else if(kind === 'ivstand'){ len = 0.6; h = 1.9; r = 0.25;
+    P.push({ type:'cyl', r:0.018, h:1.9, y:0.95, c:C.steel }, { w:0.5, h:0.03, d:0.06, y:0.03, c:C.steel },
+           { w:0.06, h:0.03, d:0.5, y:0.03, c:C.steel }, { w:0.3, h:0.02, d:0.02, y:1.88, c:C.steel },
+           { w:0.14, h:0.22, d:0.05, x:0.12, y:1.7, c:0xd8dccf }); }
+  else if(kind === 'toys'){ len = 0.8; h = 0.5; r = 0.35;            // 患者の私物：箱と人形と履物
+    P.push({ w:0.5, h:0.3, d:0.36, y:0.15, c:C.cream }, { w:0.52, h:0.02, d:0.38, y:0.31, ry:0.12, c:0x8c7d5c },
+           { w:0.12, h:0.16, d:0.08, x:0.34, y:0.08, c:0x8c3a3a }, { type:'cyl', r:0.06, h:0.1, x:0.34, y:0.21, seg:10, c:0xe0c9a8 },
+           { w:0.1, h:0.05, d:0.24, x:-0.34, y:0.03, ry:0.3, c:C.dark }, { w:0.1, h:0.05, d:0.24, x:-0.2, y:0.03, ry:0.1, c:C.dark }); }
+  else if(kind === 'sink'){ len = 1.0; h = 1.0; r = 0.4;
+    P.push({ w:0.62, h:0.2, d:0.46, y:0.82, c:0xd8d6cc }, { w:0.52, h:0.02, d:0.36, y:0.93, c:0x9ea39a },
+           { type:'cyl', r:0.05, h:0.8, y:0.4, c:C.steel }, { w:0.04, h:0.2, d:0.04, y:1.02, z:-0.18, c:C.steel },
+           { w:0.5, h:0.6, d:0.02, y:1.5, z:-0.22, c:0x3a4442 }); }
   else if(kind === 'bench'){ len = 1.8; h = 0.45; r = 0.8;
     P.push({ w:1.8, h:0.06, d:0.45, y:0.45, c:C.wood }, { w:0.06, h:0.45, d:0.4, x:-0.8, y:0.22, c:C.steel },
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
@@ -3467,12 +3511,36 @@ function heroSign(text){
   x.fillStyle = '#cfc9b4'; x.fillRect(8,8,496,112);
   x.fillStyle = 'rgba(92,74,52,0.25)'; x.fillRect(8,96,496,24);          // 下の方ほど汚れている
   x.fillStyle = '#1d2a26'; x.font = 'bold 54px ' + getComputedStyle(document.body).fontFamily;
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 256, 62);
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(trText(text), 256, 62, 480);
   var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   heroSignTex[text] = t; return t;
 }
-function heroRoom(g, hall){
-  var def = HERO[runDef().n]; if(!def || !hall) return;
+/* 壁の落書き。赤錆色で、字の線を少しずつ揺らして手で書いたように見せる。
+   地の色は透明（壁の汚れの上に字だけが乗る） */
+function graffitiMesh(text){
+  var c = makeCanvas(512); c.height = 256;
+  var x = c.getContext('2d'); x.clearRect(0, 0, 512, 256);
+  var str = trText(text), fs = str.length > 10 ? 44 : 64;
+  x.font = 'bold ' + fs + 'px ' + getComputedStyle(document.body).fontFamily;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  for(var k=0; k<3; k++){                             // 3 回重ね書きしてかすれを作る
+    x.fillStyle = ['rgba(62,10,8,0.9)', 'rgba(40,6,6,0.6)', 'rgba(90,16,12,0.4)'][k];
+    x.save(); x.translate(256 + (k-1)*1.5, 128 + (k-1)); x.rotate(-0.04 + k*0.02);
+    x.fillText(str, 0, 0, 490); x.restore();
+  }
+  for(var d=0; d<40; d++){                            // 垂れ
+    var dx = 40 + Math.random()*432, dl = 10 + Math.random()*40;
+    x.fillStyle = 'rgba(55,10,8,' + (0.3 + Math.random()*0.4) + ')';
+    x.fillRect(dx, 150, 2, dl);
+  }
+  var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.1),
+    new THREE.MeshStandardMaterial({ map:t, color:0x7a7a7a, transparent:true, roughness:0.9, depthWrite:false }));
+  m.renderOrder = 3;
+  return m;
+}
+function heroRoom(g, hall, def){
+  if(!def || !hall) return 0;
   if(!heroMat) heroMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.8, metalness:0.1,
                                                          map:TEX.grunge || null });
   var x0 = cellToWorld(hall.x, hall.y).x - CELL/2, z0 = cellToWorld(hall.x, hall.y).z - CELL/2;
@@ -3497,15 +3565,28 @@ function heroRoom(g, hall){
     return inBounds(ox, oy) && g[idx(ox, oy)] === 0;
   }
   while(kit.length && si < 4 && guard-- > 0){
-    var S = sides[si], kind = kit[0], pc = heroPiece(kind);
+    var S = sides[si], kind = kit[0];
+    var gText = kind.indexOf('graffiti#') === 0 ? kind.slice(9) : null;
+    if(gText) kind = 'graffiti';
+    var pc = gText ? { parts:null, len:2.4, h:1.1, r:0 } : heroPiece(kind);
     var span = Math.abs(S.to - S.from), dir = S.to > S.from ? 1 : -1;
     if(cursor + pc.len + 0.6 > span){ si++; cursor = 0.8; continue; }
     var t = S.from + dir*(cursor + pc.len/2);
-    var depth = kind === 'clock' || kind === 'portrait' ? 0.06 : (kind === 'boiler' ? 1.4 : (kind === 'bed' ? 1.1 : 0.45));
+    var depth = kind === 'graffiti' ? 0.035 : (kind === 'clock' || kind === 'portrait' ? 0.06 :
+                (kind === 'boiler' ? 1.4 : (kind === 'bed' ? 1.1 : (kind === 'sink' ? 0.25 : 0.45))));
     var px = S.ax === 'x' ? t : S.fix + S.n[0]*depth, pz = S.ax === 'x' ? S.fix + S.n[1]*depth : t;
     var tA = S.from + dir*cursor, tB = S.from + dir*(cursor + pc.len);
     if(openingAt(S, tA) || openingAt(S, t) || openingAt(S, tB) || (pc.r > 0.2 && blockedAt(px, pz, pc.r))){
       cursor += 1.0; continue;                 // ずらして次を試す
+    }
+    if(gText){
+      var gm = graffitiMesh(gText);
+      gm.position.set(px, 1.55, pz);
+      gm.rotation.y = Math.atan2(S.n[0], S.n[1]);
+      world.group.add(gm);
+      world.graffiti.push({ x:px, z:pz, nx:S.n[0], nz:S.n[1], text:gText });
+      kit.shift(); cursor += pc.len + 0.5; placed++;
+      continue;
     }
     var m = new THREE.Mesh(mergeTinted(pc.parts), heroMat);
     m.position.set(px, 0, pz);
@@ -3525,9 +3606,28 @@ function heroRoom(g, hall){
     var sx = x0 + W*(0.3 + k*0.08);
     if(openingAt(sides[0], sx)) continue;
     var sg = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), new THREE.MeshStandardMaterial({ map:heroSign(def.sign), roughness:0.7 }));
+    if(W < 16){ sg.scale.setScalar(0.8); }                          // 小部屋は名札も一回り小さく
     sg.position.set(sx, 2.55, z0 + 0.03);
     world.group.add(sg);
     break;
   }
-  world.hero = { name:def.sign, pieces:placed };
+  return placed;
+}
+/* 大広間と、掘った部屋のうち大きい順に 3 つ。大広間のすぐ隣や出発点の部屋は避ける */
+function heroRooms(g, bigHall, startC){
+  var n = runDef().n, def = HERO[n];
+  world.graffiti = [];
+  var placed = heroRoom(g, bigHall, def);
+  world.hero = { name:def ? def.sign : '', pieces:placed };
+  world.heroes = [{ name:world.hero.name, pieces:placed, x:bigHall.cx, y:bigHall.cy }];
+  var subs = HERO_ROOMS[n] || [];
+  var cand = world.rooms.filter(function(r){
+    if(r === bigHall) return false;
+    if(startC && startC.x >= r.x - 1 && startC.x <= r.x + r.w && startC.y >= r.y - 1 && startC.y <= r.y + r.h) return false;
+    return true;
+  }).sort(function(a, b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
+  for(var i=0; i<subs.length && i<cand.length; i++){
+    var p = heroRoom(g, cand[i], subs[i]);
+    world.heroes.push({ name:subs[i].sign, pieces:p, x:cand[i].cx, y:cand[i].cy });
+  }
 }

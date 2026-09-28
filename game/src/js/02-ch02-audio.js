@@ -70,8 +70,11 @@ var Audio2 = (function(){
   }
   function resume(){
     if(!ready) return;
-    if(ctx.state === 'suspended'){ ctx.resume().catch(function(){}); }
+    /* iOS の Safari は着信・Siri・他のアプリの音で 'interrupted' という独自の状態にする。
+       'suspended' だけを見ていると、電話の後に音が戻らなかった（設計指示書 第 1.2 節） */
+    if(ctx.state !== 'running' && ctx.state !== 'closed'){ ctx.resume().catch(function(){}); }
   }
+  function audioState(){ return ready ? ctx.state : 'none'; }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
   function setVol(v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
@@ -812,7 +815,7 @@ var Audio2 = (function(){
     }, 700);
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
-           init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           init:init, resume:resume, suspend:suspend, state:audioState, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,

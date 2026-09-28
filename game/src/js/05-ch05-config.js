@@ -34,11 +34,11 @@ var CHAPTERS = [
     intro:'天井裏を何かが這っている。音のした方へ、上から先回りしてくる。' },
   { n:5, name:'記録庫', seed:0x57A05, patients:[0,0,1], blackout:false, reflect:true,
     intro:'灯りの外でだけ近づいてくるものがいる。照らせば止まり、照らし続ければ消える。' },
-  { n:6, name:'地下', seed:0x57A06, patients:[1,1,2], blackout:false, water:true,
+  { n:6, name:'地下', seed:0x57A06, patients:[0,0,2], blackout:false, water:true,
     intro:'地下は膝まで水が溜まっている。水の中では自分の足音が響き、あれの足音は水音に紛れる。' },
   /* 終章。第1章と同じ種＝同じ間取り。最初に歩いた病棟へ戻ってくる
      （最後のカルテ「出口の場所が思い出せない」に、歩いた記憶で答える章） */
-  { n:7, name:'第七病棟', seed:0x57A01, patients:[2,3,3], blackout:false, vents:4, reflect:true,
+  { n:7, name:'第七病棟', seed:0x57A01, patients:[2,2,3], blackout:false, vents:3, reflect:true,
     intro:'最初の病棟に戻ってきた。出口の場所を思い出す。ここを抜けたところで、すべてが終わる。' }
 ];
 /* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
@@ -159,6 +159,20 @@ function saveSettings(){
   Store.set('ward7.settings', JSON.stringify(settings));
 }
 
+/* 初回起動の画質の決め方（設計指示書 第 8.4 節）。
+   deviceMemory・hardwareConcurrency は iOS では返らない・丸められるので当てにならない。
+   まずそれで仮に決め、タイトルの情景を 5 秒描いて実測し（BENCH）、重ければ 1 段下げ、
+   十分に軽ければ 1 段上げて読み込み直す。読み込み直しは 2 回まで。自動操作
+   （テスト・ボット）では測らない。設定で画質を選んだら、以後は自動で変えない */
+var BENCH = { on:false, t:0, dts:[], round:0, up:false };
+(function(){
+  var b = null;
+  try{ b = JSON.parse(Store.get('ward7.bench') || 'null'); }catch(e){}
+  var fresh = !Store.get('ward7.settings');
+  if(!navigator.webdriver && ((fresh && !b) || (b && !b.done))){
+    BENCH.on = true; BENCH.round = b ? (b.round|0) : 0; BENCH.up = !!(b && b.up);
+  }
+})();
 // 端末性能から初期品質を推定（保存値がなければ）
 (function(){
   try{ if(Store.get('ward7.settings')) return; }catch(e){}

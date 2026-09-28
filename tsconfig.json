@@ -1,0 +1,11 @@
+{
+  // 設計指示書 第 15.2 節 手順 2「型を付ける（any から始め、章ごとに締める）」。
+  // 組み立てた後のスクリプトを JS のまま型で検める（出力はしない）。
+  "compilerOptions": {
+    "allowJs": true, "checkJs": true, "noEmit": true,
+    "target": "es2020", "lib": ["es2020", "dom", "dom.iterable"],
+    "strict": false, "noImplicitAny": false,
+    "skipLibCheck": true, "types": []
+  },
+  "files": [".check/ward7.js", "types/globals.d.ts"]
+}

@@ -21,6 +21,8 @@ jobs:
         run: npm run check
       - name: 静的な検め（未定義の名前など。設計指示書 第 15.2 節）
         run: mkdir -p .check && npm run lint
+      - name: 型の検め（TypeScript。any から始めて章ごとに締める。設計指示書 第 15.2 節 手順 2）
+        run: mkdir -p .check && npm run typecheck
 
   # 実ブラウザ（Chromium + SwiftShader）での自己診断と、遊びの確認。
   # ハーネス（jsdom）はシェーダを通さないので、ここでしか見えない壊れ方がある（.tools/README）。
@@ -39,7 +41,7 @@ jobs:
         run: node .tools/stq.js "$PWD/ward7.html"
       - name: 章・物語・捕獲・投擲・保存・パッド・英語
         run: |
-          for t in chapter-check story-check capture-check throw-check door-check store-check pad-check padmenu-check drs-check hrtf-check tele-check; do
+          for t in chapter-check story-check capture-check throw-check door-check look-check bench-check store-check pad-check padmenu-check drs-check hrtf-check tele-check; do
             echo "== $t"; node .tools/$t.js "$PWD/ward7.html"
           done
           node .tools/lang-check.js "$PWD/ward7.html" | tee /tmp/lang.txt

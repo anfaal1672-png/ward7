@@ -123,8 +123,8 @@
          どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->
     <div class="subgrid">
       <button class="btn ghost" id="btnOpt" type="button">設定</button>
-      <button class="btn ghost" id="btnCheat" type="button">チート</button>
-      <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
+      <button class="btn ghost" id="btnCheat" type="button">アシスト</button>
+      <button class="btn ghost" id="btnBot" type="button" hidden>AIにプレイさせる</button>
       <button class="btn ghost" id="btnJournal" type="button">手帳</button>
       <button class="btn ghost" id="btnCredits" type="button">クレジット</button>
       <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
@@ -294,11 +294,11 @@
 
 <!-- cheats -->
 <div class="panel scrollable" id="cheat" hidden>
-  <div class="eyebrow">Debug tools</div>
-  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">チート</h1>
+  <div class="eyebrow">Assist</div>
+  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">アシスト</h1>
   <div class="rule"></div>
   <div id="cheatList"></div>
-  <p class="warn">有効にすると記録に「チート使用」と残ります。<br>効果はすぐ反映され、次回起動時も保持されます。</p>
+  <p class="warn">有効にすると記録に「アシスト使用」と残ります。<br>効果はすぐ反映され、次回起動時も保持されます。</p>
   <div class="rule"></div>
   <div id="cheatActs" style="width:min(420px,86vw)"></div>
   <button class="btn" id="btnCheatBack" type="button" style="margin-top:22px">戻る</button>
@@ -315,7 +315,7 @@
   <div class="rule"></div>
   <button class="btn primary" id="btnResume" type="button">続ける</button>
   <button class="btn ghost" id="btnPauseJournal" type="button">手帳</button>
-  <button class="btn ghost" id="btnPauseCheat" type="button">チート</button>
+  <button class="btn ghost" id="btnPauseCheat" type="button">アシスト</button>
   <button class="btn ghost" id="btnQuit" type="button">病棟から出る（タイトルへ）</button>
 </div>
 

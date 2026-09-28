@@ -549,8 +549,8 @@
          どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->
     <div class="subgrid">
       <button class="btn ghost" id="btnOpt" type="button">設定</button>
-      <button class="btn ghost" id="btnCheat" type="button">チート</button>
-      <button class="btn ghost" id="btnBot" type="button">AIにプレイさせる</button>
+      <button class="btn ghost" id="btnCheat" type="button">アシスト</button>
+      <button class="btn ghost" id="btnBot" type="button" hidden>AIにプレイさせる</button>
       <button class="btn ghost" id="btnJournal" type="button">手帳</button>
       <button class="btn ghost" id="btnCredits" type="button">クレジット</button>
       <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
@@ -720,11 +720,11 @@
 
 <!-- cheats -->
 <div class="panel scrollable" id="cheat" hidden>
-  <div class="eyebrow">Debug tools</div>
-  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">チート</h1>
+  <div class="eyebrow">Assist</div>
+  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">アシスト</h1>
   <div class="rule"></div>
   <div id="cheatList"></div>
-  <p class="warn">有効にすると記録に「チート使用」と残ります。<br>効果はすぐ反映され、次回起動時も保持されます。</p>
+  <p class="warn">有効にすると記録に「アシスト使用」と残ります。<br>効果はすぐ反映され、次回起動時も保持されます。</p>
   <div class="rule"></div>
   <div id="cheatActs" style="width:min(420px,86vw)"></div>
   <button class="btn" id="btnCheatBack" type="button" style="margin-top:22px">戻る</button>
@@ -741,7 +741,7 @@
   <div class="rule"></div>
   <button class="btn primary" id="btnResume" type="button">続ける</button>
   <button class="btn ghost" id="btnPauseJournal" type="button">手帳</button>
-  <button class="btn ghost" id="btnPauseCheat" type="button">チート</button>
+  <button class="btn ghost" id="btnPauseCheat" type="button">アシスト</button>
   <button class="btn ghost" id="btnQuit" type="button">病棟から出る（タイトルへ）</button>
 </div>
 
@@ -805,6 +805,8 @@
 /* =========================================================================
    0. ブート／致命エラー処理
    ========================================================================= */
+/** 型の検め（tsconfig.json）では要素の種類を問わない。値・描画面などを直接触るので */
+/** @type {(id: string) => any} */
 var $ = function(id){ return document.getElementById(id); };
 var bootedOK = false;
 
@@ -988,6 +990,18 @@ function mulberry32(a){
   };
 }
 var rnd = mulberry32(Date.now() & 0x7fffffff);
+/* 乱数の流れを用途で分ける（設計指示書 第 15.3 節）。
+   rnd   … 生成（テクスチャ・間取り・置き物・カルテの順）
+   rndAI … 遊びの判断（追跡者の巡回先・回り込みの向き）
+   rndFx … 見た目と音だけ（痙攣・視線・目の明滅・環境音）
+   ひとつの流れを皆で引いていると、見た目の揺れを 1 回足しただけで追跡者の巡回先が
+   変わり、ボットの測定が「同じ種・同じ遊び」で比べられなくなる。
+   3 本とも病棟に入るときに種から作り直す（startGame） */
+var rndAI = mulberry32(0x5eed ^ 0xA1), rndFx = mulberry32(0x5eed ^ 0xF3);
+function seedStreams(seed){
+  rndAI = mulberry32(((seed ^ 0x2545F491) >>> 0) || 1);
+  rndFx = mulberry32(((seed ^ 0x9E3779B9) >>> 0) || 1);
+}
 
 var IS_TOUCH = (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
 if(!IS_TOUCH) document.body.classList.add('notouch');
@@ -1022,7 +1036,7 @@ var EN = {
   '患者':'Patient', 'あなた':'You', '所持品':'Carrying', '手回し式ランプ 1':'1 hand-crank lamp',
   '逃げ場':'Refuge', 'ロッカー・ベッドの下':'Lockers · under beds', '目的':'Objective',
   '警告':'Warning', '病棟内に別の何かがいる':'Something else is in the ward', '記録':'Record',
-  '記録なし':'No record', '病棟に入る':'Enter the ward', '設定':'Settings', 'チート':'Cheats',
+  '記録なし':'No record', '病棟に入る':'Enter the ward', '設定':'Settings', 'チート':'Cheats', 'アシスト':'Assist',
   'AIにプレイさせる':'Let the AI play', '手帳':'Notebook', '追う側で遊ぶ':'Play as the hunter',
   '音量を上げるとよく聞こえます。ヘッドホン推奨。':'Turn the volume up. Headphones recommended.',
   '静穏':'Calm', '通常':'Normal', '絶望':'Despair',
@@ -1070,14 +1084,14 @@ var EN = {
   '音の反響と空気が出る':'Adds echo and air',
   'テクスチャ 1024 · 什器 70 · ':'Textures 1024 · props 70 · ', '影 · 光の滲み · 追加の造形':'shadows · bloom · extra detail',
   '新しい端末向け':'For recent devices',
-  '有効にすると記録に「チート使用」と残ります。':'Records will be marked as “cheats used”.',
+  '有効にすると記録に「チート使用」と残ります。':'Records will be marked as “cheats used”.', '有効にすると記録に「アシスト使用」と残ります。':'Records will be marked as “assist used”.',
   '効果はすぐ反映され、次回起動時も保持されます。':'Takes effect immediately and is kept next time.',
   // --- 一時停止・結果 ---
   '一時停止':'Paused', '続ける':'Resume', '病棟から出る（タイトルへ）':'Leave the ward (title)',
   '死亡確認':'Deceased', 'タイトルへ':'Title', 'もう一度':'Again', '脱出':'Escaped', '退院':'Discharged',
   '経過時間':'Time', '鍵':'Key', '所持':'held', '未所持':'not held', '被弾':'Caught', '難易度':'Difficulty',
   '脱出タイム':'Escape time', '残ランプ':'Lamp left', 'これまで':'So far', '回収したカルテ':'Records recovered',
-  'チート使用のため記録に残していない':'Not recorded: cheats were used', '逃げられた':'It got away',
+  'チート使用のため記録に残していない':'Not recorded: cheats were used', 'アシスト使用のため記録に残していない':'Not recorded: assist was used', '逃げられた':'It got away',
   '捕らえた':'Caught', '奪われたカルテ':'Records taken',
   // --- 手帳 ---
   '所見 — 夜勤の看護記録':'Observations — night-shift nursing notes',
@@ -1218,7 +1232,7 @@ var EN = {
   '鍵を手に入れた':'Got the key', '施錠扉を開けた':'Opened the locked door', '開ける扉がない':'No door to open',
   '追跡者を止めた':'Hunter stopped', '電池を全部集めた':'Collected all batteries', '地図を全部知った':'Map revealed',
   '脱出した':'Escaped', '力尽きた':'Died', '全回復した':'Fully restored', '非常口へ移動した':'Moved to the exit',
-  '追跡者を引き離した':'Hunter pushed away', '適用中…':'Applying…',
+  '追跡者を引き離した':'Hunter pushed away', '適用中…':'Applying…', 'この端末に合わせて画質を調整しています…':'Tuning graphics for this device…',
   // --- 操作説明（一時停止）。<br> で行が分かれて届くので行ごとに ---
   '左半分でドラッグ＝移動（大きく倒すと走る）':'Drag the left half = move (push far to run)',
   '右半分でドラッグ＝視点　LAMP＝ランプ　拾う＝回収':'Drag the right half = look · LAMP = lamp · Take = pick up',
@@ -1381,8 +1395,11 @@ var Audio2 = (function(){
   }
   function resume(){
     if(!ready) return;
-    if(ctx.state === 'suspended'){ ctx.resume().catch(function(){}); }
+    /* iOS の Safari は着信・Siri・他のアプリの音で 'interrupted' という独自の状態にする。
+       'suspended' だけを見ていると、電話の後に音が戻らなかった（設計指示書 第 1.2 節） */
+    if(ctx.state !== 'running' && ctx.state !== 'closed'){ ctx.resume().catch(function(){}); }
   }
+  function audioState(){ return ready ? ctx.state : 'none'; }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
   function setVol(v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
@@ -2123,7 +2140,7 @@ var Audio2 = (function(){
     }, 700);
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
-           init:init, resume:resume, suspend:suspend, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           init:init, resume:resume, suspend:suspend, state:audioState, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
@@ -2320,6 +2337,7 @@ function texFlesh(size){
      見える。画面上の差が 170 階調に対して 10 階調しかなければ当然で、
      「テクスチャは貼ってあるのに肌に見えない」状態だった。
      大きな斑・中くらいの斑・鬱血、と 3 段階に分けて濃さも上げる。 */
+  /** @type {Array<Array<any>>} */
   var blobs = [
     // 半径の範囲, 個数, 色, 濃さの範囲
     [0.10, 0.26, 22, '104,110,96',  0.22, 0.34],   // 大きな明暗のうねり（暗い側）
@@ -2333,8 +2351,8 @@ function texFlesh(size){
       var px = rnd()*size, py = rnd()*size;
       var rr = size*(B[0] + rnd()*(B[1]-B[0]));
       var gr = g.createRadialGradient(px,py,0,px,py,rr);
-      var al = (B[4] + rnd()*(B[5]-B[4])).toFixed(3);
-      gr.addColorStop(0, 'rgba('+B[3]+','+al+')');
+      var al = B[4] + rnd()*(B[5]-B[4]);
+      gr.addColorStop(0, 'rgba('+B[3]+','+al.toFixed(3)+')');
       gr.addColorStop(0.55, 'rgba('+B[3]+','+(al*0.45).toFixed(3)+')');
       gr.addColorStop(1, 'rgba('+B[3]+',0)');
       g.fillStyle = gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();
@@ -3197,11 +3215,11 @@ var CHAPTERS = [
     intro:'天井裏を何かが這っている。音のした方へ、上から先回りしてくる。' },
   { n:5, name:'記録庫', seed:0x57A05, patients:[0,0,1], blackout:false, reflect:true,
     intro:'灯りの外でだけ近づいてくるものがいる。照らせば止まり、照らし続ければ消える。' },
-  { n:6, name:'地下', seed:0x57A06, patients:[1,1,2], blackout:false, water:true,
+  { n:6, name:'地下', seed:0x57A06, patients:[0,0,2], blackout:false, water:true,
     intro:'地下は膝まで水が溜まっている。水の中では自分の足音が響き、あれの足音は水音に紛れる。' },
   /* 終章。第1章と同じ種＝同じ間取り。最初に歩いた病棟へ戻ってくる
      （最後のカルテ「出口の場所が思い出せない」に、歩いた記憶で答える章） */
-  { n:7, name:'第七病棟', seed:0x57A01, patients:[2,3,3], blackout:false, vents:4, reflect:true,
+  { n:7, name:'第七病棟', seed:0x57A01, patients:[2,2,3], blackout:false, vents:3, reflect:true,
     intro:'最初の病棟に戻ってきた。出口の場所を思い出す。ここを抜けたところで、すべてが終わる。' }
 ];
 /* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
@@ -3322,6 +3340,20 @@ function saveSettings(){
   Store.set('ward7.settings', JSON.stringify(settings));
 }
 
+/* 初回起動の画質の決め方（設計指示書 第 8.4 節）。
+   deviceMemory・hardwareConcurrency は iOS では返らない・丸められるので当てにならない。
+   まずそれで仮に決め、タイトルの情景を 5 秒描いて実測し（BENCH）、重ければ 1 段下げ、
+   十分に軽ければ 1 段上げて読み込み直す。読み込み直しは 2 回まで。自動操作
+   （テスト・ボット）では測らない。設定で画質を選んだら、以後は自動で変えない */
+var BENCH = { on:false, t:0, dts:[], round:0, up:false };
+(function(){
+  var b = null;
+  try{ b = JSON.parse(Store.get('ward7.bench') || 'null'); }catch(e){}
+  var fresh = !Store.get('ward7.settings');
+  if(!navigator.webdriver && ((fresh && !b) || (b && !b.done))){
+    BENCH.on = true; BENCH.round = b ? (b.round|0) : 0; BENCH.up = !!(b && b.up);
+  }
+})();
 // 端末性能から初期品質を推定（保存値がなければ）
 (function(){
   try{ if(Store.get('ward7.settings')) return; }catch(e){}
@@ -6489,7 +6521,7 @@ function buildWorld(){
   for(var dk=0; dk<7; dk++){
     var dspot = wallCellNear();
     if(!dspot) break;
-    var dw = cellToWorld(dspot.cell.x, dspot.cell.y);
+    var dkw = cellToWorld(dspot.cell.x, dspot.cell.y);
     var dgrp = new THREE.Group();
     var top = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.07, 0.68), deskTop);
     top.position.y = 0.74; dgrp.add(top);
@@ -6523,7 +6555,7 @@ function buildWorld(){
       stack.rotation.y = rnd()*0.6 - 0.3;
       dgrp.add(stack);
     }
-    dgrp.position.set(dw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dw.z + dspot.dir[1]*(CELL/2 - 0.5));
+    dgrp.position.set(dkw.x + dspot.dir[0]*(CELL/2 - 0.5), 0, dkw.z + dspot.dir[1]*(CELL/2 - 0.5));
     dgrp.rotation.y = Math.atan2(-dspot.dir[0], -dspot.dir[1]);
     dgrp.userData.bake = true;
     world.group.add(dgrp);
@@ -6531,7 +6563,7 @@ function buildWorld(){
     world.hides.push({
       type:'desk', group:dgrp,
       x:dgrp.position.x, z:dgrp.position.z,
-      exitX:dw.x, exitZ:dw.z,
+      exitX:dkw.x, exitZ:dkw.z,
       reach:2.00, outDist:1.35,
       camY:0.38, yaw:dgrp.rotation.y + Math.PI, span:Math.PI
     });
@@ -6753,7 +6785,7 @@ function buildWorld(){
 
   // 車椅子：壁を向いて置かれている
   var wcN = Math.max(1, Math.round(QC.props / 16));
-  for(var wc2=0; wc2<wcN; wc2++){
+  for(var wcI=0; wcI<wcN; wcI++){
     var wsp = wallCellNear();
     if(!wsp) break;
     var ww = cellToWorld(wsp.cell.x, wsp.cell.y);
@@ -6867,9 +6899,9 @@ function buildWorld(){
      浮いて見えていた。真上から見た遮蔽を 1 枚の板で置く。
      全部まとめて 1 つのメッシュにするのでドローコールは 1 つ。 */
   if(TEX.shadow && world.props.length){
-    var bp = [], bu = [], bi = [], bn = 0;
-    for(var bs=0; bs<world.props.length; bs++){
-      var op2 = world.props[bs];
+    var bp = [], bu = [], bix = [], bn = 0;
+    for(var bsI=0; bsI<world.props.length; bsI++){
+      var op2 = world.props[bsI];
       // 背の高い物ほど影を広く薄く。実際の面光源の下ではそうなる
       var br = op2.r * (1.5 + Math.min(op2.h, 2.1)*0.22);
       var b0 = bn*4;
@@ -6878,13 +6910,13 @@ function buildWorld(){
         bp.push(op2.x + bq[bk][0]*br, 0.018, op2.z + bq[bk][1]*br);
         bu.push((bq[bk][0]+1)*0.5, (bq[bk][1]+1)*0.5);
       }
-      bi.push(b0, b0+2, b0+1, b0, b0+3, b0+2);
+      bix.push(b0, b0+2, b0+1, b0, b0+3, b0+2);
       bn++;
     }
     var bg2 = new THREE.BufferGeometry();
     bg2.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
     bg2.setAttribute('uv',       new THREE.Float32BufferAttribute(bu, 2));
-    bg2.setIndex(bi);
+    bg2.setIndex(bix);
     bg2.computeVertexNormals(); fixNormals(bg2);
     /* 乗算合成にすると、透明な縁まで黒を掛けてしまって板の四角が出る
        （TEX.shadow は「黒の不透明度」で描いてあるので、色ではなく
@@ -6899,7 +6931,7 @@ function buildWorld(){
   }
 
   // 章ごとの「顔」になる部屋（第 6.1 節）。中央の大広間を作り込む。経路の格子より先に置く
-  heroRoom(g, bigHall);
+  heroRooms(g, bigHall, startC);
 
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
@@ -7271,6 +7303,33 @@ var HERO = {
   6:{ sign:'ボイラー室',         kit:['boiler','pipe','pipe','cabinet','debris'] },
   7:{ sign:'受付',               kit:['counter','counter','charts','bench','bench','clock'] }
 };
+/* 章ごとの小部屋（第 6.1 節「各章 3〜5 部屋」・第 6.3 節「部屋ごとに物語の小道具を 1 つ」）。
+   大広間とは別に、掘った部屋のうち大きい順に 3 つを作り込む。最後の 1 品が物語の小道具
+   （患者の私物・落書き・止まった時計など）。落書きは '#' の後ろが壁に書かれる文 */
+var HERO_ROOMS = {
+  1:[ { sign:'処置室', kit:['bed','ivstand','cabinet','sink'] },
+      { sign:'病室　三号', kit:['bed','bed','curtain','toys'] },
+      { sign:'倉庫', kit:['shelf','shelf','debris','wheelchair'] } ],
+  2:[ { sign:'隔離室', kit:['bed','ivstand','graffiti#ここから出して'] },
+      { sign:'看護記録室', kit:['desk','shelf','charts','clock'] },
+      { sign:'洗面所', kit:['sink','sink','sink','toys'] } ],
+  3:[ { sign:'事務室', kit:['desk','desk','cabinet','shelf'] },
+      { sign:'機械室', kit:['cabinet','pipe','cable','graffiti#電源を戻すな'] },
+      { sign:'当直室', kit:['bed','bench','clock'] } ],
+  4:[ { sign:'踊り場', kit:['rail','debris','wheelchair'] },
+      { sign:'資材置き場', kit:['shelf','debris','debris','cabinet'] },
+      { sign:'非常階段前', kit:['rail','bench','graffiti#上へ行くな'] } ],
+  5:[ { sign:'閲覧室', kit:['desk','bench','shelf','clock'] },
+      { sign:'書庫', kit:['shelf','shelf','shelf','shelf'] },
+      { sign:'鏡の病室', kit:['bed','sink','portrait'] } ],
+  6:[ { sign:'霊安室', kit:['bed','bed','cabinet','toys'] },
+      { sign:'ポンプ室', kit:['pipe','pipe','cabinet','debris'] },
+      { sign:'図面室', kit:['desk','charts','graffiti#図面に無い線'] } ],
+  7:[ { sign:'病室　七号', kit:['bed','curtain','toys','clock'] },
+      { sign:'処置室', kit:['bed','ivstand','sink'] },
+      { sign:'詰所', kit:['counter','charts','graffiti#出口は ここ'] } ]
+};
+HERO_ROOMS[0] = HERO_ROOMS[1];
 HERO[0] = HERO[1];                                         // 夜勤はナースステーション
 function heroPiece(kind){
   var P = [], r = 0.6, h = 1.0, len = 2.2;
@@ -7317,6 +7376,23 @@ function heroPiece(kind){
   else if(kind === 'charts'){ len = 1.0; h = 1.3; r = 0.5;
     P.push({ w:0.8, h:1.0, d:0.5, y:0.5, c:C.green });
     for(var k3=0; k3<6; k3++) P.push({ w:0.34, h:0.03, d:0.26, x:(k3%2)*0.02, y:1.02 + k3*0.035, ry:(k3*0.07), c:C.paper }); }
+  else if(kind === 'wheelchair'){ len = 1.0; h = 1.0; r = 0.5;
+    P.push({ w:0.5, h:0.06, d:0.46, y:0.5, c:C.dark }, { w:0.5, h:0.5, d:0.05, y:0.78, z:-0.22, rx:-0.12, c:C.dark },
+           { type:'cyl', r:0.3, h:0.04, ax:'x', x:-0.3, y:0.3, seg:14, c:C.steel },
+           { type:'cyl', r:0.3, h:0.04, ax:'x', x:0.3, y:0.3, seg:14, c:C.steel },
+           { w:0.04, h:0.3, d:0.04, x:-0.2, y:0.15, z:0.26, c:C.steel }, { w:0.04, h:0.3, d:0.04, x:0.2, y:0.15, z:0.26, c:C.steel }); }
+  else if(kind === 'ivstand'){ len = 0.6; h = 1.9; r = 0.25;
+    P.push({ type:'cyl', r:0.018, h:1.9, y:0.95, c:C.steel }, { w:0.5, h:0.03, d:0.06, y:0.03, c:C.steel },
+           { w:0.06, h:0.03, d:0.5, y:0.03, c:C.steel }, { w:0.3, h:0.02, d:0.02, y:1.88, c:C.steel },
+           { w:0.14, h:0.22, d:0.05, x:0.12, y:1.7, c:0xd8dccf }); }
+  else if(kind === 'toys'){ len = 0.8; h = 0.5; r = 0.35;            // 患者の私物：箱と人形と履物
+    P.push({ w:0.5, h:0.3, d:0.36, y:0.15, c:C.cream }, { w:0.52, h:0.02, d:0.38, y:0.31, ry:0.12, c:0x8c7d5c },
+           { w:0.12, h:0.16, d:0.08, x:0.34, y:0.08, c:0x8c3a3a }, { type:'cyl', r:0.06, h:0.1, x:0.34, y:0.21, seg:10, c:0xe0c9a8 },
+           { w:0.1, h:0.05, d:0.24, x:-0.34, y:0.03, ry:0.3, c:C.dark }, { w:0.1, h:0.05, d:0.24, x:-0.2, y:0.03, ry:0.1, c:C.dark }); }
+  else if(kind === 'sink'){ len = 1.0; h = 1.0; r = 0.4;
+    P.push({ w:0.62, h:0.2, d:0.46, y:0.82, c:0xd8d6cc }, { w:0.52, h:0.02, d:0.36, y:0.93, c:0x9ea39a },
+           { type:'cyl', r:0.05, h:0.8, y:0.4, c:C.steel }, { w:0.04, h:0.2, d:0.04, y:1.02, z:-0.18, c:C.steel },
+           { w:0.5, h:0.6, d:0.02, y:1.5, z:-0.22, c:0x3a4442 }); }
   else if(kind === 'bench'){ len = 1.8; h = 0.45; r = 0.8;
     P.push({ w:1.8, h:0.06, d:0.45, y:0.45, c:C.wood }, { w:0.06, h:0.45, d:0.4, x:-0.8, y:0.22, c:C.steel },
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
@@ -7331,12 +7407,36 @@ function heroSign(text){
   x.fillStyle = '#cfc9b4'; x.fillRect(8,8,496,112);
   x.fillStyle = 'rgba(92,74,52,0.25)'; x.fillRect(8,96,496,24);          // 下の方ほど汚れている
   x.fillStyle = '#1d2a26'; x.font = 'bold 54px ' + getComputedStyle(document.body).fontFamily;
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 256, 62);
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(trText(text), 256, 62, 480);
   var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   heroSignTex[text] = t; return t;
 }
-function heroRoom(g, hall){
-  var def = HERO[runDef().n]; if(!def || !hall) return;
+/* 壁の落書き。赤錆色で、字の線を少しずつ揺らして手で書いたように見せる。
+   地の色は透明（壁の汚れの上に字だけが乗る） */
+function graffitiMesh(text){
+  var c = makeCanvas(512); c.height = 256;
+  var x = c.getContext('2d'); x.clearRect(0, 0, 512, 256);
+  var str = trText(text), fs = str.length > 10 ? 44 : 64;
+  x.font = 'bold ' + fs + 'px ' + getComputedStyle(document.body).fontFamily;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  for(var k=0; k<3; k++){                             // 3 回重ね書きしてかすれを作る
+    x.fillStyle = ['rgba(62,10,8,0.9)', 'rgba(40,6,6,0.6)', 'rgba(90,16,12,0.4)'][k];
+    x.save(); x.translate(256 + (k-1)*1.5, 128 + (k-1)); x.rotate(-0.04 + k*0.02);
+    x.fillText(str, 0, 0, 490); x.restore();
+  }
+  for(var d=0; d<40; d++){                            // 垂れ
+    var dx = 40 + Math.random()*432, dl = 10 + Math.random()*40;
+    x.fillStyle = 'rgba(55,10,8,' + (0.3 + Math.random()*0.4) + ')';
+    x.fillRect(dx, 150, 2, dl);
+  }
+  var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.1),
+    new THREE.MeshStandardMaterial({ map:t, color:0x7a7a7a, transparent:true, roughness:0.9, depthWrite:false }));
+  m.renderOrder = 3;
+  return m;
+}
+function heroRoom(g, hall, def){
+  if(!def || !hall) return 0;
   if(!heroMat) heroMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.8, metalness:0.1,
                                                          map:TEX.grunge || null });
   var x0 = cellToWorld(hall.x, hall.y).x - CELL/2, z0 = cellToWorld(hall.x, hall.y).z - CELL/2;
@@ -7361,15 +7461,28 @@ function heroRoom(g, hall){
     return inBounds(ox, oy) && g[idx(ox, oy)] === 0;
   }
   while(kit.length && si < 4 && guard-- > 0){
-    var S = sides[si], kind = kit[0], pc = heroPiece(kind);
+    var S = sides[si], kind = kit[0];
+    var gText = kind.indexOf('graffiti#') === 0 ? kind.slice(9) : null;
+    if(gText) kind = 'graffiti';
+    var pc = gText ? { parts:null, len:2.4, h:1.1, r:0 } : heroPiece(kind);
     var span = Math.abs(S.to - S.from), dir = S.to > S.from ? 1 : -1;
     if(cursor + pc.len + 0.6 > span){ si++; cursor = 0.8; continue; }
     var t = S.from + dir*(cursor + pc.len/2);
-    var depth = kind === 'clock' || kind === 'portrait' ? 0.06 : (kind === 'boiler' ? 1.4 : (kind === 'bed' ? 1.1 : 0.45));
+    var depth = kind === 'graffiti' ? 0.035 : (kind === 'clock' || kind === 'portrait' ? 0.06 :
+                (kind === 'boiler' ? 1.4 : (kind === 'bed' ? 1.1 : (kind === 'sink' ? 0.25 : 0.45))));
     var px = S.ax === 'x' ? t : S.fix + S.n[0]*depth, pz = S.ax === 'x' ? S.fix + S.n[1]*depth : t;
     var tA = S.from + dir*cursor, tB = S.from + dir*(cursor + pc.len);
     if(openingAt(S, tA) || openingAt(S, t) || openingAt(S, tB) || (pc.r > 0.2 && blockedAt(px, pz, pc.r))){
       cursor += 1.0; continue;                 // ずらして次を試す
+    }
+    if(gText){
+      var gm = graffitiMesh(gText);
+      gm.position.set(px, 1.55, pz);
+      gm.rotation.y = Math.atan2(S.n[0], S.n[1]);
+      world.group.add(gm);
+      world.graffiti.push({ x:px, z:pz, nx:S.n[0], nz:S.n[1], text:gText });
+      kit.shift(); cursor += pc.len + 0.5; placed++;
+      continue;
     }
     var m = new THREE.Mesh(mergeTinted(pc.parts), heroMat);
     m.position.set(px, 0, pz);
@@ -7389,11 +7502,30 @@ function heroRoom(g, hall){
     var sx = x0 + W*(0.3 + k*0.08);
     if(openingAt(sides[0], sx)) continue;
     var sg = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), new THREE.MeshStandardMaterial({ map:heroSign(def.sign), roughness:0.7 }));
+    if(W < 16){ sg.scale.setScalar(0.8); }                          // 小部屋は名札も一回り小さく
     sg.position.set(sx, 2.55, z0 + 0.03);
     world.group.add(sg);
     break;
   }
-  world.hero = { name:def.sign, pieces:placed };
+  return placed;
+}
+/* 大広間と、掘った部屋のうち大きい順に 3 つ。大広間のすぐ隣や出発点の部屋は避ける */
+function heroRooms(g, bigHall, startC){
+  var n = runDef().n, def = HERO[n];
+  world.graffiti = [];
+  var placed = heroRoom(g, bigHall, def);
+  world.hero = { name:def ? def.sign : '', pieces:placed };
+  world.heroes = [{ name:world.hero.name, pieces:placed, x:bigHall.cx, y:bigHall.cy }];
+  var subs = HERO_ROOMS[n] || [];
+  var cand = world.rooms.filter(function(r){
+    if(r === bigHall) return false;
+    if(startC && startC.x >= r.x - 1 && startC.x <= r.x + r.w && startC.y >= r.y - 1 && startC.y <= r.y + r.h) return false;
+    return true;
+  }).sort(function(a, b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
+  for(var i=0; i<subs.length && i<cand.length; i++){
+    var p = heroRoom(g, cand[i], subs[i]);
+    world.heroes.push({ name:subs[i].sign, pieces:p, x:cand[i].cx, y:cand[i].cy });
+  }
 }
 /* =========================================================================
    9. 追跡者
@@ -8193,6 +8325,7 @@ function buildHunter(){
        箱を 1 つ置いていただけで、しかも頂点色を持たないので遮蔽も
        焼けていなかった。逆関節の脚なのだから、踵は浮いて指の付け根で
        体重を受けているはず。踵・甲・指球・4 本の指に分ける。 */
+    /** @type {Array<any>} */
     var fs = [
       { type:'sph', r:0.050, sy:0.60, sz:0.92, y:0.004, z:-0.058 },   // 踵
       { type:'cyl', rt:0.046, rb:0.042, h:0.16, rx:Math.PI/2, y:-0.006, z:0.022 }, // 甲
@@ -8293,13 +8426,13 @@ function placeHunter(reach, startC){
   hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0; hunter.gaitRun = 0; hunter.turnLead = 0; hunter.walkK = 0; hunter.bank = 0; hunter.yawRate = 0; hunter.yawPrev = undefined;
   // 種を固定しても再現しなかった原因。ここが Math.random だと最初のグリッチが
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
-  hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
+  hunter.glitchT = 2 + rndFx()*3; hunter.glitch = 0; hunter.stunT = 0;
   hunter.windT = 0; hunter.swingT = 0;
   hunter.dirX = 0; hunter.dirZ = 0; hunter.cornerK = 0; hunter.inspect = null; hunter.inspectT = 0;
   DIRECTOR.calmT = 0; DIRECTOR.sinceChaseT = 999;
   hunter.stuckT = 0; hunter.slideDir = 0; hunter.noDirectT = 0; hunter.punchArm = 1;
   hunter.gazeT = 0; hunter.gazeY = 0; hunter.gazeTarget = 0;
-  hunter.eyeT = 2 + rnd()*3; hunter.eyeOff = 0;
+  hunter.eyeT = 2 + rndFx()*3; hunter.eyeOff = 0;
   hunter.spawnGrace = 3.0;
   hunter.group.visible = true; hunter.shadow.visible = true;
   hunter.group.position.set(hunter.x, 0, hunter.z);
@@ -8629,7 +8762,9 @@ function updateShade(dt){
     if(!player.lamp || !lit){
       var c = worldToCell(shade.x, shade.z), F = PATHF.field, tx = player.x, tz = player.z;
       if(F && inBounds(c.x, c.y) && F[idx(c.x, c.y)] > 1){
-        var cur = F[idx(c.x, c.y)], best = null;
+        var cur = F[idx(c.x, c.y)];
+        /** @type {{x:number, z:number}|null} */
+        var best = null;
         [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(o){
           var nx = c.x + o[0], ny = c.y + o[1];
           if(inBounds(nx, ny) && F[idx(nx, ny)] >= 0 && F[idx(nx, ny)] < cur) best = cellToWorld(nx, ny);
@@ -8988,7 +9123,7 @@ window.addEventListener('pointerup', onPointerUp, {passive:true});
 window.addEventListener('pointercancel', onPointerUp, {passive:true});
 document.addEventListener('touchmove', function(e){
   // メニュー画面は縦スクロールを許可する（ゲーム中は画面が無いので影響なし）
-  var t = e.target;
+  var t = /** @type {any} */ (e.target);
   while(t && t !== document.body){
     if(t.classList && t.classList.contains('panel')) return;
     t = t.parentNode;
@@ -9065,7 +9200,7 @@ function readPad(){
   function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
   var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
-  var used = mx || my || lx || ly;
+  var used = !!(mx || my || lx || ly);
   for(var b=0; b<bt.length; b++) if(down(b)) used = true;
   if(used) pad.active = true;
   if(!pad.active) return;
@@ -9132,9 +9267,11 @@ function focusables(root){
 }
 function moveFocus(root, dx, dy){
   var list = focusables(root); if(!list.length) return;
-  var cur = document.activeElement;
+  var cur = /** @type {any} */ (document.activeElement);
   if(list.indexOf(cur) < 0){ list[0].focus(); return; }
-  var a = cur.getBoundingClientRect(), ax = a.left + a.width/2, ay = a.top + a.height/2, best = null, bs = 1e9;
+  var a = cur.getBoundingClientRect(), ax = a.left + a.width/2, ay = a.top + a.height/2, bs = 1e9;
+  /** @type {any} */
+  var best = null;
   list.forEach(function(el){
     if(el === cur) return;
     var r = el.getBoundingClientRect(), x = r.left + r.width/2 - ax, y = r.top + r.height/2 - ay;
@@ -9169,7 +9306,7 @@ function updatePadMenu(dt){
   padMenu.rep -= dt;
   if(dir && (dir !== padMenu.dir || padMenu.rep <= 0)){
     padMenu.rep = (dir === padMenu.dir) ? 0.12 : 0.38;
-    var cur = document.activeElement;
+    var cur = /** @type {any} */ (document.activeElement);
     if(cur && cur.type === 'range' && root.contains(cur) && (dir === 'l' || dir === 'r')){
       var st = +cur.step || 0.05, v = +cur.value + (dir === 'r' ? st : -st);
       cur.value = clamp(v, +cur.min, +cur.max);
@@ -9181,12 +9318,12 @@ function updatePadMenu(dt){
   }
   padMenu.dir = dir;
   if(edge(0)){                                        // A：押す
-    var f = document.activeElement;
+    var f = /** @type {any} */ (document.activeElement);
     if(f && root.contains(f) && f.tagName === 'BUTTON') f.click();
     else { var fl = focusables(root); if(fl.length) fl[0].focus(); }
   }
   if(edge(1)){                                        // B：戻る
-    var back = root.querySelector('[id$=Back]') || (root.id === 'pause' ? $('btnResume') : null);
+    var back = /** @type {any} */ (root.querySelector('[id$=Back]')) || (root.id === 'pause' ? $('btnResume') : null);
     if(back) back.click();
   }
   if(edge(9) && root.id === 'pause') $('btnResume').click();   // Start で続きへ
@@ -9991,6 +10128,7 @@ $('title').querySelectorAll('[data-diff]').forEach(function(b){
 $('segQ').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){
     settings.quality = +b.dataset.q; saveSettings(); syncSettingsUI();
+    BENCH.on = false; Store.set('ward7.bench', JSON.stringify({ done:1, manual:1 }));   // 人が選んだら自動で変えない
     // アンチエイリアス・法線マップ・テクスチャ解像度は初期化時に決まるため、
     // 取りこぼしなく反映させる目的で読み込み直す（設定は保存済み）
     $('valQ').textContent = '適用中…';
@@ -10054,6 +10192,8 @@ $('btnJournalBack').addEventListener('click', function(){ showPanel(journalRetur
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnStart').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = false; startGame(); });
 // 観戦モード。?bot=1 でも入れる
+// AI に遊ばせるのは開発用（QA・バランス測定。設計指示書 第 5.8 節）。?debug=1 のときだけ出す
+if(DEBUG) $('btnBot').hidden = false;
 $('btnBot').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = true; startGame(); });
 // 追う側。逃げる側はボットが動かす
 $('btnHunt').addEventListener('click', function(){ playAs = 'hunter'; BOT.on = true; startGame(); });
@@ -10166,8 +10306,9 @@ function startGame(){
   /* 物語の章は種を固定する（第 6.1 節）。検証用の forcedSeed はそれより優先。
      夜勤は毎回違う種 */
   var rdef = runDef();
-  rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff);
+  var seedNow = (forcedSeed !== null ? forcedSeed : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff;
+  rnd = mulberry32(seedNow);
+  seedStreams(seedNow);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -10273,7 +10414,7 @@ function startGame(){
      種を固定しても再現しなかった原因がこれで、最初のきしみが鳴る時刻が
      プロセスごとに変わり、そこで rnd() の消費がひとつずれて以降が全部
      食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
-  ambientCreakT = 6 + rnd()*8;
+  ambientCreakT = 6 + rndFx()*8;
 
   buildDust();
   buildExitShaft();
@@ -10371,7 +10512,7 @@ function floorMat(x, z){
   return (h - Math.floor(h));
 }
 
-var lampFlick = 0, ambientCreakT = 6 + rnd()*8;
+var lampFlick = 0, ambientCreakT = 6 + rndFx()*8;
 // 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
 var BOOTH = { was:null };
 var heartT = 0;
@@ -10533,7 +10674,7 @@ function updatePlayer(dt){
   var base = 3.111;                 // 2.55 × 1.22（追跡者も同率で引き上げ）
   var speed = base * (player.running ? 1.85 : 1.0);
   player.wet = inWater(player.x, player.z);
-  if(player.wet) speed *= 0.8;                  // 膝まで水（第6章）
+  if(player.wet) speed *= 0.86;                 // 膝まで水（第6章）。0.8 ではボットのクリア率が 26% と目標（30〜50%）を割った
   if(cheats.fast) speed *= 2.0;
   if(!player.lamp) speed *= 0.86;              // 暗いと慎重に
   if(player.hp < 40) speed *= 0.9;
@@ -10965,6 +11106,27 @@ function updateExposure(dt, lampOn){
   renderer.toneMappingExposure = exposureNow();
 }
 
+function avoidProps(x, z, dx, dz, look, rad){
+  var pr = world.props, bestT = 1e9, hit = null;
+  for(var i=0; i<pr.length; i++){
+    var o = pr[i], ox = o.x - x, oz = o.z - z;
+    var t = ox*dx + oz*dz;                       // 進む向きに沿った距離
+    if(t <= 0 || t > look) continue;             // 目標より先（点検するロッカーなど）は避けない
+    var px = ox - dx*t, pz = oz - dz*t;          // 進路からの横のずれ
+    var R = o.r + rad;
+    if(px*px + pz*pz >= R*R) continue;
+    if(t < bestT){ bestT = t; hit = { o:o, px:px, pz:pz, R:R }; }
+  }
+  if(!hit) return null;
+  // 什器の中心と反対の側へ、円の縁をかすめる向きに曲げる
+  var side = (hit.px*dz - hit.pz*dx) > 0 ? 1 : -1;   // 什器の無い側へ抜ける（+z 側に什器→ -z へ）
+  var o2 = hit.o, cx = o2.x - x, cz = o2.z - z, d2 = Math.sqrt(cx*cx + cz*cz);
+  if(d2 < 1e-4) return null;
+  var ang = Math.asin(Math.min(1, hit.R / d2));
+  var base = Math.atan2(cz, cx) + side * ang;
+  return { x:Math.cos(base), z:Math.sin(base) };
+}
+
 function updateHunter(dt, info){
   var g = world.grid;
   var hd = info.hd;
@@ -10982,7 +11144,7 @@ function updateHunter(dt, info){
   // 忍び足は立ち止まっているのとほぼ同じだけしか聞こえない（第 10 章 SNEAK_V）
   var noise = player.running ? 1.6 : (info.vmag > 0.4 ? (player.sneaking ? 0.55 : 1.0) : 0.45);
   // 水の中では足音が水しぶきになって遠くまで届く（忍び足なら半分で済む）
-  if(player.wet && info.vmag > 0.4) noise *= player.sneaking ? 1.3 : 1.5;
+  if(player.wet && info.vmag > 0.4) noise *= player.sneaking ? 1.2 : 1.4;
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
   var hearWall = hearOpen * 0.55;       // 壁越しは届きにくいが、届く
   var seen = false;                     // 目視した＝追跡
@@ -11177,7 +11339,7 @@ function updateHunter(dt, info){
         var pick = null, want = directorWant();
         var pcD = worldToCell(player.x, player.z);
         for(var pt=0; pt<(want ? 30 : 12); pt++){
-          var cand3 = reach[(rnd()*reach.length)|0];
+          var cand3 = reach[(rndAI()*reach.length)|0];
           if(navP && navP[idx(cand3.x, cand3.y)] !== 0) continue;
           if(want){
             var mdD = Math.abs(cand3.x - pcD.x) + Math.abs(cand3.y - pcD.y);
@@ -11187,8 +11349,8 @@ function updateHunter(dt, info){
           pick = cand3; break;
         }
         if(want > 0 && pick) DIRECTOR.calmT = 0;          // 寄せるのは一度に一回。次はまた calm を待つ
-        hunter.patrolGoal = pick || reach[(rnd()*reach.length)|0];
-        hunter.patrolT = 4.5 + rnd()*4;
+        hunter.patrolGoal = pick || reach[(rndAI()*reach.length)|0];
+        hunter.patrolT = 4.5 + rndAI()*4;
       }
       goal = { x:hunter.patrolGoal.x, y:hunter.patrolGoal.y };
     }
@@ -11212,10 +11374,10 @@ function updateHunter(dt, info){
       }
       if(alt) goal = alt;
     }
-    var step = bfsNextStep(navG2, hc.x, hc.y, goal.x, goal.y);
-    if(step){
-      var sw = cellToWorld(step.x, step.y);
-      hunter.target = { x:sw.x, z:sw.z };
+    var nstep = bfsNextStep(navG2, hc.x, hc.y, goal.x, goal.y);
+    if(nstep){
+      var nsw = cellToWorld(nstep.x, nstep.y);
+      hunter.target = { x:nsw.x, z:nsw.z };
     }else if(hunter.mode === 'chase' || hunter.mode === 'hunt'){
       // 経路が引けなくても追跡中は直進を試みる（立ち止まり防止）
       hunter.target = { x:player.x, z:player.z };
@@ -11238,6 +11400,12 @@ function updateHunter(dt, info){
                 + (hunter.mode==='chase' ? rage : 0);
       if(inWater(hunter.x, hunter.z)) spd *= 0.85;      // あれも水には足を取られる
       var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
+      /* 什器を先に避ける。ぶつかってから押し戻され、壁沿いに滑って抜ける、では
+         ベッドや棚の多い部屋でいちいち詰まる（部屋を作り込んだら追跡が目に見えて
+         弱くなった：ボットのクリア率 41→50%）。進む先 2.4m 以内で、体の幅を足した円に
+         掛かる什器があれば、その横をかすめる向きへ前もって舵を切る */
+      var av = avoidProps(hunter.x, hunter.z, nx0, nz0, Math.min(dist, 2.4), 0.36);
+      if(av){ nx0 = av.x; nz0 = av.z; }
       // 曲がり角の減速（第 9 章 CORNER_SLOW）。追跡中だけ効かせる
       var turnC = 1 - (nx0*hunter.dirX + nz0*hunter.dirZ);   // 0 直進 / 1 直角 / 2 反転
       if(hunter.mode === 'chase' && turnC > 0.25) hunter.cornerK = Math.max(hunter.cornerK, clamp(turnC, 0, 1));
@@ -11260,7 +11428,7 @@ function updateHunter(dt, info){
       // 止まってしまう。進めていない状態が続いたら壁沿いに滑って迂回する。
       if(mv > 0.0005 && moved < mv*0.45){
         hunter.stuckT += dt;
-        if(hunter.slideDir === 0) hunter.slideDir = (rnd() < 0.5) ? -1 : 1;
+        if(hunter.slideDir === 0) hunter.slideDir = (rndAI() < 0.5) ? -1 : 1;
       }else{
         hunter.stuckT = Math.max(0, hunter.stuckT - dt*2.2);
         if(hunter.stuckT <= 0) hunter.slideDir = 0;
@@ -11343,15 +11511,15 @@ function updateHunter(dt, info){
 
   hunter.twitchT -= dt;
   if(hunter.twitchT <= 0){
-    hunter.twitchT = chasing ? (0.25 + rnd()*0.4) : (0.7 + rnd()*1.6);
-    hunter.twitch = (rnd()-0.5) * (chasing ? 0.5 : 0.28);
+    hunter.twitchT = chasing ? (0.25 + rndFx()*0.4) : (0.7 + rndFx()*1.6);
+    hunter.twitch = (rndFx()-0.5) * (chasing ? 0.5 : 0.28);
   }
   hunter.twitch *= Math.pow(0.02, dt);
 
   // コマ落ちのような一瞬の破綻。数秒に一度、姿勢が飛ぶ
   hunter.glitchT -= dt;
   if(hunter.glitchT <= 0){
-    hunter.glitchT = (chasing ? 1.6 : 3.4) + rnd()*4.5;
+    hunter.glitchT = (chasing ? 1.6 : 3.4) + rndFx()*4.5;
     hunter.glitch = 1;
   }
   hunter.glitch = Math.max(0, hunter.glitch - dt*8);
@@ -11387,15 +11555,15 @@ function updateHunter(dt, info){
   if(hunter.gazeT <= 0){
     if(chasing){
       // 追跡中もときどき視線がずれる。完全な機械にはしない
-      hunter.gazeT = 0.5 + rnd()*1.1;
-      hunter.gazeTarget = (rnd() < 0.78) ? 0 : (rnd()-0.5)*0.9;
+      hunter.gazeT = 0.5 + rndFx()*1.1;
+      hunter.gazeTarget = (rndFx() < 0.78) ? 0 : (rndFx()-0.5)*0.9;
     }else{
-      hunter.gazeT = 0.9 + rnd()*2.2;
+      hunter.gazeT = 0.9 + rndFx()*2.2;
       // 徘徊中は進行方向を中心に左右を流し見る。
       // まれに（気配を感じたように）こちらを一瞥する
       var glance = (hunter.mode === 'hunt') ? 0.30 : 0.12;
-      hunter.gazeTarget = (rnd() < glance) ? clamp(rel, -1.5, 1.5)
-                                           : (rnd()-0.5) * 2.0;
+      hunter.gazeTarget = (rndFx() < glance) ? clamp(rel, -1.5, 1.5)
+                                           : (rndFx()-0.5) * 2.0;
     }
   }
   var wantHead;
@@ -11417,13 +11585,13 @@ function updateHunter(dt, info){
      ただし 1.15 倍では打ち消しすぎて顔が上を向き、せっかくの前傾が
      消えて見えた。0.86 倍にすると首から上だけがわずかに前へ残る。 */
   P.head.rotation.x = -lean*0.86 + Math.sin(now*0.71)*0.06;
-  P.head.rotation.z = Math.sin(now*0.61)*0.24 + hunter.twitch + (rnd()-0.5)*1.1*gl;
+  P.head.rotation.z = Math.sin(now*0.61)*0.24 + hunter.twitch + (rndFx()-0.5)*1.1*gl;
 
   // 瞳：片方だけ勝手に泳ぎ、ときどき両方消える
   P.pupR.position.x = 0.055 + Math.sin(now*0.53)*0.016;
   P.pupR.position.y = 0.075 + Math.sin(now*0.37)*0.008;
   hunter.eyeT -= dt;
-  if(hunter.eyeT <= 0){ hunter.eyeT = 1.8 + rnd()*4; hunter.eyeOff = 0.18 + rnd()*0.25; }
+  if(hunter.eyeT <= 0){ hunter.eyeT = 1.8 + rndFx()*4; hunter.eyeOff = 0.18 + rndFx()*0.25; }
   hunter.eyeOff = Math.max(0, hunter.eyeOff - dt);
   var baseLit = chasing ? 1 : (hunter.mode === 'hunt' ? 0.62 : 0.40);
   var pulse = chasing ? (0.82 + 0.18*Math.sin(now*7.5)) : (0.86 + 0.14*Math.sin(now*2.1));
@@ -11447,8 +11615,8 @@ function updateHunter(dt, info){
      構え（追跡中に前へ突き出す量）だけを遅らせ、振りはそのまま入れる。 */
   hunter.reach = lerp(hunter.reach, reachOut, lagK);
   var swA = hipR, swB = hipL;   // 腕は対側の脚と組む（脚と同じ値をそのまま使う）
-  P.armL.up.rotation.x = swA*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
-  P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
+  P.armL.up.rotation.x = swA*0.62 - hunter.reach + (rndFx()-0.5)*1.3*gl;
+  P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rndFx()-0.5)*1.3*gl;
   P.armL.up.rotation.z =  0.16 + (chasing?0.1:0) + hunter.twitch*0.3;
   P.armR.up.rotation.z = -0.16 - (chasing?0.1:0) - hunter.twitch*0.3;
   /* 肘。追跡中は -0.25rad（14 度）とほぼ伸び切っており、腕を前へ突き出した
@@ -11666,13 +11834,13 @@ function updateHunter(dt, info){
   }
 
   hunter.group.position.set(hunter.x, 0, hunter.z);
-  hunter.group.rotation.y = hunter.yaw + hunter.twitch*0.25 + (rnd()-0.5)*0.55*gl;
+  hunter.group.rotation.y = hunter.yaw + hunter.twitch*0.25 + (rndFx()-0.5)*0.55*gl;
   hunter.group.rotation.z = Math.sin(hunter.bob*0.5)*0.045 + hunter.twitch*0.1;
   hunter.group.updateMatrixWorld(true);
   P.legL.tip.getWorldPosition(_hv1);
   P.legR.tip.getWorldPosition(_hv2);
   var lowest = Math.min(_hv1.y, _hv2.y);
-  if(isFinite(lowest)) hunter.group.position.y = -lowest + (rnd()-0.5)*0.14*gl;
+  if(isFinite(lowest)) hunter.group.position.y = -lowest + (rndFx()-0.5)*0.14*gl;
 
   // 目の光源を頭の位置へ
   if(hunterEyeLight){
@@ -11736,7 +11904,7 @@ function updateHunter(dt, info){
   if(!cheats.pacifist && hd < 1.25 && noticed && hunter.attackCd <= 0 && hunter.stunT <= 0 &&
      hunter.swingT <= 0 && hunter.spawnGrace <= 0){
     hunter.attackCd = 1.7;
-    hunter.punchArm = (rnd() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
+    hunter.punchArm = (rndFx() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
     hunter.swingT = SWING_DUR;        // 殴打モーションの長さ
     hunter.stunT = 3.0;               // 振り抜いたあとの硬直。逃げ直す猶予になる
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
@@ -11980,11 +12148,11 @@ function updateEnv(dt, info){
   if(ambientCreakT <= 0){
     var quiet = !(hunter.mode === 'chase') && info.hd > 14;
     if(quiet){
-      var kind = (rnd()*5)|0;
+      var kind = (rndFx()*5)|0;
       if(kind === 4) Audio2.creak();
-      else Audio2.ambientOne(kind, (rnd()*2-1)*0.8, 0.25 + rnd()*0.7);
+      else Audio2.ambientOne(kind, (rndFx()*2-1)*0.8, 0.25 + rndFx()*0.7);
     }
-    ambientCreakT = 6 + rnd()*11;
+    ambientCreakT = 6 + rndFx()*11;
   }
 
   // 心音
@@ -12226,7 +12394,7 @@ function doDeath(){
           ['被弾', (player.hits||0) + ' 回'],
           ['難易度', DIFF[settings.diff].key],
           ['これまで', recLine(settings.diff)]
-        ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
+        ]) + (cheatUsed ? '<div class="warnline">アシスト使用のため記録に残していない</div>' : '');
         showPanel('dead');
       }, hold);
     }
@@ -12303,7 +12471,7 @@ function doWin(){
         ['残ランプ', Math.round(player.battery) + '%'],
         ['難易度', DIFF[settings.diff].key],
         ['これまで', recLine(settings.diff)]
-      ]) + (cheatUsed ? '<div class="warnline">チート使用のため記録に残していない</div>' : '');
+      ]) + (cheatUsed ? '<div class="warnline">アシスト使用のため記録に残していない</div>' : '');
     showPanel('win');
   }
   if(playAs === 'hunter' || !world.exit){
@@ -12393,6 +12561,10 @@ function loop(now){
   if(cheats.slowmo) dt *= 0.4;
 
   if(CTX_LOST) return;
+
+  /* 着信などで音が奪われたら止めて待つ。画面は隠れないことがある（着信の帯だけ出る）ので
+     visibilitychange だけでは拾えない。戻ったら「続ける」を押す＝音を戻す操作になる */
+  if(state === STATE.PLAY && Audio2.state() === 'interrupted') doPause();
 
   if(state === STATE.PLAY){
     player.time += dt;
@@ -12489,6 +12661,7 @@ function loop(now){
   }
 
   updateDRS(realDt);
+  updateBench(realDt);
   teleFrame(dt);
   updatePadMenu(dt);
   // FPS 監視・自動品質ダウン
@@ -12534,6 +12707,32 @@ function updateDbg(){
     '\ntris ' + renderer.info.render.triangles;
 }
 
+/* 初回起動の実測（第 8.4 節）。タイトルの情景が出てから 1 秒の暖気を捨て、5 秒のフレーム時間の
+   中央値で決める。タイトルは本編より軽いので、下げる閾値は 20ms（本編では 30ms 前後になる）、
+   上げるのは 10ms を切るときだけ（上げた先で重ければ戻して終わる） */
+function updateBench(dt){
+  if(!BENCH.on || state !== STATE.TITLE || !titleCam.ready) return;
+  BENCH.t += dt;
+  if(BENCH.t < 1) return;
+  BENCH.dts.push(dt * 1000);
+  if(BENCH.t < 6) return;
+  BENCH.on = false;
+  var a = BENCH.dts.slice().sort(function(x, y){ return x - y; }), med = a[a.length >> 1] || 16;
+  var q = settings.quality|0, nq = q, up = false;
+  if(med > 20 && q > 0) nq = q - 1;
+  else if(med < 10 && q < 3 && !BENCH.up && BENCH.round === 0){ nq = q + 1; up = true; }
+  if(nq !== q && BENCH.round < 2){
+    settings.quality = nq; saveSettings();
+    // 上げた先で重かったら戻して終える（行き来させない）
+    var last = BENCH.up && nq < q;
+    Store.set('ward7.bench', JSON.stringify(last ? { done:1, q:nq, ms:+med.toFixed(1) } : { round:BENCH.round + 1, up:up }));
+    toast('この端末に合わせて画質を調整しています…', 2);
+    setTimeout(function(){ location.reload(); }, 700);
+  }else{
+    saveSettings();                                   // 決まった画質を控える（次からは仮の推定をしない）
+    Store.set('ward7.bench', JSON.stringify({ done:1, q:q, ms:+med.toFixed(1) }));
+  }
+}
 /* =========================================================================
    18. セルフテスト（?debug=1 でコンソール出力）
    ========================================================================= */

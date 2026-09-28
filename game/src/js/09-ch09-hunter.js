@@ -796,6 +796,7 @@ function buildHunter(){
        箱を 1 つ置いていただけで、しかも頂点色を持たないので遮蔽も
        焼けていなかった。逆関節の脚なのだから、踵は浮いて指の付け根で
        体重を受けているはず。踵・甲・指球・4 本の指に分ける。 */
+    /** @type {Array<any>} */
     var fs = [
       { type:'sph', r:0.050, sy:0.60, sz:0.92, y:0.004, z:-0.058 },   // 踵
       { type:'cyl', rt:0.046, rb:0.042, h:0.16, rx:Math.PI/2, y:-0.006, z:0.022 }, // 甲
@@ -896,13 +897,13 @@ function placeHunter(reach, startC){
   hunter.stepAcc = 0; hunter.jawOpen = 0; hunter.reach = 0; hunter.gaitRun = 0; hunter.turnLead = 0; hunter.walkK = 0; hunter.bank = 0; hunter.yawRate = 0; hunter.yawPrev = undefined;
   // 種を固定しても再現しなかった原因。ここが Math.random だと最初のグリッチが
   // 鳴る時刻がずれ、rnd() を消費する順番が変わって以降すべてが食い違う
-  hunter.glitchT = 2 + rnd()*3; hunter.glitch = 0; hunter.stunT = 0;
+  hunter.glitchT = 2 + rndFx()*3; hunter.glitch = 0; hunter.stunT = 0;
   hunter.windT = 0; hunter.swingT = 0;
   hunter.dirX = 0; hunter.dirZ = 0; hunter.cornerK = 0; hunter.inspect = null; hunter.inspectT = 0;
   DIRECTOR.calmT = 0; DIRECTOR.sinceChaseT = 999;
   hunter.stuckT = 0; hunter.slideDir = 0; hunter.noDirectT = 0; hunter.punchArm = 1;
   hunter.gazeT = 0; hunter.gazeY = 0; hunter.gazeTarget = 0;
-  hunter.eyeT = 2 + rnd()*3; hunter.eyeOff = 0;
+  hunter.eyeT = 2 + rndFx()*3; hunter.eyeOff = 0;
   hunter.spawnGrace = 3.0;
   hunter.group.visible = true; hunter.shadow.visible = true;
   hunter.group.position.set(hunter.x, 0, hunter.z);
@@ -1232,7 +1233,9 @@ function updateShade(dt){
     if(!player.lamp || !lit){
       var c = worldToCell(shade.x, shade.z), F = PATHF.field, tx = player.x, tz = player.z;
       if(F && inBounds(c.x, c.y) && F[idx(c.x, c.y)] > 1){
-        var cur = F[idx(c.x, c.y)], best = null;
+        var cur = F[idx(c.x, c.y)];
+        /** @type {{x:number, z:number}|null} */
+        var best = null;
         [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(o){
           var nx = c.x + o[0], ny = c.y + o[1];
           if(inBounds(nx, ny) && F[idx(nx, ny)] >= 0 && F[idx(nx, ny)] < cur) best = cellToWorld(nx, ny);

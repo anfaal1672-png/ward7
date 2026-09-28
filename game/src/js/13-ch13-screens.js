@@ -283,6 +283,7 @@ $('title').querySelectorAll('[data-diff]').forEach(function(b){
 $('segQ').querySelectorAll('button').forEach(function(b){
   b.addEventListener('click', function(){
     settings.quality = +b.dataset.q; saveSettings(); syncSettingsUI();
+    BENCH.on = false; Store.set('ward7.bench', JSON.stringify({ done:1, manual:1 }));   // 人が選んだら自動で変えない
     // アンチエイリアス・法線マップ・テクスチャ解像度は初期化時に決まるため、
     // 取りこぼしなく反映させる目的で読み込み直す（設定は保存済み）
     $('valQ').textContent = '適用中…';
@@ -346,6 +347,8 @@ $('btnJournalBack').addEventListener('click', function(){ showPanel(journalRetur
 $('btnOptBack').addEventListener('click', function(){ showPanel('title'); });
 $('btnStart').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = false; startGame(); });
 // 観戦モード。?bot=1 でも入れる
+// AI に遊ばせるのは開発用（QA・バランス測定。設計指示書 第 5.8 節）。?debug=1 のときだけ出す
+if(DEBUG) $('btnBot').hidden = false;
 $('btnBot').addEventListener('click', function(){ playAs = 'survivor'; BOT.on = true; startGame(); });
 // 追う側。逃げる側はボットが動かす
 $('btnHunt').addEventListener('click', function(){ playAs = 'hunter'; BOT.on = true; startGame(); });

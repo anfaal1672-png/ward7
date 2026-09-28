@@ -148,6 +148,18 @@ function mulberry32(a){
   };
 }
 var rnd = mulberry32(Date.now() & 0x7fffffff);
+/* 乱数の流れを用途で分ける（設計指示書 第 15.3 節）。
+   rnd   … 生成（テクスチャ・間取り・置き物・カルテの順）
+   rndAI … 遊びの判断（追跡者の巡回先・回り込みの向き）
+   rndFx … 見た目と音だけ（痙攣・視線・目の明滅・環境音）
+   ひとつの流れを皆で引いていると、見た目の揺れを 1 回足しただけで追跡者の巡回先が
+   変わり、ボットの測定が「同じ種・同じ遊び」で比べられなくなる。
+   3 本とも病棟に入るときに種から作り直す（startGame） */
+var rndAI = mulberry32(0x5eed ^ 0xA1), rndFx = mulberry32(0x5eed ^ 0xF3);
+function seedStreams(seed){
+  rndAI = mulberry32(((seed ^ 0x2545F491) >>> 0) || 1);
+  rndFx = mulberry32(((seed ^ 0x9E3779B9) >>> 0) || 1);
+}
 
 var IS_TOUCH = (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
 if(!IS_TOUCH) document.body.classList.add('notouch');

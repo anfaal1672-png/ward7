@@ -32,8 +32,9 @@ function startGame(){
   /* 物語の章は種を固定する（第 6.1 節）。検証用の forcedSeed はそれより優先。
      夜勤は毎回違う種 */
   var rdef = runDef();
-  rnd = mulberry32((forcedSeed !== null ? forcedSeed
-                   : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff);
+  var seedNow = (forcedSeed !== null ? forcedSeed : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff;
+  rnd = mulberry32(seedNow);
+  seedStreams(seedNow);
 
   // 影（最高品質のみ）。マテリアルは buildWorld で作り直されるので再コンパイル問題は起きない
   renderer.shadowMap.enabled = !!QC.shadows;
@@ -139,7 +140,7 @@ function startGame(){
      種を固定しても再現しなかった原因がこれで、最初のきしみが鳴る時刻が
      プロセスごとに変わり、そこで rnd() の消費がひとつずれて以降が全部
      食い違っていた（同じ種・同じコードで被弾ペースが +52% 動いていた）。 */
-  ambientCreakT = 6 + rnd()*8;
+  ambientCreakT = 6 + rndFx()*8;
 
   buildDust();
   buildExitShaft();

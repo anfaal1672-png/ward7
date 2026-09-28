@@ -184,6 +184,7 @@ function texFlesh(size){
      見える。画面上の差が 170 階調に対して 10 階調しかなければ当然で、
      「テクスチャは貼ってあるのに肌に見えない」状態だった。
      大きな斑・中くらいの斑・鬱血、と 3 段階に分けて濃さも上げる。 */
+  /** @type {Array<Array<any>>} */
   var blobs = [
     // 半径の範囲, 個数, 色, 濃さの範囲
     [0.10, 0.26, 22, '104,110,96',  0.22, 0.34],   // 大きな明暗のうねり（暗い側）
@@ -197,8 +198,8 @@ function texFlesh(size){
       var px = rnd()*size, py = rnd()*size;
       var rr = size*(B[0] + rnd()*(B[1]-B[0]));
       var gr = g.createRadialGradient(px,py,0,px,py,rr);
-      var al = (B[4] + rnd()*(B[5]-B[4])).toFixed(3);
-      gr.addColorStop(0, 'rgba('+B[3]+','+al+')');
+      var al = B[4] + rnd()*(B[5]-B[4]);
+      gr.addColorStop(0, 'rgba('+B[3]+','+al.toFixed(3)+')');
       gr.addColorStop(0.55, 'rgba('+B[3]+','+(al*0.45).toFixed(3)+')');
       gr.addColorStop(1, 'rgba('+B[3]+',0)');
       g.fillStyle = gr; g.beginPath(); g.arc(px,py,rr,0,TAU); g.fill();

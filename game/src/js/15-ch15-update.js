@@ -85,7 +85,7 @@ function floorMat(x, z){
   return (h - Math.floor(h));
 }
 
-var lampFlick = 0, ambientCreakT = 6 + rnd()*8;
+var lampFlick = 0, ambientCreakT = 6 + rndFx()*8;
 // 残響の切り替えは状態が変わった瞬間だけ。毎フレーム呼ぶと目標値が揺れる
 var BOOTH = { was:null };
 var heartT = 0;
@@ -247,7 +247,7 @@ function updatePlayer(dt){
   var base = 3.111;                 // 2.55 × 1.22（追跡者も同率で引き上げ）
   var speed = base * (player.running ? 1.85 : 1.0);
   player.wet = inWater(player.x, player.z);
-  if(player.wet) speed *= 0.8;                  // 膝まで水（第6章）
+  if(player.wet) speed *= 0.86;                 // 膝まで水（第6章）。0.8 ではボットのクリア率が 26% と目標（30〜50%）を割った
   if(cheats.fast) speed *= 2.0;
   if(!player.lamp) speed *= 0.86;              // 暗いと慎重に
   if(player.hp < 40) speed *= 0.9;
@@ -679,6 +679,27 @@ function updateExposure(dt, lampOn){
   renderer.toneMappingExposure = exposureNow();
 }
 
+function avoidProps(x, z, dx, dz, look, rad){
+  var pr = world.props, bestT = 1e9, hit = null;
+  for(var i=0; i<pr.length; i++){
+    var o = pr[i], ox = o.x - x, oz = o.z - z;
+    var t = ox*dx + oz*dz;                       // 進む向きに沿った距離
+    if(t <= 0 || t > look) continue;             // 目標より先（点検するロッカーなど）は避けない
+    var px = ox - dx*t, pz = oz - dz*t;          // 進路からの横のずれ
+    var R = o.r + rad;
+    if(px*px + pz*pz >= R*R) continue;
+    if(t < bestT){ bestT = t; hit = { o:o, px:px, pz:pz, R:R }; }
+  }
+  if(!hit) return null;
+  // 什器の中心と反対の側へ、円の縁をかすめる向きに曲げる
+  var side = (hit.px*dz - hit.pz*dx) > 0 ? 1 : -1;   // 什器の無い側へ抜ける（+z 側に什器→ -z へ）
+  var o2 = hit.o, cx = o2.x - x, cz = o2.z - z, d2 = Math.sqrt(cx*cx + cz*cz);
+  if(d2 < 1e-4) return null;
+  var ang = Math.asin(Math.min(1, hit.R / d2));
+  var base = Math.atan2(cz, cx) + side * ang;
+  return { x:Math.cos(base), z:Math.sin(base) };
+}
+
 function updateHunter(dt, info){
   var g = world.grid;
   var hd = info.hd;
@@ -696,7 +717,7 @@ function updateHunter(dt, info){
   // 忍び足は立ち止まっているのとほぼ同じだけしか聞こえない（第 10 章 SNEAK_V）
   var noise = player.running ? 1.6 : (info.vmag > 0.4 ? (player.sneaking ? 0.55 : 1.0) : 0.45);
   // 水の中では足音が水しぶきになって遠くまで届く（忍び足なら半分で済む）
-  if(player.wet && info.vmag > 0.4) noise *= player.sneaking ? 1.3 : 1.5;
+  if(player.wet && info.vmag > 0.4) noise *= player.sneaking ? 1.2 : 1.4;
   var hearOpen = d.hearing * noise;     // 見通せるときの聴覚距離
   var hearWall = hearOpen * 0.55;       // 壁越しは届きにくいが、届く
   var seen = false;                     // 目視した＝追跡
@@ -891,7 +912,7 @@ function updateHunter(dt, info){
         var pick = null, want = directorWant();
         var pcD = worldToCell(player.x, player.z);
         for(var pt=0; pt<(want ? 30 : 12); pt++){
-          var cand3 = reach[(rnd()*reach.length)|0];
+          var cand3 = reach[(rndAI()*reach.length)|0];
           if(navP && navP[idx(cand3.x, cand3.y)] !== 0) continue;
           if(want){
             var mdD = Math.abs(cand3.x - pcD.x) + Math.abs(cand3.y - pcD.y);
@@ -901,8 +922,8 @@ function updateHunter(dt, info){
           pick = cand3; break;
         }
         if(want > 0 && pick) DIRECTOR.calmT = 0;          // 寄せるのは一度に一回。次はまた calm を待つ
-        hunter.patrolGoal = pick || reach[(rnd()*reach.length)|0];
-        hunter.patrolT = 4.5 + rnd()*4;
+        hunter.patrolGoal = pick || reach[(rndAI()*reach.length)|0];
+        hunter.patrolT = 4.5 + rndAI()*4;
       }
       goal = { x:hunter.patrolGoal.x, y:hunter.patrolGoal.y };
     }
@@ -926,10 +947,10 @@ function updateHunter(dt, info){
       }
       if(alt) goal = alt;
     }
-    var step = bfsNextStep(navG2, hc.x, hc.y, goal.x, goal.y);
-    if(step){
-      var sw = cellToWorld(step.x, step.y);
-      hunter.target = { x:sw.x, z:sw.z };
+    var nstep = bfsNextStep(navG2, hc.x, hc.y, goal.x, goal.y);
+    if(nstep){
+      var nsw = cellToWorld(nstep.x, nstep.y);
+      hunter.target = { x:nsw.x, z:nsw.z };
     }else if(hunter.mode === 'chase' || hunter.mode === 'hunt'){
       // 経路が引けなくても追跡中は直進を試みる（立ち止まり防止）
       hunter.target = { x:player.x, z:player.z };
@@ -952,6 +973,12 @@ function updateHunter(dt, info){
                 + (hunter.mode==='chase' ? rage : 0);
       if(inWater(hunter.x, hunter.z)) spd *= 0.85;      // あれも水には足を取られる
       var nx0 = dx/dist, nz0 = dz/dist;               // 目標への単位ベクトル
+      /* 什器を先に避ける。ぶつかってから押し戻され、壁沿いに滑って抜ける、では
+         ベッドや棚の多い部屋でいちいち詰まる（部屋を作り込んだら追跡が目に見えて
+         弱くなった：ボットのクリア率 41→50%）。進む先 2.4m 以内で、体の幅を足した円に
+         掛かる什器があれば、その横をかすめる向きへ前もって舵を切る */
+      var av = avoidProps(hunter.x, hunter.z, nx0, nz0, Math.min(dist, 2.4), 0.36);
+      if(av){ nx0 = av.x; nz0 = av.z; }
       // 曲がり角の減速（第 9 章 CORNER_SLOW）。追跡中だけ効かせる
       var turnC = 1 - (nx0*hunter.dirX + nz0*hunter.dirZ);   // 0 直進 / 1 直角 / 2 反転
       if(hunter.mode === 'chase' && turnC > 0.25) hunter.cornerK = Math.max(hunter.cornerK, clamp(turnC, 0, 1));
@@ -974,7 +1001,7 @@ function updateHunter(dt, info){
       // 止まってしまう。進めていない状態が続いたら壁沿いに滑って迂回する。
       if(mv > 0.0005 && moved < mv*0.45){
         hunter.stuckT += dt;
-        if(hunter.slideDir === 0) hunter.slideDir = (rnd() < 0.5) ? -1 : 1;
+        if(hunter.slideDir === 0) hunter.slideDir = (rndAI() < 0.5) ? -1 : 1;
       }else{
         hunter.stuckT = Math.max(0, hunter.stuckT - dt*2.2);
         if(hunter.stuckT <= 0) hunter.slideDir = 0;
@@ -1057,15 +1084,15 @@ function updateHunter(dt, info){
 
   hunter.twitchT -= dt;
   if(hunter.twitchT <= 0){
-    hunter.twitchT = chasing ? (0.25 + rnd()*0.4) : (0.7 + rnd()*1.6);
-    hunter.twitch = (rnd()-0.5) * (chasing ? 0.5 : 0.28);
+    hunter.twitchT = chasing ? (0.25 + rndFx()*0.4) : (0.7 + rndFx()*1.6);
+    hunter.twitch = (rndFx()-0.5) * (chasing ? 0.5 : 0.28);
   }
   hunter.twitch *= Math.pow(0.02, dt);
 
   // コマ落ちのような一瞬の破綻。数秒に一度、姿勢が飛ぶ
   hunter.glitchT -= dt;
   if(hunter.glitchT <= 0){
-    hunter.glitchT = (chasing ? 1.6 : 3.4) + rnd()*4.5;
+    hunter.glitchT = (chasing ? 1.6 : 3.4) + rndFx()*4.5;
     hunter.glitch = 1;
   }
   hunter.glitch = Math.max(0, hunter.glitch - dt*8);
@@ -1101,15 +1128,15 @@ function updateHunter(dt, info){
   if(hunter.gazeT <= 0){
     if(chasing){
       // 追跡中もときどき視線がずれる。完全な機械にはしない
-      hunter.gazeT = 0.5 + rnd()*1.1;
-      hunter.gazeTarget = (rnd() < 0.78) ? 0 : (rnd()-0.5)*0.9;
+      hunter.gazeT = 0.5 + rndFx()*1.1;
+      hunter.gazeTarget = (rndFx() < 0.78) ? 0 : (rndFx()-0.5)*0.9;
     }else{
-      hunter.gazeT = 0.9 + rnd()*2.2;
+      hunter.gazeT = 0.9 + rndFx()*2.2;
       // 徘徊中は進行方向を中心に左右を流し見る。
       // まれに（気配を感じたように）こちらを一瞥する
       var glance = (hunter.mode === 'hunt') ? 0.30 : 0.12;
-      hunter.gazeTarget = (rnd() < glance) ? clamp(rel, -1.5, 1.5)
-                                           : (rnd()-0.5) * 2.0;
+      hunter.gazeTarget = (rndFx() < glance) ? clamp(rel, -1.5, 1.5)
+                                           : (rndFx()-0.5) * 2.0;
     }
   }
   var wantHead;
@@ -1131,13 +1158,13 @@ function updateHunter(dt, info){
      ただし 1.15 倍では打ち消しすぎて顔が上を向き、せっかくの前傾が
      消えて見えた。0.86 倍にすると首から上だけがわずかに前へ残る。 */
   P.head.rotation.x = -lean*0.86 + Math.sin(now*0.71)*0.06;
-  P.head.rotation.z = Math.sin(now*0.61)*0.24 + hunter.twitch + (rnd()-0.5)*1.1*gl;
+  P.head.rotation.z = Math.sin(now*0.61)*0.24 + hunter.twitch + (rndFx()-0.5)*1.1*gl;
 
   // 瞳：片方だけ勝手に泳ぎ、ときどき両方消える
   P.pupR.position.x = 0.055 + Math.sin(now*0.53)*0.016;
   P.pupR.position.y = 0.075 + Math.sin(now*0.37)*0.008;
   hunter.eyeT -= dt;
-  if(hunter.eyeT <= 0){ hunter.eyeT = 1.8 + rnd()*4; hunter.eyeOff = 0.18 + rnd()*0.25; }
+  if(hunter.eyeT <= 0){ hunter.eyeT = 1.8 + rndFx()*4; hunter.eyeOff = 0.18 + rndFx()*0.25; }
   hunter.eyeOff = Math.max(0, hunter.eyeOff - dt);
   var baseLit = chasing ? 1 : (hunter.mode === 'hunt' ? 0.62 : 0.40);
   var pulse = chasing ? (0.82 + 0.18*Math.sin(now*7.5)) : (0.86 + 0.14*Math.sin(now*2.1));
@@ -1161,8 +1188,8 @@ function updateHunter(dt, info){
      構え（追跡中に前へ突き出す量）だけを遅らせ、振りはそのまま入れる。 */
   hunter.reach = lerp(hunter.reach, reachOut, lagK);
   var swA = hipR, swB = hipL;   // 腕は対側の脚と組む（脚と同じ値をそのまま使う）
-  P.armL.up.rotation.x = swA*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
-  P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rnd()-0.5)*1.3*gl;
+  P.armL.up.rotation.x = swA*0.62 - hunter.reach + (rndFx()-0.5)*1.3*gl;
+  P.armR.up.rotation.x = swB*0.62 - hunter.reach + (rndFx()-0.5)*1.3*gl;
   P.armL.up.rotation.z =  0.16 + (chasing?0.1:0) + hunter.twitch*0.3;
   P.armR.up.rotation.z = -0.16 - (chasing?0.1:0) - hunter.twitch*0.3;
   /* 肘。追跡中は -0.25rad（14 度）とほぼ伸び切っており、腕を前へ突き出した
@@ -1380,13 +1407,13 @@ function updateHunter(dt, info){
   }
 
   hunter.group.position.set(hunter.x, 0, hunter.z);
-  hunter.group.rotation.y = hunter.yaw + hunter.twitch*0.25 + (rnd()-0.5)*0.55*gl;
+  hunter.group.rotation.y = hunter.yaw + hunter.twitch*0.25 + (rndFx()-0.5)*0.55*gl;
   hunter.group.rotation.z = Math.sin(hunter.bob*0.5)*0.045 + hunter.twitch*0.1;
   hunter.group.updateMatrixWorld(true);
   P.legL.tip.getWorldPosition(_hv1);
   P.legR.tip.getWorldPosition(_hv2);
   var lowest = Math.min(_hv1.y, _hv2.y);
-  if(isFinite(lowest)) hunter.group.position.y = -lowest + (rnd()-0.5)*0.14*gl;
+  if(isFinite(lowest)) hunter.group.position.y = -lowest + (rndFx()-0.5)*0.14*gl;
 
   // 目の光源を頭の位置へ
   if(hunterEyeLight){
@@ -1450,7 +1477,7 @@ function updateHunter(dt, info){
   if(!cheats.pacifist && hd < 1.25 && noticed && hunter.attackCd <= 0 && hunter.stunT <= 0 &&
      hunter.swingT <= 0 && hunter.spawnGrace <= 0){
     hunter.attackCd = 1.7;
-    hunter.punchArm = (rnd() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
+    hunter.punchArm = (rndFx() < 0.5) ? -1 : 1;   // どちらの腕で殴るかは毎回変わる
     hunter.swingT = SWING_DUR;        // 殴打モーションの長さ
     hunter.stunT = 3.0;               // 振り抜いたあとの硬直。逃げ直す猶予になる
     if(!cheats.godmode) player.hp = clamp(player.hp - DIFF[settings.diff].dmg, 0, 100);
@@ -1694,11 +1721,11 @@ function updateEnv(dt, info){
   if(ambientCreakT <= 0){
     var quiet = !(hunter.mode === 'chase') && info.hd > 14;
     if(quiet){
-      var kind = (rnd()*5)|0;
+      var kind = (rndFx()*5)|0;
       if(kind === 4) Audio2.creak();
-      else Audio2.ambientOne(kind, (rnd()*2-1)*0.8, 0.25 + rnd()*0.7);
+      else Audio2.ambientOne(kind, (rndFx()*2-1)*0.8, 0.25 + rndFx()*0.7);
     }
-    ambientCreakT = 6 + rnd()*11;
+    ambientCreakT = 6 + rndFx()*11;
   }
 
   // 心音
