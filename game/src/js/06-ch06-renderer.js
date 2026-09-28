@@ -64,6 +64,9 @@ function qualityCfg(){
     bloom:    q >= 3,          // 最高品質のみ：光が滲む（縮小バッファ＋分離ブラー）
     dust:     q >= 2,          // 高精細以上：ランプの光に舞う埃
     shaft:    q >= 2,          // 高精細以上：非常口から差す光
+    beam:     q >= 2,          // 高精細以上：ランプの光の筋（深度から散乱を積む。1/2 解像度）
+    ssao:     q >= 3,          // 最高品質のみ：接地の陰（同じパスで深度から）
+    fxaa:     q >= 1,          // 標準以上：輪郭の均し（合成パスの中で）
     detail:   q >= 3,          // 追跡者の追加ディテール
     /* 追跡者に焼き込む遮蔽の光線本数。0 で焼かない。
        生成時に一度だけ走る計算なので実行中の負荷はゼロだが、
@@ -174,6 +177,14 @@ function resize(){
     var ds = new THREE.Vector2();
     renderer.getDrawingBufferSize(ds);
     postRT.setSize(Math.max(1, ds.x), Math.max(1, ds.y));
+    if(taaA){
+      taaA.setSize(Math.max(1, ds.x), Math.max(1, ds.y)); taaB.setSize(Math.max(1, ds.x), Math.max(1, ds.y));
+      taaMat.uniforms.uRes.value.set(ds.x, ds.y); taaReset = true;
+    }
+    if(fxRT){
+      var fw2 = Math.max(1, Math.floor(ds.x/2)), fh2 = Math.max(1, Math.floor(ds.y/2));
+      fxRT.setSize(fw2, fh2); fxMat.uniforms.uRes.value.set(fw2, fh2);
+    }
     postMat.uniforms.uRes.value.set(ds.x, ds.y);
   }
   if(viewRig){

@@ -10,6 +10,10 @@ function loop(now){
   var dt = (now - lastT)/1000;
   lastT = now;
   if(!isFinite(dt) || dt <= 0) return;
+  /* 解像度の自動調整は実際にかかった時間で測る。遊びの dt は 0.05 で頭打ちにして
+     いるので、それを渡すと 1 フレーム 200ms の端末でも 1 秒の猶予が 4 倍に延び、
+     重いのに下がるのが遅れていた。タブ切り替え明けの大きな跳びだけは 0.25 で抑える */
+  var realDt = Math.min(dt, 0.25);
   dt = Math.min(dt, 0.05);
   if(cheats.slowmo) dt *= 0.4;
 
@@ -69,14 +73,20 @@ function loop(now){
     try{
       var usePost = postEnabled();
       if(usePost) renderer.setRenderTarget(postRT);
+      var taaOn = usePost ? taaJitter() : false;
       renderer.autoClear = true;
       renderer.render(scene, camera);
+      var taaTex = taaOn ? taaResolve() : null;
+      // 光の筋と接地の陰は、手を描いて深度が消える前に作る
+      var fxOn = usePost ? renderFx(dt) : false;
+      var handsOn = false;
       // 脱出の演出中も手は残す。扉へ差し出したランプが最後の 1 枚に入る
       if(viewScene && (state === STATE.PLAY || state === STATE.WIN) && playAs !== 'hunter'){
         renderer.autoClear = false;
         renderer.clearDepth();
         renderer.render(viewScene, viewCam);
         renderer.autoClear = true;
+        handsOn = true;
       }
       if(usePost){
         /* 滲みは本編を描いたあと、合成の前に作る。
@@ -84,6 +94,14 @@ function loop(now){
         var bt = QC.bloom ? renderBloom() : null;
         postMat.uniforms.tBloom.value = bt;
         postMat.uniforms.uBloom.value = bt ? (0.55 + (1 - player.sanity/100) * 0.45) : 0;
+        var pu = postMat.uniforms;
+        pu.tFx.value = fxOn ? fxRT.texture : null; pu.uFx.value = fxOn ? 1 : 0;
+        pu.uHands.value = handsOn ? 1 : 0;
+        pu.uAA.value = (QC.fxaa && settings.fxAA && !taaOn) ? 1 : 0;   // TAA の時は FXAA を重ねない
+        pu.tDiffuse.value = taaTex || postRT.texture; pu.uTaa.value = taaTex ? 1 : 0;
+        // 読む間の背景ぼかし。紙が出ている間だけ寄せ、追われたらすぐ戻す
+        var dofT = (settings.fxDof && state === STATE.PLAY && noteT > 0 && hunter.mode !== 'chase') ? 1 : 0;
+        pu.uDof.value += (dofT - pu.uDof.value) * (1 - Math.pow(dofT ? 0.2 : 0.002, dt));
         renderer.setRenderTarget(null);
         updatePost(dt);
         renderer.render(postScene, postCam);
@@ -95,7 +113,7 @@ function loop(now){
     }
   }
 
-  updateDRS(dt);
+  updateDRS(realDt);
   teleFrame(dt);
   updatePadMenu(dt);
   // FPS 監視・自動品質ダウン

@@ -592,6 +592,39 @@
     <p class="hint">いちばん左の四角が「かろうじて見える」ところに合わせる。
       本編と同じ計算で描いているので、ここで見えない暗さは病棟でも見えない。</p>
   </div>
+  <div class="sect">画面効果</div>
+  <div class="field">
+    <label>光の筋 <span id="valFB">オン</span></label>
+    <div class="seg" id="segFB" role="group" aria-label="光の筋">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">ランプの光が空気中の埃に散って、筋として見える。高精細以上。</p>
+  </div>
+  <div class="field">
+    <label>接地の陰 <span id="valFO">オン</span></label>
+    <div class="seg" id="segFO" role="group" aria-label="接地の陰">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。</p>
+  </div>
+  <div class="field">
+    <label>輪郭を均す <span id="valFA">オン</span></label>
+    <div class="seg" id="segFA" role="group" aria-label="輪郭を均す">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">細い線（配管・格子・手すり）のぎざぎざとちらつきを抑える。標準以上。</p>
+  </div>
+  <div class="field">
+    <label>読む間の背景ぼかし <span id="valFD">オン</span></label>
+    <div class="seg" id="segFD" role="group" aria-label="読む間の背景ぼかし">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">書類を読んでいる間、奥の景色を少しぼかす。追われている間はぼかさない。</p>
+  </div>
   <div class="sect">見え方と酔い・光過敏</div>
   <div class="field">
     <label for="fovA">視野角 <span id="valF">±0</span></label>
@@ -1089,6 +1122,11 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  '画面効果':'Effects', '光の筋':'Light shafts', '接地の陰':'Contact shadows', '輪郭を均す':'Anti-aliasing', '読む間の背景ぼかし':'Blur while reading',
+  'ランプの光が空気中の埃に散って、筋として見える。高精細以上。':'Your lamp\u2019s light scatters in the dust and shows as a beam. High and above.',
+  '物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。':'Soft shadows where objects meet floors and walls. Ultra only.',
+  '細い線（配管・格子・手すり）のぎざぎざとちらつきを抑える。標準以上。':'Smooths jagged, shimmering thin lines (pipes, grilles, rails). Standard and above.',
+  '書類を読んでいる間、奥の景色を少しぼかす。追われている間はぼかさない。':'Slightly blurs the background while you read a document. Never while being chased.',
   '覗く':'Peek', '扉を押し開けた — 音が響いた':'Shoved the door open \u2014 it echoed', '扉をそっと開けている…':'Easing the door open\u2026',
   '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
@@ -3212,7 +3250,12 @@ var settings = {
   tele: false,     // プレイテストの記録（端末の中だけ。第 17 章）
   safeHide: false, // 恐怖の調整：隠れ場所は安全（点検されない・入るのを見られても引き出されない）
   softScare: false,// 恐怖の調整：叫び・金切り声を弱める
-  lefty: false     // 左手持ち：スティックとボタンの左右を入れ替える
+  lefty: false,    // 左手持ち：スティックとボタンの左右を入れ替える
+  // 画面効果を 1 つずつ切れるように（設計指示書 第 8.2 節の末尾・第 13 章）
+  fxBeam: true,    // ランプの光の筋（空気中の埃に散る光）
+  fxAO: true,      // 接地の陰（最高品質のみ）
+  fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
+  fxDof: true      // 書類を読む間、奥をぼかす
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -3231,7 +3274,7 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
-    ['safeHide','softScare','lefty'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
+    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
@@ -3420,6 +3463,9 @@ function qualityCfg(){
     bloom:    q >= 3,          // 最高品質のみ：光が滲む（縮小バッファ＋分離ブラー）
     dust:     q >= 2,          // 高精細以上：ランプの光に舞う埃
     shaft:    q >= 2,          // 高精細以上：非常口から差す光
+    beam:     q >= 2,          // 高精細以上：ランプの光の筋（深度から散乱を積む。1/2 解像度）
+    ssao:     q >= 3,          // 最高品質のみ：接地の陰（同じパスで深度から）
+    fxaa:     q >= 1,          // 標準以上：輪郭の均し（合成パスの中で）
     detail:   q >= 3,          // 追跡者の追加ディテール
     /* 追跡者に焼き込む遮蔽の光線本数。0 で焼かない。
        生成時に一度だけ走る計算なので実行中の負荷はゼロだが、
@@ -3530,6 +3576,14 @@ function resize(){
     var ds = new THREE.Vector2();
     renderer.getDrawingBufferSize(ds);
     postRT.setSize(Math.max(1, ds.x), Math.max(1, ds.y));
+    if(taaA){
+      taaA.setSize(Math.max(1, ds.x), Math.max(1, ds.y)); taaB.setSize(Math.max(1, ds.x), Math.max(1, ds.y));
+      taaMat.uniforms.uRes.value.set(ds.x, ds.y); taaReset = true;
+    }
+    if(fxRT){
+      var fw2 = Math.max(1, Math.floor(ds.x/2)), fh2 = Math.max(1, Math.floor(ds.y/2));
+      fxRT.setSize(fw2, fh2); fxMat.uniforms.uRes.value.set(fw2, fh2);
+    }
     postMat.uniforms.uRes.value.set(ds.x, ds.y);
   }
   if(viewRig){
@@ -4201,6 +4255,11 @@ function buildPost(){
      持ち、そのまま読む」という r128 の流れと 1 対 1 になる（平均輝度 58.0、r128 は 57.9）。 */
   postRT.isXRRenderTarget = true;
   postRT.texture.internalFormat = 'RGBA8';
+  /* 深度を読めるようにしておく。光の筋と接地の陰（第 8.2 節）は、本編を描いた直後の
+     深度から作る。手（viewScene）は深度を消してから描くので、合成の時点のこの深度は
+     「手の在る所だけ値が入り、他は 1.0」になる。それを手の型抜きにも使う。 */
+  postRT.depthTexture = new THREE.DepthTexture(Math.max(1,size.x), Math.max(1,size.y));
+  postRT.depthTexture.type = THREE.UnsignedIntType;
 
   postScene = new THREE.Scene();
   postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -4215,7 +4274,15 @@ function buildPost(){
       uWarp:  { value: 0 },
       tBloom: { value: null },
       uBloom: { value: 0 },
-      uSharp: { value: 0 }
+      uSharp: { value: 0 },
+      tDepth: { value: postRT.depthTexture },
+      tFx:    { value: null },
+      uFx:    { value: 0 },
+      uHands: { value: 0 },
+      uAA:    { value: 0 },
+      uDof:   { value: 0 },
+      tRaw:   { value: postRT.texture },
+      uTaa:   { value: 0 }
     },
     vertexShader: [
       'varying vec2 vUv;',
@@ -4224,9 +4291,34 @@ function buildPost(){
     fragmentShader: [
       'uniform sampler2D tDiffuse;',
       'uniform vec2 uRes;',
-      'uniform float uTime, uAberr, uNoise, uScan, uWarp, uBloom, uSharp;',
-      'uniform sampler2D tBloom;',
+      'uniform float uTime, uAberr, uNoise, uScan, uWarp, uBloom, uSharp, uFx, uHands, uAA, uDof;',
+      'uniform sampler2D tBloom, tDepth, tFx, tRaw;',
+      'uniform float uTaa;',
       'varying vec2 vUv;',
+      'float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }',
+      /* 輪郭の均し（FXAA 3.11 の軽い版）。斜めの 4 点で輪郭の向きを出し、その向きに
+         沿って 2〜4 点を平均する。差の小さい所（画面の大半）はすぐ抜ける。
+         細い配管・格子・手すりのぎざぎざとちらつきが消える。 */
+      'vec3 fxaa(vec2 uv){',
+      '  vec2 tx = 1.0 / uRes;',
+      '  vec3 cM = texture2D(tDiffuse, uv).rgb;',
+      '  float lNW = luma(texture2D(tDiffuse, uv + vec2(-1.0,-1.0)*tx).rgb);',
+      '  float lNE = luma(texture2D(tDiffuse, uv + vec2( 1.0,-1.0)*tx).rgb);',
+      '  float lSW = luma(texture2D(tDiffuse, uv + vec2(-1.0, 1.0)*tx).rgb);',
+      '  float lSE = luma(texture2D(tDiffuse, uv + vec2( 1.0, 1.0)*tx).rgb);',
+      '  float lM = luma(cM);',
+      '  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));',
+      '  float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));',
+      '  if(lMax - lMin < max(0.0312, lMax * 0.125)) return cM;',
+      '  vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));',
+      '  float red = max((lNW + lNE + lSW + lSE) * 0.03125, 0.0078125);',
+      '  float rcp = 1.0 / (min(abs(dir.x), abs(dir.y)) + red);',
+      '  dir = clamp(dir * rcp, -8.0, 8.0) * tx;',
+      '  vec3 a = 0.5 * (texture2D(tDiffuse, uv + dir * (1.0/3.0 - 0.5)).rgb + texture2D(tDiffuse, uv + dir * (2.0/3.0 - 0.5)).rgb);',
+      '  vec3 b = a * 0.5 + 0.25 * (texture2D(tDiffuse, uv - dir * 0.5).rgb + texture2D(tDiffuse, uv + dir * 0.5).rgb);',
+      '  float lb = luma(b);',
+      '  return (lb < lMin || lb > lMax) ? a : b;',
+      '}',
       'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
       /* 交互勾配ノイズ。整列した点が画面全体に均一に散るので、
          同じ 1 個の乱数でも sin ベースの hash より粒が揃う。
@@ -4250,9 +4342,17 @@ function buildPost(){
          手のあたり |c|=0.26 では 0.0057 → 0.0004 と 15 分の 1 になる。 */
       '  vec2 d = c * (uAberr * 0.044 * r2 + band * uScan * 0.005);', // 色収差
       '  vec3 col;',
-      '  col.r = texture2D(tDiffuse, clamp(uv + d, 0.0005, 0.9995)).r;',
-      '  col.g = texture2D(tDiffuse, uv).g;',
-      '  col.b = texture2D(tDiffuse, clamp(uv - d, 0.0005, 0.9995)).b;',
+      '  if(uAA > 0.5){',
+      '    col = fxaa(uv);',
+      '    if(dot(d, d) > 1e-10){',
+      '      col.r = texture2D(tDiffuse, clamp(uv + d, 0.0005, 0.9995)).r;',
+      '      col.b = texture2D(tDiffuse, clamp(uv - d, 0.0005, 0.9995)).b;',
+      '    }',
+      '  }else{',
+      '    col.r = texture2D(tDiffuse, clamp(uv + d, 0.0005, 0.9995)).r;',
+      '    col.g = texture2D(tDiffuse, uv).g;',
+      '    col.b = texture2D(tDiffuse, clamp(uv - d, 0.0005, 0.9995)).b;',
+      '  }',
       /* 輪郭の持ち上げ。端末の画素密度より低い解像度で描いて引き伸ばす
          設定があるので、そのままだと全体がふやける。上下左右 4 点との
          差を足し戻すと輪郭が戻る。ただし素の差を足すと縁が白く光る
@@ -4268,6 +4368,25 @@ function buildPost(){
       '    vec3 hi = max(max(s1, s2), max(s3, s4));',
       '    vec3 sh = col + (col * 4.0 - (s1 + s2 + s3 + s4)) * (uSharp * 0.25);',
       '    col = clamp(sh, min(lo, col), max(hi, col));',
+      '  }',
+      /* 読む間の背景ぼかし（被写界深度の代わり）。紙に目が行っている間だけ、
+         円盤状の 8 点で奥をぼかす。手は深度で型抜きしてぼかさない */
+      '  float nh = (uHands > 0.5) ? step(0.99999, texture2D(tDepth, uv).r) : 1.0;',
+      /* TAA を通した絵には手が入っていない（手は後から別に描く）。手の所は生の絵へ戻す */
+      '  if(uTaa > 0.5 && nh < 0.5) col = texture2D(tRaw, uv).rgb;',
+      '  if(uDof > 0.002){',
+      '    vec2 rr = (uDof * 5.0) / uRes;',
+      '    vec3 bl = col;',
+      '    for(int i = 0; i < 8; i++){',
+      '      float an = float(i) * 0.785398 + 0.39;',
+      '      bl += texture2D(tDiffuse, clamp(uv + vec2(cos(an), sin(an)) * rr * (i < 4 ? 1.0 : 0.55), 0.0005, 0.9995)).rgb;',
+      '    }',
+      '    col = mix(col, bl / 9.0, clamp(uDof, 0.0, 1.0) * nh);',
+      '  }',
+      /* 光の筋（rgb）と接地の陰（a）。1/2 の大きさで作ってあるのを引き伸ばして重ねる */
+      '  if(uFx > 0.5){',
+      '    vec4 fx = texture2D(tFx, uv);',
+      '    col = col * mix(1.0, fx.a, nh) + fx.rgb * nh;',
       '  }',
       '  float sl = sin(uv.y * uRes.y * 1.5) * 0.5 + 0.5;',      // 走査線
       '  col *= 1.0 - uScan * 0.20 * sl;',
@@ -4351,6 +4470,217 @@ function buildBloom(size){
     depthTest:false, depthWrite:false });
   bloomQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), brightMat);
   bloomQuad.frustumCulled = false;
+}
+
+/* ---- 光の筋と接地の陰（設計指示書 第 8.2 節） ----
+   本編を描いた直後の深度から、1/2 の大きさで 1 枚に作る（rgb＝光の筋、a＝陰の濃さ）。
+
+   光の筋：ランプは目の位置にあるので、画面の 1 画素の視線の上の点は、どれも
+   ランプの軸から同じ角度にある。だから視線に沿って散乱を積む計算が閉じた式になる：
+     散乱 = 円錐の中か（角度だけで決まる） × ∫0..D 1/(1+(t/r)^2) dt = r·atan(D/r)
+   D は視線が物に当たるまでの距離。長い廊下の奥を照らすと光の筋が濃く、壁に
+   近づけると薄くなる。埃のむらはゆっくり流れる値ノイズで足す。
+
+   接地の陰：深度だけで作る（法線は持たない）。深度をそのまま比べると、斜めに
+   見ている床が一面に暗くなる。周りの深度から「平らならここはこの深さ」を
+   1/z の平面で予想し、それより手前に在る分だけを陰にする。 */
+var fxRT = null, fxMat = null, fxScene = null;
+function fxWant(){
+  var beam = QC.beam && settings.fxBeam && playAs !== 'hunter';
+  var ao = QC.ssao && settings.fxAO;
+  return { beam:!!beam, ao:!!ao, any:!!(beam || ao) };
+}
+function buildFx(size){
+  var w = Math.max(1, Math.floor(size.x/2)), h = Math.max(1, Math.floor(size.y/2));
+  fxRT = new THREE.WebGLRenderTarget(w, h, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
+    format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false });
+  fxMat = new THREE.ShaderMaterial({
+    uniforms: {
+      tDepth:{ value:postRT.depthTexture }, uRes:{ value:new THREE.Vector2(w, h) },
+      uNear:{ value:0.05 }, uFar:{ value:200 }, uTan:{ value:new THREE.Vector2(1, 1) },
+      uDir:{ value:new THREE.Vector3(0, 0, -1) }, uCosOut:{ value:0.9 }, uCosIn:{ value:0.95 },
+      uCol:{ value:new THREE.Vector3() }, uR:{ value:3.2 }, uRange:{ value:28 },
+      uTime:{ value:0 }, uBeam:{ value:0 }, uAO:{ value:0 }
+    },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: [
+      'uniform sampler2D tDepth; uniform vec2 uRes, uTan; uniform float uNear, uFar, uCosOut, uCosIn, uR, uRange, uTime, uBeam, uAO;',
+      'uniform vec3 uDir, uCol; varying vec2 vUv;',
+      'float lz(float d){ float z = d * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }',
+      'float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+      'float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);',
+      '  return mix(mix(hsh(i), hsh(i+vec2(1.0,0.0)), f.x), mix(hsh(i+vec2(0.0,1.0)), hsh(i+vec2(1.0,1.0)), f.x), f.y); }',
+      'float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }',
+      'void main(){',
+      '  float d = texture2D(tDepth, vUv).r;',
+      '  float z = lz(d);',
+      '  bool sky = d >= 0.99999;',
+      '  vec3 ray = vec3((vUv * 2.0 - 1.0) * uTan, -1.0);',
+      '  float rl = length(ray); vec3 rd = ray / rl;',
+      '  vec3 beam = vec3(0.0);',
+      '  if(uBeam > 0.0){',
+      '    float D = sky ? uRange : min(z * rl, uRange);',
+      '    float c = dot(rd, uDir);',
+      '    float spot = smoothstep(uCosOut, uCosIn, c) + 0.18 * smoothstep(uCosOut - 0.06, uCosOut, c);',
+      '    float I = atan(D / uR) / 1.5708;',
+      '    float asp = uRes.x / uRes.y;',
+      '    float dust = vn(vUv * vec2(asp, 1.0) * 5.0 + vec2(uTime * 0.035, -uTime * 0.05))',
+      '               * 0.6 + vn(vUv * vec2(asp, 1.0) * 13.0 - vec2(uTime * 0.07, uTime * 0.02)) * 0.4;',
+      '    beam = uCol * (spot * I * (0.62 + 0.76 * dust)) * uBeam;',
+      '    beam += (ign(gl_FragCoord.xy) - 0.5) / 255.0;',
+      '  }',
+      '  float ao = 1.0;',
+      '  if(uAO > 0.5 && !sky && z < 18.0){',
+      /* 深度は最近傍で読まれる。ずらした先を画素の中心へ寄せ、平面の予想にも寄せた後の
+         ずれを使う。寄せないと、斜めに見る床や天井で「読んだ所」と「予想した所」が
+         半画素ずれ、縞状の偽の陰が出た */
+      '    vec2 dres = uRes * 2.0, tx = 1.0 / dres;',
+      '    vec2 c0 = (floor(vUv * dres) + 0.5) * tx;',
+      '    float w0 = 1.0 / lz(texture2D(tDepth, c0).r);',
+      '    float wr = 1.0 / lz(texture2D(tDepth, c0 + vec2(tx.x, 0.0)).r), wl = 1.0 / lz(texture2D(tDepth, c0 - vec2(tx.x, 0.0)).r);',
+      '    float wu = 1.0 / lz(texture2D(tDepth, c0 + vec2(0.0, tx.y)).r), wd = 1.0 / lz(texture2D(tDepth, c0 - vec2(0.0, tx.y)).r);',
+      /* 段差をまたいだ差分を使うと平面の予想が狂うので、左右（上下）の小さい方を採る */
+      '    float gx = abs(wr - w0) < abs(w0 - wl) ? (wr - w0) : (w0 - wl);',
+      '    float gy = abs(wu - w0) < abs(w0 - wd) ? (wu - w0) : (w0 - wd);',
+      '    vec2 rUV = vec2(0.42 / (2.0 * uTan.x * z), 0.42 / (2.0 * uTan.y * z));',
+      '    rUV = min(rUV, vec2(0.08));',
+      '    float rot = ign(gl_FragCoord.xy) * 6.2832, occ = 0.0;',
+      '    for(int i = 0; i < 8; i++){',
+      '      float fi = float(i);',
+      '      float an = fi * 2.39996 + rot, rr = (fi + 0.5) / 8.0;',
+      '      vec2 sp = (floor((c0 + vec2(cos(an), sin(an)) * rr * rUV) * dres) + 0.5) * tx;',
+      '      vec2 o = sp - c0;',
+      '      float zs = lz(texture2D(tDepth, sp).r);',
+      '      float wp = w0 + gx * (o.x / tx.x) + gy * (o.y / tx.y);',
+      '      float zp = 1.0 / max(wp, 1e-4);',
+      '      float df = zp - zs;',
+      '      occ += smoothstep(0.03, 0.14, df) * (1.0 - smoothstep(0.35, 0.8, df));',
+      '    }',
+      '    ao = 1.0 - (occ / 8.0) * 0.62 * (1.0 - smoothstep(10.0, 18.0, z));',
+      '  }',
+      '  gl_FragColor = vec4(max(beam, 0.0), ao);',
+      '}'
+    ].join('\n'),
+    depthTest:false, depthWrite:false });
+  fxScene = new THREE.Scene();
+  var q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fxMat); q.frustumCulled = false;
+  fxScene.add(q);
+}
+function dropFx(){ if(fxRT){ fxRT.dispose(); fxRT = null; } }
+var _fxTmp = null;
+/* 本編を postRT に描いた直後（手を描く前）に呼ぶ。作ったら true */
+function renderFx(dt){
+  var fw = fxWant();
+  if(!postRT || !fw.any){ if(fxRT) dropFx(); return false; }
+  if(!fxRT || !fxMat){ var sz = new THREE.Vector2(); renderer.getDrawingBufferSize(sz); buildFx(sz); }
+  var u = fxMat.uniforms;
+  u.uNear.value = camera.near; u.uFar.value = camera.far;
+  var ty = Math.tan(camera.fov * Math.PI / 360);
+  u.uTan.value.set(ty * camera.aspect, ty);
+  u.uTime.value += dt;
+  u.uAO.value = fw.ao ? 1 : 0;
+  var bi = (fw.beam && flashlight && flashlight.visible) ? flashlight.intensity / LAMP_I : 0;
+  u.uBeam.value = clamp(bi, 0, 1.5);
+  if(bi > 0){
+    u.uDir.value.set(viewBeam.x, viewBeam.y, -1).normalize();
+    u.uCosOut.value = Math.cos(flashlight.angle * 1.05);
+    u.uCosIn.value = Math.cos(flashlight.angle * (1 - flashlight.penumbra * 0.8));
+    u.uRange.value = flashlight.distance || 28;
+    // 暖かい白。露出の自動追従の後段で足すので、明るさは控えめな固定値
+    u.uCol.value.set(0.080, 0.066, 0.046);
+  }
+  renderer.setRenderTarget(fxRT);
+  renderer.render(fxScene, postCam);
+  renderer.setRenderTarget(postRT);
+  return true;
+}
+
+/* ---- 時間方向の輪郭の均し（TAA。設計指示書 第 8.2 節「推奨端末は時間方向」） ----
+   毎フレーム、投影を 1 画素未満だけずらして描き（Halton 2,3 の 8 通り）、前のフレームの
+   結果と混ぜる。前の結果は、深度から「この画素は前のフレームでは画面のどこに在ったか」を
+   逆算して読む（カメラの動きはこれで吸収される）。動く物（あれ）の尾引きは、今の画素の
+   周り 3×3 の明暗の幅に前の値を押し込めて抑える。速く振り向いた所は今の値を重くする。
+   手は別の視点で描くので混ぜない（深度の型抜きで最終合成が生の値に戻す）。最高品質のみ。 */
+var taaA = null, taaB = null, taaMat = null, taaScene = null, taaPrevVP = null, taaN = 0, taaReset = true;
+var taaPrevPos = null, _taaM = null, _taaInv = null;
+function taaWant(){ return !!(QC.bloom && settings.fxAA && postRT); }
+function halton(i, b){ var f = 1, r = 0; while(i > 0){ f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
+function buildTaa(size){
+  var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat,
+              stencilBuffer:false, depthBuffer:false };
+  taaA = new THREE.WebGLRenderTarget(Math.max(1,size.x), Math.max(1,size.y), opt);
+  taaB = new THREE.WebGLRenderTarget(Math.max(1,size.x), Math.max(1,size.y), opt);
+  taaMat = new THREE.ShaderMaterial({
+    uniforms: { tCur:{ value:postRT.texture }, tDepth:{ value:postRT.depthTexture }, tHist:{ value:null },
+                uToPrev:{ value:new THREE.Matrix4() }, uRes:{ value:new THREE.Vector2(size.x, size.y) },
+                uReset:{ value:1 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: [
+      'uniform sampler2D tCur, tDepth, tHist; uniform mat4 uToPrev; uniform vec2 uRes; uniform float uReset;',
+      'varying vec2 vUv;',
+      'void main(){',
+      '  vec2 tx = 1.0 / uRes;',
+      '  vec3 c = texture2D(tCur, vUv).rgb;',
+      '  if(uReset > 0.5){ gl_FragColor = vec4(c, 1.0); return; }',
+      '  vec3 mn = c, mx = c;',
+      '  for(int j = -1; j <= 1; j++) for(int i = -1; i <= 1; i++){',
+      '    if(i == 0 && j == 0) continue;',
+      '    vec3 s = texture2D(tCur, vUv + vec2(float(i), float(j)) * tx).rgb;',
+      '    mn = min(mn, s); mx = max(mx, s);',
+      '  }',
+      '  float d = texture2D(tDepth, vUv).r;',
+      '  vec4 p = uToPrev * vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);',
+      '  vec2 pv = p.xy / p.w * 0.5 + 0.5;',
+      '  if(p.w <= 0.0 || pv.x < 0.0 || pv.y < 0.0 || pv.x > 1.0 || pv.y > 1.0){ gl_FragColor = vec4(c, 1.0); return; }',
+      '  vec3 h = clamp(texture2D(tHist, pv).rgb, mn, mx);',
+      '  float vel = length((pv - vUv) * uRes);',
+      '  float a = mix(0.12, 0.4, clamp(vel / 14.0, 0.0, 1.0));',
+      '  gl_FragColor = vec4(mix(h, c, a), 1.0);',
+      '}'
+    ].join('\n'),
+    depthTest:false, depthWrite:false });
+  taaScene = new THREE.Scene();
+  var q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), taaMat); q.frustumCulled = false;
+  taaScene.add(q);
+  taaPrevVP = new THREE.Matrix4(); _taaM = new THREE.Matrix4(); _taaInv = new THREE.Matrix4();
+  taaPrevPos = new THREE.Vector3(); taaReset = true;
+}
+function dropTaa(){
+  if(taaA){ taaA.dispose(); taaB.dispose(); taaA = taaB = null; }
+  taaReset = true;
+}
+/* 本編を描く直前：投影を少しずらす。戻り値は TAA を通すかどうか */
+function taaJitter(){
+  if(!taaWant()){ if(taaA) dropTaa(); return false; }
+  if(!taaA){ var sz = new THREE.Vector2(); renderer.getDrawingBufferSize(sz); buildTaa(sz); }
+  taaN = (taaN + 1) % 8;
+  var w = taaMat.uniforms.uRes.value.x, h = taaMat.uniforms.uRes.value.y;
+  var jx = (halton(taaN + 1, 2) - 0.5) * 2 / w, jy = (halton(taaN + 1, 3) - 0.5) * 2 / h;
+  camera.updateProjectionMatrix();
+  camera.projectionMatrix.elements[8] += jx;
+  camera.projectionMatrix.elements[9] += jy;
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  return true;
+}
+/* 本編を描いた直後（手を描く前）：前の結果と混ぜる。戻り値は混ぜた結果のテクスチャ */
+function taaResolve(){
+  var u = taaMat.uniforms;
+  // 瞬間移動（始まり・復活・大きな跳び）の直後は前の結果を捨てる
+  if(taaPrevPos.distanceToSquared(camera.position) > 4) taaReset = true;
+  _taaInv.copy(camera.projectionMatrix).invert();
+  _taaM.copy(taaPrevVP).multiply(camera.matrixWorld).multiply(_taaInv);
+  u.uToPrev.value.copy(_taaM);
+  u.uReset.value = taaReset ? 1 : 0;
+  u.tHist.value = taaB.texture;
+  renderer.setRenderTarget(taaA);
+  renderer.render(taaScene, postCam);
+  var t = taaA; taaA = taaB; taaB = t;          // 今の結果は taaB。次のフレームの「前」になる
+  taaPrevVP.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse);
+  taaPrevPos.copy(camera.position);
+  taaReset = false;
+  camera.updateProjectionMatrix();              // ずらしを戻す（当たり判定や他の描画に残さない）
+  renderer.setRenderTarget(postRT);
+  return taaB.texture;
 }
 
 /* 明るい所を抜いて 2 回ぼかす。戻り値を最終合成が読む */
@@ -9500,7 +9830,8 @@ function syncSettingsUI(){
     b.setAttribute('aria-pressed', ((+b.dataset.t === 1) === settings.tele) ? 'true' : 'false');
   });
   $('valT').textContent = settings.tele ? 'オン' : 'オフ';
-  [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty']].forEach(function(e){
+  [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty'],
+   ['segFB','valFB','fxBeam'], ['segFO','valFO','fxAO'], ['segFA','valFA','fxAA'], ['segFD','valFD','fxDof']].forEach(function(e){
     Array.prototype.forEach.call($(e[0]).children, function(b){
       b.setAttribute('aria-pressed', ((+b.dataset.v === 1) === !!settings[e[2]]) ? 'true' : 'false');
     });
@@ -9680,7 +10011,8 @@ Array.prototype.forEach.call($('segT').children, function(b){
   b.addEventListener('click', function(){ settings.tele = (+b.dataset.t === 1); syncSettingsUI(); saveSettings(); });
 });
 $('btnTeleOut').addEventListener('click', teleExport);
-[['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty']].forEach(function(e){
+[['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty'],
+ ['segFB','fxBeam'], ['segFO','fxAO'], ['segFA','fxAA'], ['segFD','fxDof']].forEach(function(e){
   Array.prototype.forEach.call($(e[0]).children, function(b){
     b.addEventListener('click', function(){ settings[e[1]] = (+b.dataset.v === 1); syncSettingsUI(); saveSettings(); });
   });
@@ -12053,6 +12385,10 @@ function loop(now){
   var dt = (now - lastT)/1000;
   lastT = now;
   if(!isFinite(dt) || dt <= 0) return;
+  /* 解像度の自動調整は実際にかかった時間で測る。遊びの dt は 0.05 で頭打ちにして
+     いるので、それを渡すと 1 フレーム 200ms の端末でも 1 秒の猶予が 4 倍に延び、
+     重いのに下がるのが遅れていた。タブ切り替え明けの大きな跳びだけは 0.25 で抑える */
+  var realDt = Math.min(dt, 0.25);
   dt = Math.min(dt, 0.05);
   if(cheats.slowmo) dt *= 0.4;
 
@@ -12112,14 +12448,20 @@ function loop(now){
     try{
       var usePost = postEnabled();
       if(usePost) renderer.setRenderTarget(postRT);
+      var taaOn = usePost ? taaJitter() : false;
       renderer.autoClear = true;
       renderer.render(scene, camera);
+      var taaTex = taaOn ? taaResolve() : null;
+      // 光の筋と接地の陰は、手を描いて深度が消える前に作る
+      var fxOn = usePost ? renderFx(dt) : false;
+      var handsOn = false;
       // 脱出の演出中も手は残す。扉へ差し出したランプが最後の 1 枚に入る
       if(viewScene && (state === STATE.PLAY || state === STATE.WIN) && playAs !== 'hunter'){
         renderer.autoClear = false;
         renderer.clearDepth();
         renderer.render(viewScene, viewCam);
         renderer.autoClear = true;
+        handsOn = true;
       }
       if(usePost){
         /* 滲みは本編を描いたあと、合成の前に作る。
@@ -12127,6 +12469,14 @@ function loop(now){
         var bt = QC.bloom ? renderBloom() : null;
         postMat.uniforms.tBloom.value = bt;
         postMat.uniforms.uBloom.value = bt ? (0.55 + (1 - player.sanity/100) * 0.45) : 0;
+        var pu = postMat.uniforms;
+        pu.tFx.value = fxOn ? fxRT.texture : null; pu.uFx.value = fxOn ? 1 : 0;
+        pu.uHands.value = handsOn ? 1 : 0;
+        pu.uAA.value = (QC.fxaa && settings.fxAA && !taaOn) ? 1 : 0;   // TAA の時は FXAA を重ねない
+        pu.tDiffuse.value = taaTex || postRT.texture; pu.uTaa.value = taaTex ? 1 : 0;
+        // 読む間の背景ぼかし。紙が出ている間だけ寄せ、追われたらすぐ戻す
+        var dofT = (settings.fxDof && state === STATE.PLAY && noteT > 0 && hunter.mode !== 'chase') ? 1 : 0;
+        pu.uDof.value += (dofT - pu.uDof.value) * (1 - Math.pow(dofT ? 0.2 : 0.002, dt));
         renderer.setRenderTarget(null);
         updatePost(dt);
         renderer.render(postScene, postCam);
@@ -12138,7 +12488,7 @@ function loop(now){
     }
   }
 
-  updateDRS(dt);
+  updateDRS(realDt);
   teleFrame(dt);
   updatePadMenu(dt);
   // FPS 監視・自動品質ダウン

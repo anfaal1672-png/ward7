@@ -127,6 +127,11 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  '画面効果':'Effects', '光の筋':'Light shafts', '接地の陰':'Contact shadows', '輪郭を均す':'Anti-aliasing', '読む間の背景ぼかし':'Blur while reading',
+  'ランプの光が空気中の埃に散って、筋として見える。高精細以上。':'Your lamp\u2019s light scatters in the dust and shows as a beam. High and above.',
+  '物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。':'Soft shadows where objects meet floors and walls. Ultra only.',
+  '細い線（配管・格子・手すり）のぎざぎざとちらつきを抑える。標準以上。':'Smooths jagged, shimmering thin lines (pipes, grilles, rails). Standard and above.',
+  '書類を読んでいる間、奥の景色を少しぼかす。追われている間はぼかさない。':'Slightly blurs the background while you read a document. Never while being chased.',
   '覗く':'Peek', '扉を押し開けた — 音が響いた':'Shoved the door open \u2014 it echoed', '扉をそっと開けている…':'Easing the door open\u2026',
   '立体音響':'3D audio', 'ヘッドホン':'Headphones', 'スピーカー':'Speakers',
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':

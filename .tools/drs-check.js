@@ -13,12 +13,13 @@ const fs=require('fs'), path=require('path');
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.start(); A.cheats.invisible=true; });
   const pr0 = await p.evaluate(()=>window.__W7R.getPixelRatio());
-  await p.waitForTimeout(12000);
+  // 決め打ちの 12 秒だと、混んだ CI で数フレームしか回らず下がり切らないことがある。下がるのを待つ
+  await p.waitForFunction((pr0)=>window.__W7R.getPixelRatio() < pr0, pr0, {timeout:45000}).catch(()=>{});
   const pr1 = await p.evaluate(()=>window.__W7R.getPixelRatio());
   await p.evaluate(()=>window.__w7thermal(3));
   await p.waitForTimeout(500);
   const pr2 = await p.evaluate(()=>window.__W7R.getPixelRatio());
-  console.log(JSON.stringify({start:pr0, after12s:pr1, critical:pr2, errs}));
+  console.log(JSON.stringify({start:pr0, after:pr1, critical:pr2, errs}));
   const ok = pr1 < pr0 && pr2 <= pr0*0.7 + 1e-6 && !errs.length;
   console.log(ok ? 'OK' : 'FAIL');
   await b.close(); process.exit(ok?0:1);

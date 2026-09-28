@@ -19,8 +19,11 @@ const fs=require('fs'), path=require('path');
     body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.goto('file://'+file+'?debug=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
-  const r = await p.evaluate(async ({q,N})=>{
-    const A=window.__WARD7; A.skipUI(true); A.seed(7); A.settings.quality=q; A.start();
+  const FX0 = process.env.FX === '0';
+  const r = await p.evaluate(async ({q,N,FX0})=>{
+    const A=window.__WARD7; A.skipUI(true); A.seed(7); A.settings.quality=q;
+    if(FX0){ A.settings.fxBeam=A.settings.fxAO=A.settings.fxAA=A.settings.fxDof=false; }   // FX=0 で画面効果（第 8.2 節）を切って比べる
+    A.start();
     await new Promise(r=>setTimeout(r,1200));          // 暖気
     const dts=[];
     await new Promise(done=>{
@@ -35,7 +38,7 @@ const fs=require('fs'), path=require('path');
     dts.sort((a,b)=>a-b);
     const med=dts[dts.length>>1], p95=dts[Math.floor(dts.length*0.95)];
     return { med, p95, min:dts[0], max:dts[dts.length-1] };
-  }, {q,N});
+  }, {q,N,FX0});
   console.log(`${path.basename(file).padEnd(12)} q${q} ${VW}x${VH}@${DSF}  フレーム時間 中央値 ${r.med.toFixed(1)}ms (${(1000/r.med).toFixed(1)}fps)  95%点 ${r.p95.toFixed(1)}ms  最短 ${r.min.toFixed(1)}  最長 ${r.max.toFixed(1)}  err=${errs.length}`);
   await b.close();
 })();

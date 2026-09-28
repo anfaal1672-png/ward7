@@ -87,7 +87,12 @@ var settings = {
   tele: false,     // プレイテストの記録（端末の中だけ。第 17 章）
   safeHide: false, // 恐怖の調整：隠れ場所は安全（点検されない・入るのを見られても引き出されない）
   softScare: false,// 恐怖の調整：叫び・金切り声を弱める
-  lefty: false     // 左手持ち：スティックとボタンの左右を入れ替える
+  lefty: false,    // 左手持ち：スティックとボタンの左右を入れ替える
+  // 画面効果を 1 つずつ切れるように（設計指示書 第 8.2 節の末尾・第 13 章）
+  fxBeam: true,    // ランプの光の筋（空気中の埃に散る光）
+  fxAO: true,      // 接地の陰（最高品質のみ）
+  fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
+  fxDof: true      // 書類を読む間、奥をぼかす
 };
 try{
   var saved = JSON.parse(Store.get('ward7.settings') || 'null');
@@ -106,7 +111,7 @@ try{
     if(saved.lang === 'ja' || saved.lang === 'en') settings.lang = saved.lang;
     if(typeof saved.hrtf==='boolean')   settings.hrtf = saved.hrtf;
     if(typeof saved.tele==='boolean')   settings.tele = saved.tele;
-    ['safeHide','softScare','lefty'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
+    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
