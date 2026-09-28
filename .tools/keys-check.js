@@ -23,9 +23,11 @@ const { chromium, EXEC } = require('./pw.js');
   await p.evaluate(()=>{ const A=window.__WARD7; A.seed(4242); A.start(); A.cheats.invisible=true; });
   await p.waitForTimeout(600);
   const l0 = await p.evaluate(()=>window.__WARD7.player.lamp);
-  await p.keyboard.press('KeyL'); await p.waitForTimeout(200);
+  // 押した結果は条件で待つ（決め打ちの 200ms は遅い機械で落ちる。pad-check で一度落ちた）
+  await p.keyboard.press('KeyL');
+  await p.waitForFunction((l0)=>window.__WARD7.player.lamp !== l0, l0, {timeout:5000}).catch(()=>{});
   const l1 = await p.evaluate(()=>window.__WARD7.player.lamp);
-  await p.keyboard.press('KeyF'); await p.waitForTimeout(200);
+  await p.keyboard.press('KeyF'); await p.waitForTimeout(600);
   const l2 = await p.evaluate(()=>window.__WARD7.player.lamp);
   // 前へ（I）：見通しの利く方を向いてから押す
   await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player; const s=A.findLOSSpot(pl.x, pl.z, 6, 12); if(s){ pl.yaw=Math.atan2(-(s.x-pl.x), -(s.z-pl.z)); pl.viewYaw=pl.yaw; } });
