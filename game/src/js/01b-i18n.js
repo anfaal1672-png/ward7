@@ -127,6 +127,7 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  '振動':'Vibration', '心拍・近づく足音・掴まれた瞬間を手に伝える（iOS アプリ）。':'Feel your heartbeat, approaching footsteps and being grabbed (iOS app).',
   'ボタンの配置を編集':'Edit button layout', '画面のボタンを指で好きな所へ動かす。':'Drag the on-screen buttons wherever you like.',
   'ボタンを指で動かす':'Drag the buttons', '元に戻す':'Reset', '完了':'Done',
   'キーの割り当て':'Key bindings', '既定に戻す':'Reset to defaults', 'キーを押す…':'Press a key…',
@@ -144,7 +145,7 @@ var EN = {
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
   'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
-  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', 'WebAudio で合成':'Synthesized with WebAudio',
   '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
 
   // --- カルテ ---

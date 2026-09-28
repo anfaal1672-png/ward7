@@ -93,6 +93,7 @@ var settings = {
   fxAO: true,      // 接地の陰（最高品質のみ）
   fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
   fxDof: true,     // 書類を読む間、奥をぼかす
+  haptics: true,   // 振動（iOS アプリの触覚。心拍・近づく足音・掴まれた瞬間）
   keys: {},        // キーの割り当て（第 12.3 節）。操作名 → KeyboardEvent.code。空なら既定
   btnPos: {}       // タッチのボタンの配置（第 12.1 節）。id → { x, y }（画面に対する中心の割合）
 };
@@ -120,7 +121,7 @@ try{
     if(saved.keys && typeof saved.keys === 'object'){
       Object.keys(saved.keys).forEach(function(k){ if(typeof saved.keys[k] === 'string' && /^[A-Za-z0-9]+$/.test(saved.keys[k])) settings.keys[k] = saved.keys[k]; });
     }
-    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
+    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof','haptics'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・

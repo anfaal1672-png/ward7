@@ -66,7 +66,34 @@ var Audio2 = (function(){
     var d = noiseBuf.getChannelData(0);
     for(var i=0;i<len;i++) d[i] = Math.random()*2-1;
     ready = true;
+    loadSfx();
     return true;
+  }
+  /* 収録素材の音（設計指示書 第 10.1 節）。assets.js の sfx/<群>_<番号> を解いて群ごとに持つ。
+     assets.js は後から読まれる（defer）ので、鳴らす前にも取りに行く。
+     解けなかった群は合成の音のまま鳴る（素材が無くても遊べる） */
+  var SFX = {}, sfxLoading = false;
+  function loadSfx(){
+    if(sfxLoading || !ctx || !window.W7_ASSETS) return;
+    sfxLoading = true;
+    Object.keys(window.W7_ASSETS).forEach(function(k){
+      if(k.indexOf('sfx/') !== 0) return;
+      var grp = k.slice(4).replace(/_\d+$/, '');
+      try{
+        var bin = atob(window.W7_ASSETS[k].split(',')[1]), u8 = new Uint8Array(bin.length);
+        for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+        var pr = ctx.decodeAudioData(u8.buffer, function(buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
+        if(pr && pr.catch) pr.catch(function(){});
+      }catch(e){}
+    });
+  }
+  function sfx(grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
+  /* 素材を 1 回鳴らす。rate は速さ（＝高さ）、to は繋ぐ先 */
+  function playSfx(buf, t, rate, gain, to){
+    var s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+    var g = ctx.createGain(); g.gain.value = gain;
+    s.connect(g); g.connect(to); s.start(t);
+    return s;
   }
   function resume(){
     if(!ready) return;
@@ -342,6 +369,12 @@ var Audio2 = (function(){
     vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
     var t = ctx.currentTime;
+    /* 収録の足音。硬い床はコンクリート、柔らかい所は布。速さを毎回少しずらして同じ音に聞こえさせない */
+    var sb = sfx(mat > 0.4 ? 'step_hard' : 'step_soft');
+    if(sb){
+      playSfx(sb, t, 0.86 + mat*0.12 + Math.random()*0.08 + (hard ? 0.04 : 0), (hard ? 0.62 : 0.4) * vol, master);
+      return;
+    }
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
     n.playbackRate.value = 0.6 + mat*0.5 + Math.random()*0.4;
     var f = ctx.createBiquadFilter(); f.type='bandpass';
@@ -557,6 +590,9 @@ var Audio2 = (function(){
     env(og, t, 0.006, 0.24, 0.42*att);
     o.start(t); o.stop(t+0.34);
 
+    /* 収録の足音を低く引き下げて重ねる（人より重い体の踏み込み）。あれば引きずる雑音の代わりに */
+    var hb = sfx('step_hard');
+    if(hb){ playSfx(hb, t, (chasing ? 0.7 : 0.6) + Math.random()*0.05, 1.1 * att, lp); return; }
     // 引きずる音（遠いと減衰を強めにして踏み込みだけが残るようにする）
     var nz = ctx.createBufferSource(); nz.buffer = noiseBuf;
     nz.playbackRate.value = 0.5 + Math.random()*0.3;
@@ -675,7 +711,10 @@ var Audio2 = (function(){
     var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     out.connect(lp);
     if(pn){ pn.pan.value = clamp(pan, -1, 1); lp.connect(pn); pn.connect(master); } else lp.connect(master);
-    for(var i=0; i<7; i++){
+    // 収録の瓶の割れる音。合成の破片は数を減らして上に散らす
+    var gb = sfx('glass');
+    if(gb) playSfx(gb, t, 0.92 + Math.random()*0.12, 1.1, out);
+    for(var i=0; i<(gb ? 3 : 7); i++){
       var off = i * (0.012 + Math.random()*0.03);
       var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 1.4 + Math.random();
       var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9 + Math.random()*12;
@@ -732,6 +771,9 @@ var Audio2 = (function(){
     out.connect(lp);
     if(pn){ pn.pan.value = clamp(pan, -1, 1) * 0.7; lp.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
     else lp.connect(master);
+    // 収録の金属音を低く鳴らして芯にする（天井裏の鋼板・扉を押し開けた音）
+    var mb = sfx(loud && loud > 0.8 ? 'plate' : 'metal');
+    if(mb) playSfx(mb, t, 0.62 + Math.random()*0.1, 1.2, out);
     [118, 187, 263, 341].forEach(function(f, i){
       var o = ctx.createOscillator(); o.type = i ? 'sine' : 'triangle';
       o.frequency.value = f * (1 + (Math.random()-0.5)*0.03);
@@ -815,7 +857,8 @@ var Audio2 = (function(){
     }, 700);
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
-           init:init, resume:resume, suspend:suspend, state:audioState, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           init:init, resume:resume, suspend:suspend, state:audioState,
+           sfxGroups:function(){ var o = {}; Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,

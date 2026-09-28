@@ -33,7 +33,16 @@ function buildAssets(){
         fs.readFileSync(path.join(texRoot, name, f)).toString('base64');
     }
   }
-  return '/* 生成物（game/build.mjs）。assets/textures の加工済み素材。出所は assets/LICENSES.md */\n' +
+  /* 収録素材の音（第 10.1 節）。WAV を data URI に。LICENSES.md の sfx/ 行が無ければ止める */
+  const sfxRoot = path.join(assetsDir, 'sfx');
+  if(fs.existsSync(sfxRoot)){
+    if(lic.indexOf('| sfx/') < 0) throw new Error('assets/LICENSES.md に sfx/ の記録が無い');
+    for(const f of fs.readdirSync(sfxRoot).sort()){
+      if(!/\.wav$/.test(f)) continue;
+      out['sfx/' + f.replace(/\.wav$/, '')] = 'data:audio/wav;base64,' + fs.readFileSync(path.join(sfxRoot, f)).toString('base64');
+    }
+  }
+  return '/* 生成物（game/build.mjs）。assets/ の加工済み素材（画と音）。出所は assets/LICENSES.md */\n' +
          'window.W7_ASSETS=' + JSON.stringify(out) + ';\n';
 }
 const assetsJs = buildAssets();

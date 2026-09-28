@@ -1461,6 +1461,8 @@ function updateHunter(dt, info){
           var fvx = -Math.sin(player.viewYaw), fvz = -Math.cos(player.viewYaw);
           var fwdS = ((hunter.x - player.x)*fvx + (hunter.z - player.z)*fvz) / Math.max(1, hd);
           Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los, fwdS);
+          // 足音の接近を手に（第 12.4 節）。9m より近い足音だけ、近いほど強く
+          if(hd < 9) haptic(Math.round(6 + (9 - hd) * 2.2));
         }
         if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
@@ -1753,6 +1755,9 @@ function updateEnv(dt, info){
     heartT = 60/bpm;
     if(player.sanity < 78 || hunter.mode==='chase'){
       Audio2.heart(clamp((100-player.sanity)/100 + (hunter.mode==='chase'?0.5:0), 0.15, 1) * 0.5);
+      /* 心拍を手にも伝える（設計指示書 第 12.4 節）。追われているか、正気がかなり削れたときだけ。
+         いつも鳴らすと慣れて何も伝わらなくなる */
+      if(hunter.mode === 'chase' || player.sanity < 45) haptic(hunter.mode === 'chase' ? 14 : 9);
     }
   }
   return bpm;

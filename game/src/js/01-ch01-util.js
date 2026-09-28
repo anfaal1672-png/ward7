@@ -45,6 +45,8 @@ var THREE_LEGACY_LIGHTS = (function(){
    渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。
    pat は ms の数、または [鳴る, 休む, 鳴る, ...] の配列（vibrate と同じ形）。 */
 function haptic(pat){
+  if(typeof settings !== 'undefined' && settings.haptics === false) return;   // 設定「振動」
+  if(typeof BOT !== 'undefined' && BOT.on) return;
   try{
     var h = window.webkit && window.webkit.messageHandlers &&
             window.webkit.messageHandlers.ward7haptic;

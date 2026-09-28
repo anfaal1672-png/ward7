@@ -13,6 +13,7 @@ const { chromium, EXEC } = require('./pw.js');
   await p.goto('file://'+process.argv[2],{waitUntil:'load'});
   await p.waitForFunction(()=>{ const t=document.getElementById('title'); return window.__WARD7 && t && !t.hidden; }, null, {timeout:60000});
   const title=(Date.now()-t0)/1000;
+  const boot = await p.evaluate(()=>window.__W7BOOT && { steps:window.__W7BOOT.steps, total:window.__W7BOOT.total });
   const chs=[];
   for(let ch=0; ch<7; ch++){
     const s = await p.evaluate(async(ch)=>{ const A=window.__WARD7; A.toTitle(); A.run.ch=ch; A.skipUI(true);
@@ -21,7 +22,7 @@ const { chromium, EXEC } = require('./pw.js');
     chs.push(+s.toFixed(2));
   }
   const worst=Math.max(...chs);
-  console.log(JSON.stringify({title:+title.toFixed(2), chapters:chs, errs:errs.slice(0,2)}));
+  console.log(JSON.stringify({title:+title.toFixed(2), boot, chapters:chs, errs:errs.slice(0,2)}));
   const ok = title <= 5 && worst <= 10 && !errs.length;
   console.log(ok ? 'OK' : 'FAIL');
   await b.close(); process.exit(ok?0:1);

@@ -1,14 +1,19 @@
 /* =========================================================================
    20. 起動
    ========================================================================= */
+/* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
+   load-check.js が読む */
+var BOOT_T = { t0:performance.now(), steps:[] };
+function bootStep(name, fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
+window.__W7BOOT = BOOT_T;
 try{
-  $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')';
-  buildTextures();
-  setupLights();
-  buildViewModel();
-  buildEnvMap();          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
+  bootStep('grain', function(){ $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')'; });
+  bootStep('textures', buildTextures);
+  bootStep('lights', setupLights);
+  bootStep('viewModel', buildViewModel);
+  bootStep('envMap', buildEnvMap);          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
   texBuiltQ = settings.quality|0;
-  buildPost();
+  bootStep('post', buildPost);
   resize();
   syncSettingsUI();
   buildCheatUI();
@@ -16,8 +21,9 @@ try{
 
   if(/[?&]bot=1/.test(location.search)) BOT.on = true;
 
-  buildTitleScene();
-  buildDust();
+  bootStep('titleScene', buildTitleScene);
+  bootStep('dust', buildDust);
+  BOOT_T.total = Math.round(performance.now() - BOOT_T.t0);
 
   bootedOK = true;
   state = STATE.TITLE;

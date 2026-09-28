@@ -261,6 +261,14 @@
     </div>
     <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
   </div>
+  <div class="field">
+    <label>振動 <span id="valHP">オン</span></label>
+    <div class="seg" id="segHP" role="group" aria-label="振動">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">心拍・近づく足音・掴まれた瞬間を手に伝える（iOS アプリ）。</p>
+  </div>
   <div class="field" id="layoutField">
     <button class="btn ghost" id="btnLayout" type="button">ボタンの配置を編集</button>
     <p class="hint">画面のボタンを指で好きな所へ動かす。</p>
@@ -359,7 +367,8 @@
     <div class="row"><span>壁の素材</span><b>Long White Tiles — Poly Haven（CC0）</b></div>
     <div class="row"><span>床の素材</span><b>Old Linoleum Flooring 01 — Poly Haven（CC0）</b></div>
     <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
-    <div class="row"><span>音</span><b>すべて WebAudio で合成</b></div>
+    <div class="row"><span>足音・割れる音・金属音</span><b>Impact Sounds — Kenney（CC0）を加工</b></div>
+    <div class="row"><span>その他の音</span><b>WebAudio で合成</b></div>
   </div>
   <p class="hint" style="max-width:min(460px,88vw)">写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。</p>
   <button class="btn" id="btnCreditsBack" type="button" style="margin-top:18px">戻る</button>

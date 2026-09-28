@@ -702,6 +702,14 @@
     </div>
     <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
   </div>
+  <div class="field">
+    <label>振動 <span id="valHP">オン</span></label>
+    <div class="seg" id="segHP" role="group" aria-label="振動">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">心拍・近づく足音・掴まれた瞬間を手に伝える（iOS アプリ）。</p>
+  </div>
   <div class="field" id="layoutField">
     <button class="btn ghost" id="btnLayout" type="button">ボタンの配置を編集</button>
     <p class="hint">画面のボタンを指で好きな所へ動かす。</p>
@@ -800,7 +808,8 @@
     <div class="row"><span>壁の素材</span><b>Long White Tiles — Poly Haven（CC0）</b></div>
     <div class="row"><span>床の素材</span><b>Old Linoleum Flooring 01 — Poly Haven（CC0）</b></div>
     <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
-    <div class="row"><span>音</span><b>すべて WebAudio で合成</b></div>
+    <div class="row"><span>足音・割れる音・金属音</span><b>Impact Sounds — Kenney（CC0）を加工</b></div>
+    <div class="row"><span>その他の音</span><b>WebAudio で合成</b></div>
   </div>
   <p class="hint" style="max-width:min(460px,88vw)">写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。</p>
   <button class="btn" id="btnCreditsBack" type="button" style="margin-top:18px">戻る</button>
@@ -918,6 +927,8 @@ var THREE_LEGACY_LIGHTS = (function(){
    渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。
    pat は ms の数、または [鳴る, 休む, 鳴る, ...] の配列（vibrate と同じ形）。 */
 function haptic(pat){
+  if(typeof settings !== 'undefined' && settings.haptics === false) return;   // 設定「振動」
+  if(typeof BOT !== 'undefined' && BOT.on) return;
   try{
     var h = window.webkit && window.webkit.messageHandlers &&
             window.webkit.messageHandlers.ward7haptic;
@@ -1167,6 +1178,7 @@ var EN = {
   '叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。':'Quieter screams and sudden stings. Tone down the capture scene with \u201cCamera motion\u201d.',
   '移動のスティックを右半分に、ボタンを左側に移す。':'Moves the stick to the right half and the buttons to the left.',
   '日替わりの病棟。今日の夜勤は、今日だけ。':'A different ward each day. Tonight\u2019s shift is only tonight.',
+  '振動':'Vibration', '心拍・近づく足音・掴まれた瞬間を手に伝える（iOS アプリ）。':'Feel your heartbeat, approaching footsteps and being grabbed (iOS app).',
   'ボタンの配置を編集':'Edit button layout', '画面のボタンを指で好きな所へ動かす。':'Drag the on-screen buttons wherever you like.',
   'ボタンを指で動かす':'Drag the buttons', '元に戻す':'Reset', '完了':'Done',
   'キーの割り当て':'Key bindings', '既定に戻す':'Reset to defaults', 'キーを押す…':'Press a key…',
@@ -1184,7 +1196,7 @@ var EN = {
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
   'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
-  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', 'WebAudio で合成':'Synthesized with WebAudio',
   '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
 
   // --- カルテ ---
@@ -1429,7 +1441,34 @@ var Audio2 = (function(){
     var d = noiseBuf.getChannelData(0);
     for(var i=0;i<len;i++) d[i] = Math.random()*2-1;
     ready = true;
+    loadSfx();
     return true;
+  }
+  /* 収録素材の音（設計指示書 第 10.1 節）。assets.js の sfx/<群>_<番号> を解いて群ごとに持つ。
+     assets.js は後から読まれる（defer）ので、鳴らす前にも取りに行く。
+     解けなかった群は合成の音のまま鳴る（素材が無くても遊べる） */
+  var SFX = {}, sfxLoading = false;
+  function loadSfx(){
+    if(sfxLoading || !ctx || !window.W7_ASSETS) return;
+    sfxLoading = true;
+    Object.keys(window.W7_ASSETS).forEach(function(k){
+      if(k.indexOf('sfx/') !== 0) return;
+      var grp = k.slice(4).replace(/_\d+$/, '');
+      try{
+        var bin = atob(window.W7_ASSETS[k].split(',')[1]), u8 = new Uint8Array(bin.length);
+        for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+        var pr = ctx.decodeAudioData(u8.buffer, function(buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
+        if(pr && pr.catch) pr.catch(function(){});
+      }catch(e){}
+    });
+  }
+  function sfx(grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
+  /* 素材を 1 回鳴らす。rate は速さ（＝高さ）、to は繋ぐ先 */
+  function playSfx(buf, t, rate, gain, to){
+    var s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+    var g = ctx.createGain(); g.gain.value = gain;
+    s.connect(g); g.connect(to); s.start(t);
+    return s;
   }
   function resume(){
     if(!ready) return;
@@ -1705,6 +1744,12 @@ var Audio2 = (function(){
     vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
     var t = ctx.currentTime;
+    /* 収録の足音。硬い床はコンクリート、柔らかい所は布。速さを毎回少しずらして同じ音に聞こえさせない */
+    var sb = sfx(mat > 0.4 ? 'step_hard' : 'step_soft');
+    if(sb){
+      playSfx(sb, t, 0.86 + mat*0.12 + Math.random()*0.08 + (hard ? 0.04 : 0), (hard ? 0.62 : 0.4) * vol, master);
+      return;
+    }
     var n = ctx.createBufferSource(); n.buffer = noiseBuf;
     n.playbackRate.value = 0.6 + mat*0.5 + Math.random()*0.4;
     var f = ctx.createBiquadFilter(); f.type='bandpass';
@@ -1920,6 +1965,9 @@ var Audio2 = (function(){
     env(og, t, 0.006, 0.24, 0.42*att);
     o.start(t); o.stop(t+0.34);
 
+    /* 収録の足音を低く引き下げて重ねる（人より重い体の踏み込み）。あれば引きずる雑音の代わりに */
+    var hb = sfx('step_hard');
+    if(hb){ playSfx(hb, t, (chasing ? 0.7 : 0.6) + Math.random()*0.05, 1.1 * att, lp); return; }
     // 引きずる音（遠いと減衰を強めにして踏み込みだけが残るようにする）
     var nz = ctx.createBufferSource(); nz.buffer = noiseBuf;
     nz.playbackRate.value = 0.5 + Math.random()*0.3;
@@ -2038,7 +2086,10 @@ var Audio2 = (function(){
     var pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     out.connect(lp);
     if(pn){ pn.pan.value = clamp(pan, -1, 1); lp.connect(pn); pn.connect(master); } else lp.connect(master);
-    for(var i=0; i<7; i++){
+    // 収録の瓶の割れる音。合成の破片は数を減らして上に散らす
+    var gb = sfx('glass');
+    if(gb) playSfx(gb, t, 0.92 + Math.random()*0.12, 1.1, out);
+    for(var i=0; i<(gb ? 3 : 7); i++){
       var off = i * (0.012 + Math.random()*0.03);
       var n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 1.4 + Math.random();
       var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9 + Math.random()*12;
@@ -2095,6 +2146,9 @@ var Audio2 = (function(){
     out.connect(lp);
     if(pn){ pn.pan.value = clamp(pan, -1, 1) * 0.7; lp.connect(pn); pn.connect(master); if(revSend) pn.connect(revSend); }
     else lp.connect(master);
+    // 収録の金属音を低く鳴らして芯にする（天井裏の鋼板・扉を押し開けた音）
+    var mb = sfx(loud && loud > 0.8 ? 'plate' : 'metal');
+    if(mb) playSfx(mb, t, 0.62 + Math.random()*0.1, 1.2, out);
     [118, 187, 263, 341].forEach(function(f, i){
       var o = ctx.createOscillator(); o.type = i ? 'sine' : 'triangle';
       o.frequency.value = f * (1 + (Math.random()-0.5)*0.03);
@@ -2178,7 +2232,8 @@ var Audio2 = (function(){
     }, 700);
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
-           init:init, resume:resume, suspend:suspend, state:audioState, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           init:init, resume:resume, suspend:suspend, state:audioState,
+           sfxGroups:function(){ var o = {}; Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
@@ -3312,6 +3367,7 @@ var settings = {
   fxAO: true,      // 接地の陰（最高品質のみ）
   fxAA: true,      // 輪郭のぎざぎざを均す（FXAA）
   fxDof: true,     // 書類を読む間、奥をぼかす
+  haptics: true,   // 振動（iOS アプリの触覚。心拍・近づく足音・掴まれた瞬間）
   keys: {},        // キーの割り当て（第 12.3 節）。操作名 → KeyboardEvent.code。空なら既定
   btnPos: {}       // タッチのボタンの配置（第 12.1 節）。id → { x, y }（画面に対する中心の割合）
 };
@@ -3339,7 +3395,7 @@ try{
     if(saved.keys && typeof saved.keys === 'object'){
       Object.keys(saved.keys).forEach(function(k){ if(typeof saved.keys[k] === 'string' && /^[A-Za-z0-9]+$/.test(saved.keys[k])) settings.keys[k] = saved.keys[k]; });
     }
-    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
+    ['safeHide','softScare','lefty','fxBeam','fxAO','fxAA','fxDof','haptics'].forEach(function(k){ if(typeof saved[k]==='boolean') settings[k] = saved[k]; });
   }
 }catch(e){}
 /* 遊んだ記録。難易度ごとに、挑戦した回数・脱出した回数・最速の脱出・
@@ -10143,7 +10199,7 @@ function syncSettingsUI(){
   });
   $('valT').textContent = settings.tele ? 'オン' : 'オフ';
   [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty'],
-   ['segFB','valFB','fxBeam'], ['segFO','valFO','fxAO'], ['segFA','valFA','fxAA'], ['segFD','valFD','fxDof']].forEach(function(e){
+   ['segHP','valHP','haptics'], ['segFB','valFB','fxBeam'], ['segFO','valFO','fxAO'], ['segFA','valFA','fxAA'], ['segFD','valFD','fxDof']].forEach(function(e){
     Array.prototype.forEach.call($(e[0]).children, function(b){
       b.setAttribute('aria-pressed', ((+b.dataset.v === 1) === !!settings[e[2]]) ? 'true' : 'false');
     });
@@ -10325,7 +10381,7 @@ Array.prototype.forEach.call($('segT').children, function(b){
 });
 $('btnTeleOut').addEventListener('click', teleExport);
 [['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty'],
- ['segFB','fxBeam'], ['segFO','fxAO'], ['segFA','fxAA'], ['segFD','fxDof']].forEach(function(e){
+ ['segHP','haptics'], ['segFB','fxBeam'], ['segFO','fxAO'], ['segFA','fxAA'], ['segFD','fxDof']].forEach(function(e){
   Array.prototype.forEach.call($(e[0]).children, function(b){
     b.addEventListener('click', function(){ settings[e[1]] = (+b.dataset.v === 1); syncSettingsUI(); saveSettings(); });
   });
@@ -12165,6 +12221,8 @@ function updateHunter(dt, info){
           var fvx = -Math.sin(player.viewYaw), fvz = -Math.cos(player.viewYaw);
           var fwdS = ((hunter.x - player.x)*fvx + (hunter.z - player.z)*fvz) / Math.max(1, hd);
           Audio2.hunterStep(hd, chasing, clamp(lat, -1, 1) * 0.85, !info.los, fwdS);
+          // 足音の接近を手に（第 12.4 節）。9m より近い足音だけ、近いほど強く
+          if(hd < 9) haptic(Math.round(6 + (9 - hd) * 2.2));
         }
         if(hd < 26) soundCue(chasing ? '走る足音' : '足音', hd, chasing);
         /* 足音は「鳴った・左右・こもったか・走っているか」を控える（距離は渡さない）。
@@ -12457,6 +12515,9 @@ function updateEnv(dt, info){
     heartT = 60/bpm;
     if(player.sanity < 78 || hunter.mode==='chase'){
       Audio2.heart(clamp((100-player.sanity)/100 + (hunter.mode==='chase'?0.5:0), 0.15, 1) * 0.5);
+      /* 心拍を手にも伝える（設計指示書 第 12.4 節）。追われているか、正気がかなり削れたときだけ。
+         いつも鳴らすと慣れて何も伝わらなくなる */
+      if(hunter.mode === 'chase' || player.sanity < 45) haptic(hunter.mode === 'chase' ? 14 : 9);
     }
   }
   return bpm;
@@ -15927,14 +15988,19 @@ function updateTitleScene(dt){
 /* =========================================================================
    20. 起動
    ========================================================================= */
+/* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
+   load-check.js が読む */
+var BOOT_T = { t0:performance.now(), steps:[] };
+function bootStep(name, fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
+window.__W7BOOT = BOOT_T;
 try{
-  $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')';
-  buildTextures();
-  setupLights();
-  buildViewModel();
-  buildEnvMap();          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
+  bootStep('grain', function(){ $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')'; });
+  bootStep('textures', buildTextures);
+  bootStep('lights', setupLights);
+  bootStep('viewModel', buildViewModel);
+  bootStep('envMap', buildEnvMap);          // 腕のシーンにも同じ映り込みを渡すので、腕を作った後
   texBuiltQ = settings.quality|0;
-  buildPost();
+  bootStep('post', buildPost);
   resize();
   syncSettingsUI();
   buildCheatUI();
@@ -15942,8 +16008,9 @@ try{
 
   if(/[?&]bot=1/.test(location.search)) BOT.on = true;
 
-  buildTitleScene();
-  buildDust();
+  bootStep('titleScene', buildTitleScene);
+  bootStep('dust', buildDust);
+  BOOT_T.total = Math.round(performance.now() - BOOT_T.t0);
 
   bootedOK = true;
   state = STATE.TITLE;

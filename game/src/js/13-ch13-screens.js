@@ -123,7 +123,7 @@ function syncSettingsUI(){
   });
   $('valT').textContent = settings.tele ? 'オン' : 'オフ';
   [['segSH','valSH','safeHide'], ['segSS','valSS','softScare'], ['segLH','valLH','lefty'],
-   ['segFB','valFB','fxBeam'], ['segFO','valFO','fxAO'], ['segFA','valFA','fxAA'], ['segFD','valFD','fxDof']].forEach(function(e){
+   ['segHP','valHP','haptics'], ['segFB','valFB','fxBeam'], ['segFO','valFO','fxAO'], ['segFA','valFA','fxAA'], ['segFD','valFD','fxDof']].forEach(function(e){
     Array.prototype.forEach.call($(e[0]).children, function(b){
       b.setAttribute('aria-pressed', ((+b.dataset.v === 1) === !!settings[e[2]]) ? 'true' : 'false');
     });
@@ -305,7 +305,7 @@ Array.prototype.forEach.call($('segT').children, function(b){
 });
 $('btnTeleOut').addEventListener('click', teleExport);
 [['segSH','safeHide'], ['segSS','softScare'], ['segLH','lefty'],
- ['segFB','fxBeam'], ['segFO','fxAO'], ['segFA','fxAA'], ['segFD','fxDof']].forEach(function(e){
+ ['segHP','haptics'], ['segFB','fxBeam'], ['segFO','fxAO'], ['segFA','fxAA'], ['segFD','fxDof']].forEach(function(e){
   Array.prototype.forEach.call($(e[0]).children, function(b){
     b.addEventListener('click', function(){ settings[e[1]] = (+b.dataset.v === 1); syncSettingsUI(); saveSettings(); });
   });
