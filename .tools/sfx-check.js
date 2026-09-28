@@ -22,7 +22,7 @@ const fs=require('fs'), path=require('path');
   await p.waitForTimeout(300);
   const plays = await p.evaluate(()=>window.__sfxPlays||0);
   console.log(JSON.stringify({groups, plays, errs:errs.slice(0,3)}));
-  const ok = groups.step_hard===5 && groups.step_soft===5 && groups.glass===3 && groups.metal===3 && groups.plate===2 && plays >= 5 && !errs.length;
+  const ok = groups.step_hard===5 && groups.step_soft===5 && groups.glass===3 && groups.metal===3 && groups.plate===2 && groups.amb_hvac===1 && groups.amb_water===1 && plays >= 5 && !errs.length;
   console.log(ok ? 'OK' : 'FAIL');
   await b.close(); process.exit(ok?0:1);
 })();

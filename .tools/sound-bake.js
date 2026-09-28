@@ -17,6 +17,10 @@ for(let i=0;i<5;i++) PICK.push(['step_soft_'+i, 'footstep_carpet_00'+i, true]);
 for(let i=0;i<3;i++) PICK.push(['glass_'+i, 'impactGlass_heavy_00'+i, false]);
 for(let i=0;i<3;i++) PICK.push(['metal_'+i, 'impactMetal_heavy_00'+i, false]);
 for(let i=0;i<2;i++) PICK.push(['plate_'+i, 'impactPlate_heavy_00'+i, false]);
+/* 環境の持続音（第 10.1 節「病院の空調」）。OpenGameArt「30 CC0 SFX Loops」（rubberduck, CC0）。
+   継ぎ目が聞こえないよう、尻の 0.4 秒を頭へ重ねて輪にする（crossfade）。ピークは -6dB */
+const OGA_ZIP = 'https://opengameart.org/sites/default/files/sfx_loops.zip';
+const LOOPS = [ ['amb_hvac_0', 'ambient_01'], ['amb_air_0', 'noise_01'], ['amb_pump_0', 'pump_02'], ['amb_water_0', 'water_flowing'] ];
 function wav16(samples, rate){
   const n = samples.length, buf = Buffer.alloc(44 + n*2);
   buf.write('RIFF', 0); buf.writeUInt32LE(36 + n*2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
@@ -54,6 +58,31 @@ function wav16(samples, rate){
     }, [b64, isStep]);
     fs.writeFileSync(path.join(OUT, name + '.wav'), wav16(pcm, 22050));
     console.log(name, (pcm.length/22050).toFixed(2)+'s');
+  }
+  // 環境の持続音（輪にする）
+  const oz = path.join(CACHE, 'oga_sfx_loops.zip'), od = path.join(CACHE, 'oga_sfx_loops');
+  if(!fs.existsSync(oz)) execFileSync('curl', ['-sSL', '-o', oz, OGA_ZIP]);
+  if(!fs.existsSync(od)) execFileSync('unzip', ['-o', '-q', oz, '-d', od]);
+  for(const [name, src] of LOOPS){
+    const f1 = path.join(od, 'sfx_loops', src + '.ogg'), f2 = path.join(od, src + '.ogg');
+    const b64 = fs.readFileSync(fs.existsSync(f1) ? f1 : f2).toString('base64');
+    const pcm = await p.evaluate(async(b64)=>{
+      const bin = Uint8Array.from(atob(b64), c=>c.charCodeAt(0)).buffer;
+      const dec = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(bin);
+      const RATE = 22050, len = Math.ceil(dec.duration * RATE), off = new OfflineAudioContext(1, len, RATE);
+      const s = off.createBufferSource(); s.buffer = dec; s.connect(off.destination); s.start();
+      const x = (await off.startRendering()).getChannelData(0), L = x.length, Fd = Math.min(Math.floor(RATE*0.4), Math.floor(L/4));
+      const y = new Float32Array(L - Fd);
+      for(let i=0;i<L-Fd;i++){
+        if(i < L - 2*Fd) y[i] = x[i + Fd];
+        else { const j = i - (L - 2*Fd), t = j / Fd; y[i] = x[i + Fd]*Math.cos(t*Math.PI/2) + x[j]*Math.sin(t*Math.PI/2); }
+      }
+      let pk = 0; for(const v of y) pk = Math.max(pk, Math.abs(v));
+      const k = pk > 0 ? 0.5 / pk : 1;
+      return Array.from(y, v=>v*k);
+    }, b64);
+    fs.writeFileSync(path.join(OUT, name + '.wav'), wav16(pcm, 22050));
+    console.log(name, (pcm.length/22050).toFixed(2)+'s（輪）');
   }
   await b.close();
 })();

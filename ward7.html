@@ -810,6 +810,7 @@
     <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
     <div class="row"><span>小道具の模型</span><b>Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工</b></div>
     <div class="row"><span>足音・割れる音・金属音</span><b>Impact Sounds — Kenney（CC0）を加工</b></div>
+    <div class="row"><span>空調・水・ポンプの持続音</span><b>30 CC0 SFX Loops — rubberduck（CC0）を加工</b></div>
     <div class="row"><span>その他の音</span><b>WebAudio で合成</b></div>
   </div>
   <p class="hint" style="max-width:min(460px,88vw)">写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。</p>
@@ -1201,7 +1202,7 @@ var EN = {
   'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。':
     'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
   'クレジット':'Credits', 'ゲーム':'Game', '描画':'Rendering', '壁の素材':'Wall texture', '床の素材':'Floor texture',
-  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', '小道具の模型':'Prop models', 'Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工':'Metal Office Desk, Wall Clock, Fire Extinguisher, Medical Box, Metal Stool — Poly Haven (CC0), processed', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', 'WebAudio で合成':'Synthesized with WebAudio',
+  '天井の素材':'Ceiling texture', 'すべて WebAudio で合成':'All synthesized with WebAudio', '足音・割れる音・金属音':'Footsteps, breaking glass, metal', '小道具の模型':'Prop models', 'Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工':'Metal Office Desk, Wall Clock, Fire Extinguisher, Medical Box, Metal Stool — Poly Haven (CC0), processed', 'Impact Sounds — Kenney（CC0）を加工':'Impact Sounds — Kenney (CC0), processed', 'その他の音':'Other sounds', '空調・水・ポンプの持続音':'Air handling, water and pump loops', '30 CC0 SFX Loops — rubberduck（CC0）を加工':'30 CC0 SFX Loops — rubberduck (CC0), processed', 'WebAudio で合成':'Synthesized with WebAudio',
   '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。':'Photo textures were recolored and weathered to fit a 1987 hospital.',
 
   // --- カルテ ---
@@ -1576,12 +1577,29 @@ var Audio2 = (function(){
       o.connect(g); g.connect(droneFilt); o.start();
       drone.push(o);
     });
-    // 空調のホワイトノイズ
+    /* 空調。収録の持続音（第 10.1 節）があればそれを敷き、無ければ（まだ解けていない間も）
+       合成の雑音で鳴らす。解けたら差し替える */
     var n = noiseSrc();
     var nf = ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=420; nf.Q.value=0.7;
     var ng = ctx.createGain(); ng.gain.value=0.05;
     n.connect(nf); nf.connect(ng); ng.connect(master); n.start();
     drone.push(n);
+    var myDrone = drone;
+    (function bed(tries){
+      if(drone !== myDrone) return;                       // 入り直した
+      var hv = sfx('amb_hvac'), ar = sfx('amb_air');
+      if(!hv){ if(tries > 0) setTimeout(function(){ bed(tries - 1); }, 500); return; }
+      ng.gain.setTargetAtTime(0.0001, ctx.currentTime, 1.5);            // 合成の雑音は下げる
+      [[hv, 0.22, 0], [ar, 0.07, 1]].forEach(function(e){
+        if(!e[0]) return;
+        var s = ctx.createBufferSource(); s.buffer = e[0]; s.loop = true;
+        var g = ctx.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(e[1], ctx.currentTime, 2.0);
+        var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = e[2] ? 2600 : 1400;
+        s.connect(lp); lp.connect(g); g.connect(droneGain ? droneGain : master);
+        s.start(ctx.currentTime, e[2] * 1.7);          // 2 本の輪の頭をずらして周期を揃えない
+        myDrone.push(s);
+      });
+    })(20);
 
     droneGain.gain.setTargetAtTime(0.5, ctx.currentTime, 2.0);
 
@@ -2223,6 +2241,15 @@ var Audio2 = (function(){
     n.connect(lp); lp.connect(g); g.connect(master); if(revSend) g.connect(revSend);
     n.start(); lf.start();
     waterNodes = [n, lf];
+    // 収録の水音と遠くのポンプ（地下。第 6 章）
+    [['amb_water', 0.16, 3200], ['amb_pump', 0.08, 700]].forEach(function(e){
+      var buf = sfx(e[0]); if(!buf) return;
+      var s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
+      var f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = e[2];
+      var gg = ctx.createGain(); gg.gain.value = e[1];
+      s.connect(f); f.connect(gg); gg.connect(master); if(revSend) gg.connect(revSend);
+      s.start(); waterNodes.push(s);
+    });
     dripT = setInterval(function(){
       if(!ctx || ctx.state !== 'running' || Math.random() < 0.4) return;
       var t = ctx.currentTime;
