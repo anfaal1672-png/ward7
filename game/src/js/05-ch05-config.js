@@ -145,7 +145,7 @@ function saveRecs(){
   Store.set('ward7.recs', JSON.stringify(RECS));
 }
 /* 1 回ぶんを記録する。won=脱出したか、hits=被弾回数 */
-function recordRun(won, hits){
+function recordRun(/** @type {boolean} */ won, /** @type {number} */ hits){
   if(cheatUsed) return;                       // チートを使った回は残さない
   var R = RECS[clamp(settings.diff|0,0,2)];
   R.runs++;
@@ -157,7 +157,7 @@ function recordRun(won, hits){
   }
   saveRecs();
 }
-function recLine(d){
+function recLine(/** @type {any} */ d){
   var R = RECS[d];
   if(!R || !R.runs) return '記録なし';
   return '挑戦 ' + R.runs + ' · 脱出 ' + R.wins +

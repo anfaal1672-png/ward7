@@ -12,12 +12,12 @@ var DRS = { scale:1, max:1, min:0.6, slowT:0, fastT:0, cool:0, ema:1/60,
             on: !navigator.webdriver || /[?&]drs=1/.test(location.search) };
 var THERMAL = { level:0 };
 function effPixelRatio(){ return Math.min(window.devicePixelRatio||1, QC.pixelCap) * DRS.scale; }
-window.__w7thermal = function(n){           // 0 nominal / 1 fair / 2 serious / 3 critical
+window.__w7thermal = function(/** @type {any} */ n){           // 0 nominal / 1 fair / 2 serious / 3 critical
   THERMAL.level = n|0;
   DRS.max = THERMAL.level >= 3 ? 0.7 : (THERMAL.level >= 2 ? 0.8 : 1);
   if(DRS.scale > DRS.max){ DRS.scale = DRS.max; resize(); }
 };
-function updateDRS(dt){
+function updateDRS(/** @type {number} */ dt){
   if(!DRS.on || state !== STATE.PLAY) return;
   DRS.ema = lerp(DRS.ema, dt, 0.08);
   DRS.cool -= dt;
@@ -35,7 +35,7 @@ function updateDRS(dt){
   }
 }
 var canvas = $('scene');
-var renderer, scene, camera;
+var renderer = /** @type {any} */ (undefined), scene = /** @type {any} */ (undefined), camera = /** @type {any} */ (undefined);
 var CTX_LOST = false;
 
 function qualityCfg(){
@@ -142,7 +142,7 @@ scene.fog = new THREE.FogExp2(0x05090c, QC.fogD);
 camera = new THREE.PerspectiveCamera(72, 1, 0.05, 200);
 camera.rotation.order = 'YXZ';
 
-canvas.addEventListener('webglcontextlost', function(e){
+canvas.addEventListener('webglcontextlost', function(/** @type {any} */ e){
   e.preventDefault(); CTX_LOST = true;
   if(state === STATE.PLAY) doPause();
   toast('描画が中断されました', 3);

@@ -2,8 +2,8 @@
    18. セルフテスト（?debug=1 でコンソール出力）
    ========================================================================= */
 function runSelfTest(){
-  var out = [], ok = true;
-  function t(name, cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
+  var out = /** @type {any[]} */ ([]), ok = true;
+  function t(/** @type {any} */ name, /** @type {any} */ cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
 
   // three.js を上げたときに光の計算が旧来へ戻せているか（第 1 章）
   t('three.js の光を旧来の計算へ戻せた', THREE_LEGACY_LIGHTS === true);
@@ -100,9 +100,9 @@ function runSelfTest(){
      いるだけでは気づけない。数で押さえる。 */
   (function(){
     var bad = 0, meshes = 0;
-    function scan(root){
+    function scan(/** @type {any} */ root){
       if(!root) return;
-      root.traverse(function(o){
+      root.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.geometry) return;
         meshes++;
         var at = o.geometry.attributes;
@@ -211,7 +211,7 @@ function runSelfTest(){
      暗い部屋なので目視では「影かな」で済んでしまい、気づけない。 */
   (function(){
     var noCol = 0, meshes = 0, aoMin = 1, aoMax = 0, aoN = 0, aoSum = 0, nan = 0;
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       if(!o.isMesh) return;
       meshes++;
       var ca = o.geometry.attributes.color;
@@ -243,7 +243,7 @@ function runSelfTest(){
        体が一様な明るさに戻り、暗がりで石膏の人形に見える。 */
     (function(){
       var worstR = 9, seen = 0;
-      hunter.group.traverse(function(o){
+      hunter.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.userData || !o.userData.ao) return;
         var ca2 = o.geometry.attributes.color, sm = 0;
         for(var i2=0;i2<ca2.count;i2++) sm += ca2.getX(i2);
@@ -262,7 +262,7 @@ function runSelfTest(){
        高さ方向の密度（UV の縦幅 ÷ 実寸の高さ）を部位間で比べる。 */
     (function(){
       var lo4 = 1e9, hi4 = 0, cnt4 = 0;
-      hunter.group.traverse(function(o){
+      hunter.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.userData || !o.userData.loft) return;
         if(o.material !== hunter.parts.skin) return;   // skin は buildHunter の中の名前
         var ua = o.geometry.attributes.uv, pa4 = o.geometry.attributes.position;
@@ -307,7 +307,7 @@ function runSelfTest(){
      実測：正常な追跡者で 2.4〜2.7 倍、棘を戻すと 10.3 倍。6 で切る。 */
   (function(){
     var worst = 0, worstN = '';
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) return;
       var pa = o.geometry.attributes.position, ix = o.geometry.index;
       if(pa.count < 120) return;
@@ -362,14 +362,14 @@ function runSelfTest(){
   t('静的什器を焼き固めている', !!world.bakeInfo && world.bakeInfo.baked > 0);
   // 変換行列を間違えると什器が別の場所へ飛ぶ。空になったグループの座標に
   // 焼いたジオメトリの頂点があるかを、いくつか抜き取って確かめる
-  var bakedPts = [];
-  world.group.children.forEach(function(o){
+  var bakedPts = /** @type {any[]} */ ([]);
+  world.group.children.forEach(function(/** @type {any} */ o){
     if(!o.isMesh || o.isInstancedMesh || o.geometry.parameters) return;
     var pa = o.geometry.attributes.position;
     for(var vi=0; vi<pa.count; vi+=3) bakedPts.push(pa.getX(vi), pa.getZ(vi));
   });
   var placeOK = true, sampled = 0;
-  world.group.children.forEach(function(o){
+  world.group.children.forEach(function(/** @type {any} */ o){
     if(sampled >= 4 || !o.isGroup || !o.userData.bake) return;
     sampled++;
     var near = 1e9;
@@ -385,7 +385,7 @@ function runSelfTest(){
      頂点色を使っていると、焼いた瞬間に色属性が消えて真っ黒になる
      （追跡者の足で一度これをやった）。暗い場面では影と見分けが付かない。 */
   var bakedVC = 0;
-  world.group.traverse(function(o){
+  world.group.traverse(function(/** @type {any} */ o){
     if(o.isMesh && o.material && o.material.vertexColors && !o.geometry.attributes.color) bakedVC++;
   });
   t('頂点色を使う什器を焼き固めていない', bakedVC === 0);
@@ -418,7 +418,7 @@ function runSelfTest(){
     // 食い込みが 0 でも、離れて浮いていたら握りに見えない。
     // 中節から先は胴に触れているはず（自由な円弧で曲げると必ずここが浮く）
     var gripOK = true, gapMax = 0;
-    viewParts.digitSt.forEach(function(dst){
+    viewParts.digitSt.forEach(function(/** @type {any} */ dst){
       for(var si=4; si<dst.length-1; si++){
         var pw = dst[si].p;
         var gap = Math.sqrt(pw[0]*pw[0] + pw[1]*pw[1]) - viewParts.barrelAt(pw[2]) - dst[si].rx;
@@ -434,7 +434,7 @@ function runSelfTest(){
        実際、爪・包帯・リストバンドの 3 つが外れていて、暗い廊下で
        指先と手首だけが紙のように光っていた。 */
     var rawTone = 0;
-    viewScene.traverse(function(o){
+    viewScene.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || !o.material) return;
       var ml = Array.isArray(o.material) ? o.material : [o.material];
       for(var mi3=0; mi3<ml.length; mi3++)
@@ -449,8 +449,8 @@ function runSelfTest(){
        この場面に出るのは汚れた布・肌・ゴムだけ。実測で今いちばん
        明るい面が 0.313、飛んでいた包帯を戻すと 0.381。0.35 で切る
        （両側におよそ 1 割の余裕を取った位置）。 */
-    var tooBright = null;
-    viewScene.traverse(function(o){
+    var tooBright = /** @type {any} */ (null);
+    viewScene.traverse(function(/** @type {any} */ o){
       if(tooBright || !o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
       var m3 = o.material;
       if(m3.metalness > 0.5) return;              // 金属は拡散反射が無いので別勘定
@@ -641,7 +641,7 @@ function runSelfTest(){
      鳴らす側（Audio2 の stepAtten）と戻す側で式が食い違わないよう、
      鳴らす側と同じ減衰を作って往復させる。 */
   (function(){
-    var att = function(d){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
+    var att = function(/** @type {any} */ d){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
     var worst = 0, ok = true;
     [2, 5, 9, 14, 20, 26, 33].forEach(function(d){
       var e = botStepDist(att(d), true);                  // 見通せる足音
@@ -669,7 +669,7 @@ function runSelfTest(){
   (function(){
     if(!hunter.parts || !hunter.group) return;
     var bad = [], seen = 0;
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       seen++;
       var v = [o.position.x,o.position.y,o.position.z,
                o.rotation.x,o.rotation.y,o.rotation.z,
@@ -681,7 +681,7 @@ function runSelfTest(){
 
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
-  scene.traverse(function(o){
+  scene.traverse(function(/** @type {any} */ o){
     if(o.isPointLight && o.intensity <= 0.001 && o.visible) lightsOK = false;
   });
   t('消灯中のポイントライトを無効化している', lightsOK);

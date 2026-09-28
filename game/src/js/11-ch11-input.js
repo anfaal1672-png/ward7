@@ -14,7 +14,7 @@ var humanKeys = {}, stickIn = { fwd:0, side:0, run:false };
 
 var pointers = {};   // id -> {mode, sx, sy, x, y}
 var stickEl = $('stick'), stickKnob = stickEl.querySelector('i');
-var stickId = null, lookId = null, stickRunning = false, holdBtnDown = false, backBtnDown = false;
+var stickId = /** @type {any} */ (null), lookId = /** @type {any} */ (null), stickRunning = false, holdBtnDown = false, backBtnDown = false;
 var stickOrigin = {x:0,y:0};
 
 /* スティックの効き。指を倒した割合 v(0..1) を速度の割合に写す。
@@ -22,13 +22,14 @@ var stickOrigin = {x:0,y:0};
    そこから先は v^1.55 でゆっくり立ち上げ、外側でちょうど 1 に届く。
    自己診断から呼べるように関数に出してある（端が 1 に届かないと
    全力疾走が出なくなり、追跡者に必ず捕まる）。 */
-function stickCurve(v){
+function stickCurve(/** @type {any} */ v){
   v = clamp(v, 0, 1);
   var dead = 0.12;
   if(v <= dead) return 0;
   return Math.pow((v - dead) / (1 - dead), 1.55);
 }
 
+/** @param {any} on @param {any} [ox] @param {any} [oy] @param {number} [dx] @param {any} [dy] */
 function setStickVisual(on, ox, oy, dx, dy){
   if(on){
     stickEl.style.left = ox+'px'; stickEl.style.top = oy+'px';
@@ -42,7 +43,7 @@ function setStickVisual(on, ox, oy, dx, dy){
   }
 }
 
-function onPointerDown(e){
+function onPointerDown(/** @type {any} */ e){
   if(e.pointerType === 'touch') lastInputKind = 'touch';
   else if(e.pointerType === 'mouse' && lastInputKind === 'touch') lastInputKind = 'kb';
   if(state !== STATE.PLAY) return;
@@ -64,7 +65,7 @@ function onPointerDown(e){
     pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
   }
 }
-function onPointerMove(e){
+function onPointerMove(/** @type {any} */ e){
   if(state !== STATE.PLAY) return;
   if(e.pointerId === stickId){
     var dx = e.clientX - stickOrigin.x, dy = e.clientY - stickOrigin.y;
@@ -98,7 +99,7 @@ function onPointerMove(e){
     input.lookY += my * 0.0042 * settings.sens * (settings.invert ? -1 : 1);
   }
 }
-function onPointerUp(e){
+function onPointerUp(/** @type {any} */ e){
   if(e.pointerId === stickId){
     stickId = null; input.fwd = 0; input.side = 0; input.run = false;
     stickIn.fwd = 0; stickIn.side = 0; stickIn.run = false;
@@ -159,7 +160,7 @@ var KEYACT_BY = {};
 KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
 /* 実キー → canon の表。割り当てを変えたら作り直す */
 var KEYMAP = {};
-function keyOf(a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
+function keyOf(/** @type {any} */ a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
 function rebuildKeymap(){
   KEYMAP = {};
   KEYACT.forEach(function(k){
@@ -173,7 +174,7 @@ function rebuildKeymap(){
   // 主キーに取られた控えは外す（主キーが優先）
   KEYACT.forEach(function(k){ KEYMAP[keyOf(k.a)] = k.canon; });
 }
-function keyLabel(code){
+function keyLabel(/** @type {any} */ code){
   if(!code) return '—';
   if(/^Key[A-Z]$/.test(code)) return code.slice(3);
   if(/^Digit[0-9]$/.test(code)) return code.slice(5);
@@ -183,7 +184,7 @@ function keyLabel(code){
             Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
 }
 rebuildKeymap();
-var keyCapture = null;                // 設定画面で「キーを押す」を待っている操作
+var keyCapture = /** @type {any} */ (null);                // 設定画面で「キーを押す」を待っている操作
 document.addEventListener('keydown', function(e){
   if(keyCapture){ e.preventDefault(); var kc = keyCapture; keyCapture = null; kc(e.code); return; }
   if(e.repeat) return;
@@ -204,7 +205,7 @@ document.addEventListener('keyup', function(e){
 /* いま使っている入力機器（操作説明の出し分け。第 11.4 節）：'touch' | 'kb' | 'pad' */
 var lastInputKind = IS_TOUCH ? 'touch' : 'kb';
 
-function readKeys(dt){
+function readKeys(/** @type {number} */ dt){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
      キーで動かすので、スティックを握っていてもキーを読む。 */
   if(IS_TOUCH && stickId !== null && playAs !== 'hunter') return;
@@ -224,22 +225,22 @@ function readKeys(dt){
    ボタンは押した瞬間だけ拾う（押しっぱなしで連打にならないように）。
    スティックの遊びは 0.15、その外側を 0..1 に引き直してから曲線を通す。 */
 var PAD_DEAD = 0.15;
-var padPrev = [];
+var padPrev = /** @type {any[]} */ ([]);
 var pad = { back:false, hold:false, sneak:false, active:false, t:0 };
-function padAxis(v){
+function padAxis(/** @type {any} */ v){
   var a = Math.abs(v);
   if(a < PAD_DEAD) return 0;
   return Math.sign(v) * (a - PAD_DEAD) / (1 - PAD_DEAD);
 }
-function readPad(simDt){
+function readPad(/** @type {any} */ simDt){
   pad.back = pad.hold = pad.sneak = false;
   if(!navigator.getGamepads) return;
   var list = navigator.getGamepads(), gp = null;
   for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
   if(!gp){ pad.active = false; pad.t = 0; return; }
   var ax = gp.axes, bt = gp.buttons;
-  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
-  function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
+  function down(/** @type {any} */ n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(/** @type {any} */ n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
   var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
   var used = !!(mx || my || lx || ly);
@@ -268,23 +269,23 @@ function readPad(simDt){
 }
 
 // --- タッチボタン ---
-function bindHold(el, onDown, onUp){
-  el.addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); onDown(); }, {passive:false});
+function bindHold(/** @type {any} */ el, /** @type {any} */ onDown, /** @type {any} */ onUp){
+  el.addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); onDown(); }, {passive:false});
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
-    el.addEventListener(ev, function(e){ e.stopPropagation(); if(onUp) onUp(); });
+    el.addEventListener(ev, function(/** @type {any} */ e){ e.stopPropagation(); if(onUp) onUp(); });
   });
 }
-$('bLight').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); toggleLamp(); }, {passive:false});
+$('bLight').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); toggleLamp(); }, {passive:false});
 bindHold($('bHold'),
   function(){ holdBtnDown = true; },
   function(){ holdBtnDown = false; });
 bindHold($('bBack'),
   function(){ backBtnDown = true; },
   function(){ backBtnDown = false; });
-$('bUse').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
+$('bUse').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
 bindHold($('bPeek'), function(){ PEEK.touchWant = true; }, function(){ PEEK.touchWant = false; });
-$('bThrow').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
-$('bPause').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
+$('bThrow').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
+$('bPause').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
 
 function toggleLamp(){
   if(state !== STATE.PLAY) return;
@@ -304,13 +305,13 @@ function visiblePanel(){
   for(var i=0; i<panels.length; i++){ var el = $(panels[i]); if(el && !el.hidden) return el; }
   return null;
 }
-function focusables(root){
+function focusables(/** @type {any} */ root){
   return Array.prototype.filter.call(root.querySelectorAll('button, input[type=range]'), function(el){
     if(el.disabled) return false;
     var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   });
 }
-function moveFocus(root, dx, dy){
+function moveFocus(/** @type {any} */ root, /** @type {number} */ dx, /** @type {any} */ dy){
   var list = focusables(root); if(!list.length) return;
   var cur = /** @type {any} */ (document.activeElement);
   if(list.indexOf(cur) < 0){ list[0].focus(); return; }
@@ -327,7 +328,7 @@ function moveFocus(root, dx, dy){
   });
   if(best){ best.focus(); best.scrollIntoView({ block:'nearest' }); }
 }
-function updatePadMenu(dt){
+function updatePadMenu(/** @type {number} */ dt){
   if(state === STATE.PLAY && !visiblePanel()) return;
   var root = visiblePanel(); if(!root) return;
   if(!navigator.getGamepads) return;
@@ -335,8 +336,8 @@ function updatePadMenu(dt){
   for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
   if(!gp) return;
   var bt = gp.buttons, ax = gp.axes;
-  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
-  function edge(n){ var d = down(n), w = !!padMenu.prev[n]; padMenu.prev[n] = d; return d && !w; }
+  function down(/** @type {any} */ n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(/** @type {any} */ n){ var d = down(n), w = !!padMenu.prev[n]; padMenu.prev[n] = d; return d && !w; }
   /* 画面が切り替わった最初のフレームは、ボタンの今の状態を控えるだけにする。
      Start で一時停止した瞬間に、同じ押下で「続ける」が押されてしまうため */
   if(padMenu.root !== root){

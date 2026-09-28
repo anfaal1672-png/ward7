@@ -1,10 +1,10 @@
 /* =========================================================================
    3. 手続きテクスチャ生成
    ========================================================================= */
-function makeCanvas(s){
+function makeCanvas(/** @type {any} */ s){
   var c = document.createElement('canvas'); c.width = c.height = s; return c;
 }
-function valueNoise(ctx2, s, cell, alpha){
+function valueNoise(/** @type {any} */ ctx2, /** @type {any} */ s, /** @type {any} */ cell, /** @type {any} */ alpha){
   var n = Math.ceil(s/cell);
   for(var y=0;y<n;y++) for(var x=0;x<n;x++){
     var v = Math.floor(rnd()*255);
@@ -12,7 +12,7 @@ function valueNoise(ctx2, s, cell, alpha){
     ctx2.fillRect(x*cell, y*cell, cell, cell);
   }
 }
-function texWall(size){
+function texWall(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#3a4140'; g.fillRect(0,0,size,size);
   /* タイルの目地。
@@ -124,7 +124,7 @@ function texWall(size){
   g.globalAlpha = 0.05; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
 }
-function texFloor(size){
+function texFloor(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#2d3231'; g.fillRect(0,0,size,size);
   /* 床タイル。2×2 で割っていたので 1 枚が 2.1m 角もあり、
@@ -172,7 +172,7 @@ function texFloor(size){
    テクスチャ付きになった結果、掴まれる距離まで寄られたときに
    「のっぺりした人形」に見えて浮いていた。
    斑（血の通っている所と引いている所）・皮下の静脈・古い痣を重ねる。 */
-function texFlesh(size){
+function texFlesh(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   /* 地色。以前は #9ea394（62%グレー）で、懐中電灯を当てると壁より明るく
      返ってきて真っ白な人形に見えていた。実測で 壁の 1.6 倍。
@@ -249,7 +249,7 @@ function texFlesh(size){
    4 種類あれば、同じ模様が並んで見えるほどには繰り返さない。
 
    透明度を持つので、色は白のまま alpha で抜く（材質側で色を掛ける）。 */
-function texDecals(size){
+function texDecals(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   var h = size/2;
   g.clearRect(0,0,size,size);
@@ -363,7 +363,7 @@ function texDecals(size){
    熱を持って汗ばんでいる＝つやがある、引いている所は乾いて粗い。
    別々に乱数で撒くと色と照りの位置がずれて、いかにも二枚重ねに見える。
    three は緑成分を粗さとして読むので、そこにだけ値を入れる。 */
-function texFleshRough(fleshCanvas){
+function texFleshRough(/** @type {any} */ fleshCanvas){
   var s = fleshCanvas.width;
   var src = fleshCanvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
@@ -390,8 +390,8 @@ function texFleshRough(fleshCanvas){
    どちらも 0.39 になって区別が付かなかった（実際そうなった）。
    sRGB の 2.2 乗近似で線形へ直してから平均する（先に平均してから
    線形へ直すと、暗部の多い絵ほど明るく出てしまう）。 */
-var TEX_MEAN = [];
-function texMeanLinear(img){
+var TEX_MEAN = /** @type {any[]} */ ([]);
+function texMeanLinear(/** @type {any} */ img){
   if(!img || !img.width) return [1,1,1];
   for(var i=0;i<TEX_MEAN.length;i++) if(TEX_MEAN[i].k === img) return TEX_MEAN[i].v;
   var s = Math.min(64, img.width), c = makeCanvas(s), g = c.getContext('2d');
@@ -416,7 +416,7 @@ function texMeanLinear(img){
    1 枚を全種類で共用する。箱と円柱の UV は面ごとに 0..1 なので、
    面の実寸によって拡大率が変わるが、模様が絵ではなく汚れなら気にならない。
    平均が 0.8 前後になるようにして、地の色を暗くしすぎないようにする。 */
-function texGrunge(size){
+function texGrunge(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#d2d2ce'; g.fillRect(0,0,size,size);
   var K = (size/256)*(size/256);
@@ -464,7 +464,7 @@ function texGrunge(size){
    材質を伝える。n はタイルの分割数（地の絵と同じ数にする）。
    three は粗さを緑チャンネルから読むので緑だけ書く。
    色ではないので sRGB 変換を通してはいけない。 */
-function texGloss(size, n, lo, hi, grid){
+function texGloss(/** @type {any} */ size, /** @type {any} */ n, /** @type {any} */ lo, /** @type {any} */ hi, /** @type {any} */ grid){
   var c = makeCanvas(size), g = c.getContext('2d');
   var LO = Math.round(clamp(lo,0,1)*255), HI = Math.round(clamp(hi,0,1)*255);
   g.fillStyle = 'rgb(0,'+LO+',0)'; g.fillRect(0,0,size,size);
@@ -503,7 +503,7 @@ function texGloss(size, n, lo, hi, grid){
    細かい傷が付いて鈍く光る」ので、明るい所を粗く・暗い所を滑らかに
    するのが実物に近い（lo が明部の粗さ、hi が暗部の粗さ）。
    three は粗さを緑チャンネルから読むので、緑だけ書けばよい。 */
-function roughFrom(srcCanvas, lo, hi){
+function roughFrom(/** @type {any} */ srcCanvas, /** @type {any} */ lo, /** @type {any} */ hi){
   var s = srcCanvas.width;
   var src = srcCanvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
@@ -519,7 +519,7 @@ function roughFrom(srcCanvas, lo, hi){
 // 区画表示板。病棟の壁に貼られた区画記号のプレート。
 // 迷路は31x31・通路率約0.67で見た目の差が乏しいため、
 // 「今どのあたりにいるか」を地図ではなく風景から読ませるための目印。
-function texZone(letter){
+function texZone(/** @type {any} */ letter){
   var w = 256, h = 128;
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   var g = c.getContext('2d');
@@ -553,7 +553,7 @@ function texZone(letter){
 }
 // 一人称の腕の肌。無地の一色だと樹脂の筒に見えるので、
 // 血色のむら・青白い静脈・古い痣を焼き込んで肌の凹凸を出す
-function texSkin(size){
+function texSkin(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#b0846a'; g.fillRect(0,0,size,size);
   // 血色のむら
@@ -592,7 +592,7 @@ function texSkin(size){
   return c;
 }
 // 汚れた包帯。真っ白だと新品の樹脂に見えるので、織り目と染みを入れる
-function texGauze(size){
+function texGauze(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#cfc9b8'; g.fillRect(0,0,size,size);
   // 織り目
@@ -620,7 +620,7 @@ function texGauze(size){
    地金が出る。その二つを焼く。
    円柱の UV は u が円周・v が軸方向なので、筋は横（u 方向）に引く。
    縦に引くと繋ぎ目で必ず途切れる。 */
-function texLampMetal(size){
+function texLampMetal(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   /* 地色は明るくしておく。金属の反射率は材質の色で決めるので、
      テクスチャは「そこからどれだけ落ちるか」を持つ役。暗い地色
@@ -657,7 +657,7 @@ function texLampMetal(size){
 /* 握りのローレット。菱形の刻みは実物の握り部分そのもので、
    これがあると太さと丸みが一目で読める。刻みの数は円周方向 28・
    軸方向 12 で、実物の 0.8mm ピッチにおおよそ合う。 */
-function texKnurl(size){
+function texKnurl(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   // 地は筒と同じ明るさ。谷を暗く、山の頂を明るくする（金属の色は材質側）
   g.fillStyle = '#c8cccc'; g.fillRect(0,0,size,size);
@@ -699,7 +699,7 @@ function texArrow(){
   g.closePath(); g.fill();
   return c;
 }
-function texCeil(size){
+function texCeil(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#232827'; g.fillRect(0,0,size,size);
   /* 天井。目地が外周に 1 本あるだけで、実質のっぺりした板だった。
@@ -738,12 +738,12 @@ function texCeil(size){
   return c;
 }
 // ハイトマップ → ノーマルマップ
-function normalFrom(canvas, strength){
+function normalFrom(/** @type {any} */ canvas, /** @type {any} */ strength){
   var s = canvas.width;
   var src = canvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
   var img = og.createImageData(s,s), d = img.data;
-  function h(x,y){
+  function h(/** @type {any} */ x,/** @type {any} */ y){
     x = (x+s)%s; y = (y+s)%s;
     var i = (y*s+x)*4;
     return (src[i]*0.299 + src[i+1]*0.587 + src[i+2]*0.114)/255;
@@ -761,7 +761,7 @@ function normalFrom(canvas, strength){
   og.putImageData(img,0,0);
   return out;
 }
-function glowSprite(color){
+function glowSprite(/** @type {any} */ color){
   var s = 128, c = makeCanvas(s), g = c.getContext('2d');
   var grad = g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
   grad.addColorStop(0, color);

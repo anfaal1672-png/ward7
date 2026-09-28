@@ -36,7 +36,7 @@ function buildTitleScene(){
   }catch(e){ titleCam.ready = false; console.warn('タイトル情景の構築に失敗:', e && e.message); }
 }
 
-function updateTitleScene(dt){
+function updateTitleScene(/** @type {number} */ dt){
   if(!titleCam.ready) return;
   titleCam.t += dt;
   // 前へじわりと進み、行き止まりに近づいたら向きを変える

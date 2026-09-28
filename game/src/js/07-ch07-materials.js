@@ -2,7 +2,7 @@
    7. マテリアル／テクスチャの準備
    ========================================================================= */
 var TEX = {};
-var envRT = null;          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
+var envRT = /** @type {any} */ (null);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
 /* 環境マップ（映り込み）。
    金属を metalness 0.75 で置いても、映すものが無ければ真っ黒にしかならない。
    ランプの筒も、ドラム缶の胴も、扉の把手も、これまで全部「暗い灰色の板」
@@ -66,7 +66,7 @@ function buildEnvMap(){
   applyEnvMap();
 }
 /* 映り込みを付ける材質を 1 か所にまとめる。作り直したときは呼び直す。 */
-var ENV_MATS = [];
+var ENV_MATS = /** @type {any[]} */ ([]);
 function applyEnvMap(){
   var t = envRT ? envRT.texture : null;
   for(var i=0;i<ENV_MATS.length;i++){
@@ -75,7 +75,7 @@ function applyEnvMap(){
     if(m.envMap !== t){ m.envMap = t; m.needsUpdate = true; }
   }
 }
-function regEnvMat(m){
+function regEnvMat(/** @type {any} */ m){
   if(ENV_MATS.indexOf(m) < 0) ENV_MATS.push(m);
   if(envRT){ m.envMap = envRT.texture; m.needsUpdate = true; }
   return m;
@@ -115,7 +115,7 @@ function ensureTextures(){
 
 function buildTextures(){
   var s = QC.tex;
-  function mk(canvasEl, rx, ry){
+  function mk(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -180,7 +180,7 @@ function buildTextures(){
 
   /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
      繰り返しは地の絵に合わせないと目地とずれる。 */
-  function mkR(canvasEl, rx, ry){
+  function mkR(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -228,7 +228,7 @@ function photoWanted(){
   return (settings.quality|0) >= 2 && !!window.W7_ASSETS &&
          !!(renderer.capabilities && renderer.capabilities.isWebGL2);
 }
-function loadPhoto(cb){
+function loadPhoto(/** @type {any} */ cb){
   if(PHOTO.tex){ cb(PHOTO.tex); return; }
   PHOTO.wait.push(cb);
   if(PHOTO.loading) return;
@@ -257,7 +257,7 @@ function loadPhoto(cb){
 function applyPhoto(){
   if(!photoWanted() || !world.mats) return;
   var mats = world.mats;
-  loadPhoto(function(T){
+  loadPhoto(function(/** @type {any} */ T){
     if(world.mats !== mats) return;                 // 読み込み中に作り直された
     [['wall', mats.wall, 1.6], ['floor', mats.floor, 0.8], ['ceil', mats.ceil, 0.5]].forEach(function(e){
       var t = T[e[0]], m = e[1];

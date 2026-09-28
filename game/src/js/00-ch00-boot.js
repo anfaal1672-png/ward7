@@ -7,7 +7,7 @@
 var $ = function(id){ return document.getElementById(id); };
 var bootedOK = false;
 
-function fatal(msg){
+function fatal(/** @type {any} */ msg){
   try{
     $('boot').hidden = true;
     $('title').hidden = true;

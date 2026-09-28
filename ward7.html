@@ -852,7 +852,7 @@
 var $ = function(id){ return document.getElementById(id); };
 var bootedOK = false;
 
-function fatal(msg){
+function fatal(/** @type {any} */ msg){
   try{
     $('boot').hidden = true;
     $('title').hidden = true;
@@ -885,8 +885,8 @@ if(typeof THREE === 'undefined'){
 /* =========================================================================
    1. ユーティリティ
    ========================================================================= */
-var clamp = function(v,a,b){ return v<a?a:(v>b?b:v); };
-var lerp  = function(a,b,t){ return a+(b-a)*t; };
+var clamp = function(/** @type {any} */ v,/** @type {any} */ a,/** @type {any} */ b){ return v<a?a:(v>b?b:v); };
+var lerp  = function(/** @type {any} */ a,/** @type {any} */ b,/** @type {any} */ t){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
 var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
 
@@ -906,7 +906,7 @@ var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が�
 THREE.ColorManagement.enabled = false;
 var THREE_LEGACY_LIGHTS = (function(){
   var src = THREE.ShaderChunk.lights_pars_begin, n = 0;
-  function sub(a, b){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
+  function sub(/** @type {any} */ a, /** @type {any} */ b){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
   sub('vec3 irradiance = ambientLightColor;', 'vec3 irradiance = ambientLightColor * PI;');
   sub('light.color = directionalLight.color;', 'light.color = directionalLight.color * PI;');
   sub('vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );',
@@ -928,7 +928,7 @@ var THREE_LEGACY_LIGHTS = (function(){
    一度も震えていなかった。iOS アプリの中では WKWebView からネイティブへ
    渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。
    pat は ms の数、または [鳴る, 休む, 鳴る, ...] の配列（vibrate と同じ形）。 */
-function haptic(pat){
+function haptic(/** @type {any} */ pat){
   if(typeof settings !== 'undefined' && settings.haptics === false) return;   // 設定「振動」
   if(typeof BOT !== 'undefined' && BOT.on) return;
   try{
@@ -950,7 +950,7 @@ function haptic(pat){
    あわせて navigator.storage.persist() で消されにくくしてもらう。
    IndexedDB も使えない環境（プライベートモード等）では黙って諦める。 */
 var Store = (function(){
-  var DB = 'ward7', OS = 'kv', dbp = null;
+  var DB = 'ward7', OS = 'kv', dbp = /** @type {any} */ (null);
   function db(){
     if(dbp) return dbp;
     dbp = new Promise(function(res, rej){
@@ -963,21 +963,21 @@ var Store = (function(){
     dbp.catch(function(){});
     return dbp;
   }
-  function mirror(k, v){
-    db().then(function(d){
+  function mirror(/** @type {any} */ k, /** @type {any} */ v){
+    db().then(function(/** @type {any} */ d){
       var tx = d.transaction(OS, 'readwrite');
       if(v === null) tx.objectStore(OS).delete(k); else tx.objectStore(OS).put(v, k);
     }).catch(function(){});
   }
-  function get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-  function set(k, v){
+  function get(/** @type {any} */ k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function set(/** @type {any} */ k, /** @type {any} */ v){
     try{ localStorage.setItem(k, v); }catch(e){}
     mirror(k, v);
   }
   /* 起動時に一度。戻したものがあれば true で done を呼ぶ */
-  function recover(done){
+  function recover(/** @type {any} */ done){
     try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){}); }catch(e){}
-    db().then(function(d){
+    db().then(function(/** @type {any} */ d){
       var tx = d.transaction(OS, 'readonly'), os = tx.objectStore(OS);
       var rq = os.getAllKeys ? os.getAllKeys() : null;
       if(!rq){ done(false); return; }
@@ -991,7 +991,7 @@ var Store = (function(){
           }
         }catch(e){}
         if(!left){ done(false); return; }
-        keys.forEach(function(k){
+        keys.forEach(function(/** @type {any} */ k){
           var g = os.get(k);
           g.onsuccess = function(){
             var have = get(k);
@@ -1011,8 +1011,8 @@ var Store = (function(){
   return { get:get, set:set, recover:recover };
 })();
 
-var wakeLock = null, wakeWant = false;
-function keepAwake(on){
+var wakeLock = /** @type {any} */ (null), wakeWant = false;
+function keepAwake(/** @type {any} */ on){
   wakeWant = !!on;
   try{
     if(!on){ if(wakeLock){ wakeLock.release(); wakeLock = null; } return; }
@@ -1025,7 +1025,7 @@ function keepAwake(on){
   }catch(e){}
 }
 
-function mulberry32(a){
+function mulberry32(/** @type {any} */ a){
   var f = function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
     var t = Math.imul(a ^ a >>> 15, 1 | a);
@@ -1034,7 +1034,7 @@ function mulberry32(a){
   };
   // 状態の保存と巻き戻し（第 15.3 節 SNAP）のために、内側の数を読み書きできるようにする
   f.getState = function(){ return a | 0; };
-  f.setState = function(v){ a = v | 0; };
+  f.setState = function(/** @type {any} */ v){ a = v | 0; };
   return f;
 }
 var rnd = mulberry32(Date.now() & 0x7fffffff);
@@ -1046,7 +1046,7 @@ var rnd = mulberry32(Date.now() & 0x7fffffff);
    変わり、ボットの測定が「同じ種・同じ遊び」で比べられなくなる。
    3 本とも病棟に入るときに種から作り直す（startGame） */
 var rndAI = mulberry32(0x5eed ^ 0xA1), rndFx = mulberry32(0x5eed ^ 0xF3);
-function seedStreams(seed){
+function seedStreams(/** @type {any} */ seed){
   rndAI = mulberry32(((seed ^ 0x2545F491) >>> 0) || 1);
   rndFx = mulberry32(((seed ^ 0x9E3779B9) >>> 0) || 1);
 }
@@ -1307,22 +1307,22 @@ var EN = {
 var EN_PATTERNS = [
   [/^カルテ (\d+) \/ (\d+)$/, 'Records $1 / $2'],
   [/^カルテ(\d+)枚 → 非常口$/, '$1 records → exit'],
-  [/^第(\d+)章　(.+)$/, function(m, n, name){ return 'Chapter ' + n + ' — ' + trText(name); }],
-  [/^第(\d+)章 (.+?)　(.*)$/, function(m, n, name, rest){ return 'Chapter ' + n + ' ' + trText(name) + ' — ' + trText(rest); }],
+  [/^第(\d+)章　(.+)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name){ return 'Chapter ' + n + ' — ' + trText(name); }],
+  [/^第(\d+)章 (.+?)　(.*)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name, /** @type {any} */ rest){ return 'Chapter ' + n + ' ' + trText(name) + ' — ' + trText(rest); }],
   [/^第(\d+)章 完$/, 'Chapter $1 complete'],
-  [/^次の章へ　第(\d+)章 (.+)$/, function(m, n, name){ return 'Next: Chapter ' + n + ' ' + trText(name); }],
+  [/^次の章へ　第(\d+)章 (.+)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name){ return 'Next: Chapter ' + n + ' ' + trText(name); }],
   [/^あと (\d+) 回$/, '$1 left'],
   [/^掴まれた — 振りほどいた（あと (\d+) 回）$/, 'Grabbed — broke free ($1 left)'],
   [/^冷たい指が触れた（あと (\d+) 回）$/, 'Cold fingers touched you ($1 left)'],
   [/^包帯を巻いた — あと (\d+) 回振りほどける$/, 'Bandaged — you can break free $1 more times'],
   [/^瓶を拾った（(\d+)）— 投げると音で気を引ける$/, 'Picked up a bottle ($1) — throw it to draw it away'],
-  [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(m, what, z, dir){
+  [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ z, /** @type {any} */ dir){
       return 'The ' + ({'カルテ':'records','鍵':'key','非常口':'exit'})[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
-  [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(m, what, dir, far){
+  [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ dir, /** @type {any} */ far){
       return '[' + trText(what) + ' · ' + ({'前':'ahead','右':'right','後ろ':'behind','左':'left'})[dir] +
              (far ? ' · ' + (far === '近い' ? 'near' : 'far') : '') + ']'; }],
   [/^カルテを (\d+) 枚 集めろ$/, 'Collect $1 records'],
-  [/^挑戦 (\d+)/, function(m){ return trFragments(m); }],
+  [/^挑戦 (\d+)/, function(/** @type {any} */ m){ return trFragments(m); }],
   [/^（いま (\d+) 件）$/, '($1 entries)'],
   [/^(\d+) 回$/, '$1']
 ];
@@ -1337,11 +1337,11 @@ var EN_FRAG = [
   ['最速', 'best'], ['無傷', 'unhurt'], [' 回', ''], ['区画', 'zone'], ['章', 'ch.'],
   ['所見', 'Observation'], ['私信', 'Letter'], ['カルテ', 'records'], ['非常口', 'exit']
 ];
-function trFragments(s){
+function trFragments(/** @type {any} */ s){
   for(var i=0; i<EN_FRAG.length; i++) if(s.indexOf(EN_FRAG[i][0]) >= 0) s = s.split(EN_FRAG[i][0]).join(EN_FRAG[i][1]);
   return s;
 }
-function trText(s){
+function trText(/** @type {any} */ s){
   if(LANG !== 'en' || !s || !JP_RE.test(s)) return s;
   var lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], core = s.trim();
   if(EN.hasOwnProperty(core)) return lead + EN[core] + tail;
@@ -1352,10 +1352,10 @@ function trText(s){
     if(P[0].test(core)) return lead + core.replace(P[0], P[1]) + tail;
   }
   // 改行を含む文（結末）は行ごとに
-  if(core.indexOf('\n') >= 0) return lead + core.split('\n').map(function(l){ return trText(l); }).join('\n') + tail;
+  if(core.indexOf('\n') >= 0) return lead + core.split('\n').map(function(/** @type {any} */ l){ return trText(l); }).join('\n') + tail;
   return lead + trFragments(core) + tail;
 }
-function trNode(root){
+function trNode(/** @type {any} */ root){
   if(LANG !== 'en' || !root) return;
   if(root.nodeType === 3){ var t = trText(root.data); if(t !== root.data) root.data = t; return; }
   if(root.nodeType !== 1 || root.tagName === 'SCRIPT' || root.tagName === 'STYLE') return;
@@ -1383,17 +1383,17 @@ if(LANG === 'en'){
    2. オーディオ（全て手続き生成・外部ファイル無し）
    ========================================================================= */
 var Audio2 = (function(){
-  var ctx = null, master = null, noiseBuf = null;
-  var drone = null, droneGain = null, droneFilt = null;
+  var ctx = /** @type {any} */ (null), master = /** @type {any} */ (null), noiseBuf = /** @type {any} */ (null);
+  var drone = /** @type {any} */ (null), droneGain = /** @type {any} */ (null), droneFilt = /** @type {any} */ (null);
   var vol = 0.7, ready = false;
-  var convolver = null, revSend = null, revWet = null;
+  var convolver = null, revSend = /** @type {any} */ (null), revWet = /** @type {any} */ (null);
 
   /* 残響のインパルス応答を書き込む。
      雑音に指数減衰を掛け、時間が経つほど高域を落とす（実際の部屋も
      高域から先に吸われる）。左右で別の雑音を引くので広がりが出る。
      NaN が 1 つでも混ざると畳み込みの出力が全部無音になり、
      しかも「静かなゲーム」なので気づけない。自己診断から呼べる形にしておく。 */
-  function makeIR(out, sampleRate){
+  function makeIR(/** @type {any} */ out, /** @type {any} */ sampleRate){
     var n = out.length, lp = 0;
     for(var i=0;i<n;i++){
       var t = i / n;
@@ -1404,7 +1404,7 @@ var Audio2 = (function(){
     }
     return out;
   }
-  makeIR.len = function(sampleRate){ return Math.floor(sampleRate * 1.9); };
+  makeIR.len = function(/** @type {any} */ sampleRate){ return Math.floor(sampleRate * 1.9); };
   var REV_OPEN = 0.34, REV_BOX = 0.06;   // 廊下 / 箱の中
 
   function init(){
@@ -1463,14 +1463,14 @@ var Audio2 = (function(){
       try{
         var bin = atob(window.W7_ASSETS[k].split(',')[1]), u8 = new Uint8Array(bin.length);
         for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
-        var pr = ctx.decodeAudioData(u8.buffer, function(buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
+        var pr = ctx.decodeAudioData(u8.buffer, function(/** @type {any} */ buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
         if(pr && pr.catch) pr.catch(function(){});
       }catch(e){}
     });
   }
-  function sfx(grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
+  function sfx(/** @type {any} */ grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
   /* 素材を 1 回鳴らす。rate は速さ（＝高さ）、to は繋ぐ先 */
-  function playSfx(buf, t, rate, gain, to){
+  function playSfx(/** @type {any} */ buf, /** @type {any} */ t, /** @type {any} */ rate, /** @type {any} */ gain, /** @type {any} */ to){
     var s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
     var g = ctx.createGain(); g.gain.value = gain;
     s.connect(g); g.connect(to); s.start(t);
@@ -1484,13 +1484,13 @@ var Audio2 = (function(){
   }
   function audioState(){ return ready ? ctx.state : 'none'; }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
-  function setVol(v){ vol = v; if(master) master.gain.value = v; }
+  function setVol(/** @type {any} */ v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
      「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
   /* 部屋の広さで返りを変える（第 10.2 節）。箱の中はほぼ無し、廊下は並、
      大部屋・ホールは深く。space: 'box' | 'hall' | 'room' */
-  var REV_ROOM = 0.46, spaceNow = null;
-  function setSpace(space){
+  var REV_ROOM = 0.46, spaceNow = /** @type {any} */ (null);
+  function setSpace(/** @type {any} */ space){
     if(space === true) space = 'box'; else if(space === false || !space) space = 'hall';
     if(!revWet || !ready || space === spaceNow) return;
     spaceNow = space;
@@ -1501,7 +1501,7 @@ var Audio2 = (function(){
   function noiseSrc(){
     var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
   }
-  function env(g, t0, a, d, peak){
+  function env(/** @type {any} */ g, /** @type {any} */ t0, /** @type {any} */ a, /** @type {any} */ d, /** @type {any} */ peak){
     g.gain.cancelScheduledValues(t0);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t0+a);
@@ -1515,14 +1515,14 @@ var Audio2 = (function(){
      音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
      （距離による減衰は切る＝rolloffFactor 0）。スピーカーで遊ぶときは左右の振り分けに戻す。 */
   var hrtf = true;
-  function setHRTF(on){ hrtf = !!on; }
+  function setHRTF(/** @type {any} */ on){ hrtf = !!on; }
   function makePanner(){
     if(!hrtf || !ctx.createPanner) return null;
     var p = ctx.createPanner();
     p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.rolloffFactor = 0; p.refDistance = 1;
     return p;
   }
-  function setDir(p, pan, fwd, t, tc){
+  function setDir(/** @type {any} */ p, /** @type {any} */ pan, /** @type {any} */ fwd, /** @type {any} */ t, /** @type {any} */ tc){
     // 聞き手は原点で -Z を向いている。右が +X、前が -Z
     var x = clamp(pan, -1, 1), z = -(fwd === undefined ? Math.sqrt(Math.max(0, 1 - x*x)) : fwd);
     if(p.positionX){ p.positionX.setTargetAtTime(x, t, tc); p.positionY.setTargetAtTime(0, t, tc); p.positionZ.setTargetAtTime(z, t, tc); }
@@ -1539,7 +1539,7 @@ var Audio2 = (function(){
     else if(sp){ lp.connect(sp); sp.connect(master); } else { lp.connect(master); }
     return { in:g, gain:g, lp:lp, pan:sp, hrtf:hp, vol:0, panV:0, cut:800 };
   }
-  function setBus(bus, vol, panV, cut, fwd){
+  function setBus(/** @type {any} */ bus, /** @type {any} */ vol, /** @type {any} */ panV, /** @type {any} */ cut, /** @type {any} */ fwd){
     if(!bus || !ready) return;
     var t = ctx.currentTime;
     bus.vol = vol; bus.panV = panV; bus.cut = cut;
@@ -1548,9 +1548,9 @@ var Audio2 = (function(){
     if(bus.hrtf) setDir(bus.hrtf, panV / 0.85, fwd, t, 0.09);      // 左右の値は 0.85 倍して渡されている
     else if(bus.pan) bus.pan.pan.setTargetAtTime(clamp(panV, -1, 1), t, 0.09);
   }
-  function setHunterVoice(v,p,c,f){ setBus(buses.hunter, v, p, c, f); }
-  function setLampVoice(i,v,p,c,f){ setBus(buses.lamps[i], v, p, c, f); }
-  function setExitVoice(v,p,c,f){ setBus(buses.exit, v, p, c, f); }
+  function setHunterVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.hunter, v, p, c, f); }
+  function setLampVoice(/** @type {any} */ i,/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.lamps[i], v, p, c, f); }
+  function setExitVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.exit, v, p, c, f); }
   function busCount(){ return (buses.hunter?1:0) + buses.lamps.length + (buses.exit?1:0); }
   function busState(){
     return {
@@ -1657,7 +1657,7 @@ var Audio2 = (function(){
        追跡 … 速い打ち込みの脈と、上下に掻きむしる帯域雑音
      追跡が終わったら 8 秒だけ劇伴と環境音を落とし切る（REST）。
      安堵を一度作ってから次の緊張へ入るため。追跡者の音は落とさない。 */
-  var score = null, scoreLevel = 0, restUntil = 0;
+  var score = /** @type {any} */ (null), scoreLevel = 0, restUntil = 0;
   var SCORE_X = 0.55;            // 交差の時定数（setTargetAtTime。約 3 倍で落ち着く ≒ 1.5 秒）
   var REST_SEC = 8, REST_BACK = 2.5;
   function buildScore(){
@@ -1713,7 +1713,7 @@ var Audio2 = (function(){
   }
   var LAYER_VOL = [0.55, 0.60, 0.50];
   /* 劇伴の段を決める（0..3）。段 n では層 1..n を鳴らす */
-  function setScore(level){
+  function setScore(/** @type {any} */ level){
     if(!score) return;
     level = clamp(level|0, 0, 3);
     var t = ctx.currentTime;
@@ -1747,13 +1747,13 @@ var Audio2 = (function(){
   function resting(){ return !!ctx && ctx.currentTime < restUntil; }
   function stopAmbient(){
     if(!drone) return;
-    try{ drone.forEach(function(o){ try{o.stop();}catch(e){} }); }catch(e){}
+    try{ drone.forEach(function(/** @type {any} */ o){ try{o.stop();}catch(e){} }); }catch(e){}
     drone = null; droneGain = null; droneFilt = null;
     setWater(false);
     score = null; scoreLevel = 0; restUntil = 0;
     buses.hunter = null; buses.lamps = []; buses.exit = null;
   }
-  function setTension(t){ // 0..1
+  function setTension(/** @type {any} */ t){ // 0..1
     if(!droneFilt) return;
     droneFilt.frequency.setTargetAtTime(260 + t*1500, ctx.currentTime, 0.35);
     if(droneGain && !resting()) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
@@ -1762,7 +1762,7 @@ var Audio2 = (function(){
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
      同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
      その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
-  function step(hard, mat, vol){
+  function step(/** @type {any} */ hard, /** @type {any} */ mat, /** @type {any} */ vol){
     if(!ready) return;
     vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
@@ -1792,10 +1792,10 @@ var Audio2 = (function(){
       o.start(t); o.stop(t+0.08);
     }
   }
-  function heart(intensity){
+  function heart(/** @type {any} */ intensity){
     if(!ready) return;
     var t = ctx.currentTime;
-    function thump(off, amp){
+    function thump(/** @type {any} */ off, /** @type {any} */ amp){
       var o = ctx.createOscillator(); o.type='sine';
       o.frequency.setValueAtTime(78, t+off);
       o.frequency.exponentialRampToValueAtTime(38, t+off+0.16);
@@ -1825,7 +1825,7 @@ var Audio2 = (function(){
       o.start(t+i*0.09); o.stop(t+i*0.09+1.4);
     });
   }
-  function click(on){
+  function click(/** @type {any} */ on){
     if(!ready) return;
     var t = ctx.currentTime;
     var o = ctx.createOscillator(); o.type='square';
@@ -1885,7 +1885,7 @@ var Audio2 = (function(){
     { f0: 78, f1: 70, dur:1.20, fm:[300, 720,1900], air:0.18, amp:0.16, wob:3.4, wobA:0.04 }, // 3 呟き
     { f0: 96, f1: 54, dur:0.55, fm:[520,1050,2300], air:0.45, amp:0.36, wob:9.0, wobA:0.07 }  // 4 苛立ち
   ];
-  function hunterVocal(kind, dist, pan, blocked){
+  function hunterVocal(/** @type {any} */ kind, /** @type {number} */ dist, /** @type {any} */ pan, /** @type {boolean} */ blocked){
     if(!ready) return;
     var V = VOX[kind|0] || VOX[0];
     var t = ctx.currentTime;
@@ -1951,12 +1951,12 @@ var Audio2 = (function(){
   }
 
   var STEP_MAX = 40;          // ここから徐々に聞こえ始める
-  function stepAtten(dist){
+  function stepAtten(/** @type {number} */ dist){
     // 逆距離カーブ＋端の滑らかなフェード。急に鳴り出さず連続的に近づく
     var n = clamp(dist / STEP_MAX, 0, 1);
     return (6 / (6 + dist)) * (1 - n*n*n);
   }
-  function hunterStep(dist, chasing, pan, blocked, fwd){
+  function hunterStep(/** @type {number} */ dist, /** @type {boolean} */ chasing, /** @type {any} */ pan, /** @type {boolean} */ blocked, /** @type {any} */ fwd){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = stepAtten(dist) * (blocked ? 0.55 : 1);
@@ -2031,7 +2031,7 @@ var Audio2 = (function(){
      無人の病棟は静かなだけではなく、時々どこかで何かが鳴る。
      4 種類を手続きで作り、左右の位置と遠さも毎回変える。
      どれも短く小さい——大きな音は追跡者のための場所を取っておく。 */
-  function ambientOne(kind, pan, far){
+  function ambientOne(/** @type {any} */ kind, /** @type {any} */ pan, /** @type {any} */ far){
     if(!ready) return;
     var t = ctx.currentTime;
     var out = master;
@@ -2100,7 +2100,7 @@ var Audio2 = (function(){
   }
   /* 瓶が割れる音。高い帯域の雑音の粒を数発ばらまき、低い「ごつん」を下に敷く。
      距離で小さく、高域から先に削る */
-  function glass(dist, pan){
+  function glass(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = 6 / (6 + dist);
@@ -2130,7 +2130,7 @@ var Audio2 = (function(){
   }
   /* 患者の叫び（第 9 章 updatePatients）。女の声に寄せた鋸歯を 2 つの共鳴
      （900 / 2600 Hz）に通し、上ずってから崩れる。息の雑音を上に敷く */
-  function shriek(dist, pan){
+  function shriek(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime, dur = 1.5;
     var att = 7 / (7 + dist) * (settings.softScare ? 0.35 : 1);
@@ -2159,7 +2159,7 @@ var Audio2 = (function(){
   }
   /* 天井裏の金属音（第4章 通気口）。薄い鋼板を叩いた鈍い響きを、
      頭の上から聞こえるように高域を削って鳴らす。loud は 0..1.2 */
-  function clang(dist, pan, loud){
+  function clang(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ loud){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = (8 / (8 + dist)) * (loud || 1);
@@ -2187,7 +2187,7 @@ var Audio2 = (function(){
   }
   /* 囁き（第5章 映るもの）。子音だけの息の音を、話し声の帯域で短く刻む。
      近いほど大きく、残響を抜いて耳元で鳴らす */
-  function whisper(dist, pan){
+  function whisper(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime, att = 4 / (4 + dist);
     var out = ctx.createGain(); out.gain.value = 0.35 * att;
@@ -2207,7 +2207,7 @@ var Audio2 = (function(){
   }
   /* 水しぶき（第6章）。自分の足（dist 0）にも、あれの足にも使う。
      低い「どぷ」と、高い帯域の飛沫を重ねる */
-  function splash(dist, pan, vol){
+  function splash(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ vol){
     if(!ready) return;
     var t = ctx.currentTime, att = (dist > 0 ? 6 / (6 + dist) : 1) * (vol === undefined ? 1 : vol);
     if(att < 0.004) return;
@@ -2227,10 +2227,10 @@ var Audio2 = (function(){
   }
   /* 地下の水音。低いせせらぎを常に鳴らし、ときどき滴を落とす。
      これがあれの足音を覆い隠す */
-  var waterNodes = null, dripT = null;
-  function setWater(on){
+  var waterNodes = /** @type {any} */ (null), dripT = /** @type {any} */ (null);
+  function setWater(/** @type {any} */ on){
     if(!ready) return;
-    if(waterNodes){ waterNodes.forEach(function(n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
+    if(waterNodes){ waterNodes.forEach(function(/** @type {any} */ n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
     if(dripT){ clearInterval(dripT); dripT = null; }
     if(!on) return;
     var n = noiseSrc();
@@ -2279,10 +2279,10 @@ var Audio2 = (function(){
 /* =========================================================================
    3. 手続きテクスチャ生成
    ========================================================================= */
-function makeCanvas(s){
+function makeCanvas(/** @type {any} */ s){
   var c = document.createElement('canvas'); c.width = c.height = s; return c;
 }
-function valueNoise(ctx2, s, cell, alpha){
+function valueNoise(/** @type {any} */ ctx2, /** @type {any} */ s, /** @type {any} */ cell, /** @type {any} */ alpha){
   var n = Math.ceil(s/cell);
   for(var y=0;y<n;y++) for(var x=0;x<n;x++){
     var v = Math.floor(rnd()*255);
@@ -2290,7 +2290,7 @@ function valueNoise(ctx2, s, cell, alpha){
     ctx2.fillRect(x*cell, y*cell, cell, cell);
   }
 }
-function texWall(size){
+function texWall(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#3a4140'; g.fillRect(0,0,size,size);
   /* タイルの目地。
@@ -2402,7 +2402,7 @@ function texWall(size){
   g.globalAlpha = 0.05; valueNoise(g, size, 2, 1); g.globalAlpha = 1;
   return c;
 }
-function texFloor(size){
+function texFloor(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#2d3231'; g.fillRect(0,0,size,size);
   /* 床タイル。2×2 で割っていたので 1 枚が 2.1m 角もあり、
@@ -2450,7 +2450,7 @@ function texFloor(size){
    テクスチャ付きになった結果、掴まれる距離まで寄られたときに
    「のっぺりした人形」に見えて浮いていた。
    斑（血の通っている所と引いている所）・皮下の静脈・古い痣を重ねる。 */
-function texFlesh(size){
+function texFlesh(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   /* 地色。以前は #9ea394（62%グレー）で、懐中電灯を当てると壁より明るく
      返ってきて真っ白な人形に見えていた。実測で 壁の 1.6 倍。
@@ -2527,7 +2527,7 @@ function texFlesh(size){
    4 種類あれば、同じ模様が並んで見えるほどには繰り返さない。
 
    透明度を持つので、色は白のまま alpha で抜く（材質側で色を掛ける）。 */
-function texDecals(size){
+function texDecals(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   var h = size/2;
   g.clearRect(0,0,size,size);
@@ -2641,7 +2641,7 @@ function texDecals(size){
    熱を持って汗ばんでいる＝つやがある、引いている所は乾いて粗い。
    別々に乱数で撒くと色と照りの位置がずれて、いかにも二枚重ねに見える。
    three は緑成分を粗さとして読むので、そこにだけ値を入れる。 */
-function texFleshRough(fleshCanvas){
+function texFleshRough(/** @type {any} */ fleshCanvas){
   var s = fleshCanvas.width;
   var src = fleshCanvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
@@ -2668,8 +2668,8 @@ function texFleshRough(fleshCanvas){
    どちらも 0.39 になって区別が付かなかった（実際そうなった）。
    sRGB の 2.2 乗近似で線形へ直してから平均する（先に平均してから
    線形へ直すと、暗部の多い絵ほど明るく出てしまう）。 */
-var TEX_MEAN = [];
-function texMeanLinear(img){
+var TEX_MEAN = /** @type {any[]} */ ([]);
+function texMeanLinear(/** @type {any} */ img){
   if(!img || !img.width) return [1,1,1];
   for(var i=0;i<TEX_MEAN.length;i++) if(TEX_MEAN[i].k === img) return TEX_MEAN[i].v;
   var s = Math.min(64, img.width), c = makeCanvas(s), g = c.getContext('2d');
@@ -2694,7 +2694,7 @@ function texMeanLinear(img){
    1 枚を全種類で共用する。箱と円柱の UV は面ごとに 0..1 なので、
    面の実寸によって拡大率が変わるが、模様が絵ではなく汚れなら気にならない。
    平均が 0.8 前後になるようにして、地の色を暗くしすぎないようにする。 */
-function texGrunge(size){
+function texGrunge(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#d2d2ce'; g.fillRect(0,0,size,size);
   var K = (size/256)*(size/256);
@@ -2742,7 +2742,7 @@ function texGrunge(size){
    材質を伝える。n はタイルの分割数（地の絵と同じ数にする）。
    three は粗さを緑チャンネルから読むので緑だけ書く。
    色ではないので sRGB 変換を通してはいけない。 */
-function texGloss(size, n, lo, hi, grid){
+function texGloss(/** @type {any} */ size, /** @type {any} */ n, /** @type {any} */ lo, /** @type {any} */ hi, /** @type {any} */ grid){
   var c = makeCanvas(size), g = c.getContext('2d');
   var LO = Math.round(clamp(lo,0,1)*255), HI = Math.round(clamp(hi,0,1)*255);
   g.fillStyle = 'rgb(0,'+LO+',0)'; g.fillRect(0,0,size,size);
@@ -2781,7 +2781,7 @@ function texGloss(size, n, lo, hi, grid){
    細かい傷が付いて鈍く光る」ので、明るい所を粗く・暗い所を滑らかに
    するのが実物に近い（lo が明部の粗さ、hi が暗部の粗さ）。
    three は粗さを緑チャンネルから読むので、緑だけ書けばよい。 */
-function roughFrom(srcCanvas, lo, hi){
+function roughFrom(/** @type {any} */ srcCanvas, /** @type {any} */ lo, /** @type {any} */ hi){
   var s = srcCanvas.width;
   var src = srcCanvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
@@ -2797,7 +2797,7 @@ function roughFrom(srcCanvas, lo, hi){
 // 区画表示板。病棟の壁に貼られた区画記号のプレート。
 // 迷路は31x31・通路率約0.67で見た目の差が乏しいため、
 // 「今どのあたりにいるか」を地図ではなく風景から読ませるための目印。
-function texZone(letter){
+function texZone(/** @type {any} */ letter){
   var w = 256, h = 128;
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   var g = c.getContext('2d');
@@ -2831,7 +2831,7 @@ function texZone(letter){
 }
 // 一人称の腕の肌。無地の一色だと樹脂の筒に見えるので、
 // 血色のむら・青白い静脈・古い痣を焼き込んで肌の凹凸を出す
-function texSkin(size){
+function texSkin(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#b0846a'; g.fillRect(0,0,size,size);
   // 血色のむら
@@ -2870,7 +2870,7 @@ function texSkin(size){
   return c;
 }
 // 汚れた包帯。真っ白だと新品の樹脂に見えるので、織り目と染みを入れる
-function texGauze(size){
+function texGauze(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#cfc9b8'; g.fillRect(0,0,size,size);
   // 織り目
@@ -2898,7 +2898,7 @@ function texGauze(size){
    地金が出る。その二つを焼く。
    円柱の UV は u が円周・v が軸方向なので、筋は横（u 方向）に引く。
    縦に引くと繋ぎ目で必ず途切れる。 */
-function texLampMetal(size){
+function texLampMetal(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   /* 地色は明るくしておく。金属の反射率は材質の色で決めるので、
      テクスチャは「そこからどれだけ落ちるか」を持つ役。暗い地色
@@ -2935,7 +2935,7 @@ function texLampMetal(size){
 /* 握りのローレット。菱形の刻みは実物の握り部分そのもので、
    これがあると太さと丸みが一目で読める。刻みの数は円周方向 28・
    軸方向 12 で、実物の 0.8mm ピッチにおおよそ合う。 */
-function texKnurl(size){
+function texKnurl(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   // 地は筒と同じ明るさ。谷を暗く、山の頂を明るくする（金属の色は材質側）
   g.fillStyle = '#c8cccc'; g.fillRect(0,0,size,size);
@@ -2977,7 +2977,7 @@ function texArrow(){
   g.closePath(); g.fill();
   return c;
 }
-function texCeil(size){
+function texCeil(/** @type {any} */ size){
   var c = makeCanvas(size), g = c.getContext('2d');
   g.fillStyle = '#232827'; g.fillRect(0,0,size,size);
   /* 天井。目地が外周に 1 本あるだけで、実質のっぺりした板だった。
@@ -3016,12 +3016,12 @@ function texCeil(size){
   return c;
 }
 // ハイトマップ → ノーマルマップ
-function normalFrom(canvas, strength){
+function normalFrom(/** @type {any} */ canvas, /** @type {any} */ strength){
   var s = canvas.width;
   var src = canvas.getContext('2d').getImageData(0,0,s,s).data;
   var out = makeCanvas(s), og = out.getContext('2d');
   var img = og.createImageData(s,s), d = img.data;
-  function h(x,y){
+  function h(/** @type {any} */ x,/** @type {any} */ y){
     x = (x+s)%s; y = (y+s)%s;
     var i = (y*s+x)*4;
     return (src[i]*0.299 + src[i+1]*0.587 + src[i+2]*0.114)/255;
@@ -3039,7 +3039,7 @@ function normalFrom(canvas, strength){
   og.putImageData(img,0,0);
   return out;
 }
-function glowSprite(color){
+function glowSprite(/** @type {any} */ color){
   var s = 128, c = makeCanvas(s), g = c.getContext('2d');
   var grad = g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
   grad.addColorStop(0, color);
@@ -3095,18 +3095,18 @@ var ZONE_TINT = [
   [0.95, 1.00, 1.00],   // 7 検査区画：青緑
   [1.00, 0.96, 0.92]    // 8 焼却炉側：煤けて赤い
 ];
-function zoneTint(cx, cy){ return ZONE_TINT[zoneOf(cx, cy)]; }
+function zoneTint(/** @type {any} */ cx, /** @type {any} */ cy){ return ZONE_TINT[zoneOf(cx, cy)]; }
 
-function zoneOf(cx, cy){
+function zoneOf(/** @type {any} */ cx, /** @type {any} */ cy){
   var zx = clamp(Math.floor(cx * 3 / GW), 0, 2);
   var zy = clamp(Math.floor(cy * 3 / GH), 0, 2);
   return zy*3 + zx;
 }
 
-function idx(x,y){ return y*GW + x; }
-function inBounds(x,y){ return x>=0 && y>=0 && x<GW && y<GH; }
+function idx(/** @type {any} */ x,/** @type {any} */ y){ return y*GW + x; }
+function inBounds(/** @type {any} */ x,/** @type {any} */ y){ return x>=0 && y>=0 && x<GW && y<GH; }
 
-function genMaze(loopChance){
+function genMaze(/** @type {any} */ loopChance){
   var g = new Uint8Array(GW*GH);
   g.fill(1);
   var stack = [];
@@ -3142,7 +3142,7 @@ function genMaze(loopChance){
 }
 
 // 通路だけだと全部同じ景色になるので、開けた部屋をいくつか掘る（＝目印になる）
-function carveRooms(g, count){
+function carveRooms(/** @type {any} */ g, /** @type {any} */ count){
   var rooms = [];
   for(var i=0; i<count*4 && rooms.length<count; i++){
     var rw = 3 + ((rnd()*2)|0)*2, rh = 3 + ((rnd()*2)|0)*2;
@@ -3164,7 +3164,7 @@ function carveRooms(g, count){
 }
 
 // まっすぐな長い廊下。見通しがきくぶん、遠くの気配に気づける
-function carveHalls(g, count){
+function carveHalls(/** @type {any} */ g, /** @type {any} */ count){
   for(var i=0;i<count;i++){
     var horiz = rnd() < 0.5;
     var len = 8 + ((rnd()*9)|0);
@@ -3187,7 +3187,7 @@ function carveHalls(g, count){
 }
 
 // 通路から突き出た行き止まりの窪み。隠れ場所や物置になる
-function carveAlcoves(g, count){
+function carveAlcoves(/** @type {any} */ g, /** @type {any} */ count){
   var D = [[1,0],[-1,0],[0,1],[0,-1]];
   var made = 0;
   for(var i=0;i<count*6 && made<count;i++){
@@ -3205,7 +3205,7 @@ function carveAlcoves(g, count){
 }
 
 // 中央の大広間
-function carveHall(g){
+function carveHall(/** @type {any} */ g){
   var hw = 7, hh = 5;
   var x0 = ((GW - hw) >> 1), y0 = ((GH - hh) >> 1);
   for(var y=y0; y<y0+hh; y++) for(var x=x0; x<x0+hw; x++){
@@ -3216,7 +3216,7 @@ function carveHall(g){
 }
 
 // BFS 距離場（-1 = 到達不可）
-function bfsField(g, sx, sy){
+function bfsField(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any} */ sy){
   var dist = new Int32Array(GW*GH); dist.fill(-1);
   var q = new Int32Array(GW*GH*2), head=0, tail=0;
   dist[idx(sx,sy)] = 0;
@@ -3238,7 +3238,7 @@ function bfsField(g, sx, sy){
 }
 
 // 経路探索：start から goal への次の一歩を返す（goal 側から BFS）
-function bfsNextStep(g, sx, sy, gx, gy){
+function bfsNextStep(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any} */ sy, /** @type {any} */ gx, /** @type {any} */ gy){
   if(sx===gx && sy===gy) return null;
   var field = bfsField(g, gx, gy);
   var here = field[idx(sx,sy)];
@@ -3253,15 +3253,15 @@ function bfsNextStep(g, sx, sy, gx, gy){
   return null;
 }
 
-function cellToWorld(cx, cy){
+function cellToWorld(/** @type {any} */ cx, /** @type {any} */ cy){
   return { x:(cx - (GW-1)/2)*CELL, z:(cy - (GH-1)/2)*CELL };
 }
-function worldToCell(x, z){
+function worldToCell(/** @type {any} */ x, /** @type {any} */ z){
   return { x: Math.round(x/CELL + (GW-1)/2), y: Math.round(z/CELL + (GH-1)/2) };
 }
 
 // グリッド上の視線判定（DDA）
-function hasLOS(g, x0, z0, x1, z1){
+function hasLOS(/** @type {any} */ g, /** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var dx = x1-x0, dz = z1-z0;
   var dist = Math.sqrt(dx*dx+dz*dz);
   if(dist < 0.001) return true;
@@ -3281,7 +3281,7 @@ var SIGHT_H = 1.5;
 
 // 什器による遮蔽（線分と円の最近接距離）。
 // hasLOS は壁しか見ないので、背の高い什器はここで別に判定する。
-function propBlocksSight(x0, z0, x1, z1){
+function propBlocksSight(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var props = world.props;
   if(!props || !props.length) return false;
   var dx = x1-x0, dz = z1-z0;
@@ -3300,7 +3300,7 @@ function propBlocksSight(x0, z0, x1, z1){
 
 // 「見えるか」の判定。壁と背の高い什器の両方を見る。
 // 音の減衰や聴覚距離には使わない（ロッカーは壁ではないので音は回り込む）
-function hasSight(g, x0, z0, x1, z1){
+function hasSight(/** @type {any} */ g, /** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   return hasLOS(g, x0, z0, x1, z1) && !propBlocksSight(x0, z0, x1, z1);
 }
 
@@ -3451,7 +3451,7 @@ function saveRecs(){
   Store.set('ward7.recs', JSON.stringify(RECS));
 }
 /* 1 回ぶんを記録する。won=脱出したか、hits=被弾回数 */
-function recordRun(won, hits){
+function recordRun(/** @type {boolean} */ won, /** @type {number} */ hits){
   if(cheatUsed) return;                       // チートを使った回は残さない
   var R = RECS[clamp(settings.diff|0,0,2)];
   R.runs++;
@@ -3463,7 +3463,7 @@ function recordRun(won, hits){
   }
   saveRecs();
 }
-function recLine(d){
+function recLine(/** @type {any} */ d){
   var R = RECS[d];
   if(!R || !R.runs) return '記録なし';
   return '挑戦 ' + R.runs + ' · 脱出 ' + R.wins +
@@ -3578,12 +3578,12 @@ var DRS = { scale:1, max:1, min:0.6, slowT:0, fastT:0, cool:0, ema:1/60,
             on: !navigator.webdriver || /[?&]drs=1/.test(location.search) };
 var THERMAL = { level:0 };
 function effPixelRatio(){ return Math.min(window.devicePixelRatio||1, QC.pixelCap) * DRS.scale; }
-window.__w7thermal = function(n){           // 0 nominal / 1 fair / 2 serious / 3 critical
+window.__w7thermal = function(/** @type {any} */ n){           // 0 nominal / 1 fair / 2 serious / 3 critical
   THERMAL.level = n|0;
   DRS.max = THERMAL.level >= 3 ? 0.7 : (THERMAL.level >= 2 ? 0.8 : 1);
   if(DRS.scale > DRS.max){ DRS.scale = DRS.max; resize(); }
 };
-function updateDRS(dt){
+function updateDRS(/** @type {number} */ dt){
   if(!DRS.on || state !== STATE.PLAY) return;
   DRS.ema = lerp(DRS.ema, dt, 0.08);
   DRS.cool -= dt;
@@ -3601,7 +3601,7 @@ function updateDRS(dt){
   }
 }
 var canvas = $('scene');
-var renderer, scene, camera;
+var renderer = /** @type {any} */ (undefined), scene = /** @type {any} */ (undefined), camera = /** @type {any} */ (undefined);
 var CTX_LOST = false;
 
 function qualityCfg(){
@@ -3708,7 +3708,7 @@ scene.fog = new THREE.FogExp2(0x05090c, QC.fogD);
 camera = new THREE.PerspectiveCamera(72, 1, 0.05, 200);
 camera.rotation.order = 'YXZ';
 
-canvas.addEventListener('webglcontextlost', function(e){
+canvas.addEventListener('webglcontextlost', function(/** @type {any} */ e){
   e.preventDefault(); CTX_LOST = true;
   if(state === STATE.PLAY) doPause();
   toast('描画が中断されました', 3);
@@ -3769,7 +3769,7 @@ resize();
    7. マテリアル／テクスチャの準備
    ========================================================================= */
 var TEX = {};
-var envRT = null;          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
+var envRT = /** @type {any} */ (null);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
 /* 環境マップ（映り込み）。
    金属を metalness 0.75 で置いても、映すものが無ければ真っ黒にしかならない。
    ランプの筒も、ドラム缶の胴も、扉の把手も、これまで全部「暗い灰色の板」
@@ -3833,7 +3833,7 @@ function buildEnvMap(){
   applyEnvMap();
 }
 /* 映り込みを付ける材質を 1 か所にまとめる。作り直したときは呼び直す。 */
-var ENV_MATS = [];
+var ENV_MATS = /** @type {any[]} */ ([]);
 function applyEnvMap(){
   var t = envRT ? envRT.texture : null;
   for(var i=0;i<ENV_MATS.length;i++){
@@ -3842,7 +3842,7 @@ function applyEnvMap(){
     if(m.envMap !== t){ m.envMap = t; m.needsUpdate = true; }
   }
 }
-function regEnvMat(m){
+function regEnvMat(/** @type {any} */ m){
   if(ENV_MATS.indexOf(m) < 0) ENV_MATS.push(m);
   if(envRT){ m.envMap = envRT.texture; m.needsUpdate = true; }
   return m;
@@ -3882,7 +3882,7 @@ function ensureTextures(){
 
 function buildTextures(){
   var s = QC.tex;
-  function mk(canvasEl, rx, ry){
+  function mk(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -3947,7 +3947,7 @@ function buildTextures(){
 
   /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
      繰り返しは地の絵に合わせないと目地とずれる。 */
-  function mkR(canvasEl, rx, ry){
+  function mkR(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -3995,7 +3995,7 @@ function photoWanted(){
   return (settings.quality|0) >= 2 && !!window.W7_ASSETS &&
          !!(renderer.capabilities && renderer.capabilities.isWebGL2);
 }
-function loadPhoto(cb){
+function loadPhoto(/** @type {any} */ cb){
   if(PHOTO.tex){ cb(PHOTO.tex); return; }
   PHOTO.wait.push(cb);
   if(PHOTO.loading) return;
@@ -4024,7 +4024,7 @@ function loadPhoto(cb){
 function applyPhoto(){
   if(!photoWanted() || !world.mats) return;
   var mats = world.mats;
-  loadPhoto(function(T){
+  loadPhoto(function(/** @type {any} */ T){
     if(world.mats !== mats) return;                 // 読み込み中に作り直された
     [['wall', mats.wall, 1.6], ['floor', mats.floor, 0.8], ['ceil', mats.ceil, 0.5]].forEach(function(e){
       var t = T[e[0]], m = e[1];
@@ -4050,12 +4050,12 @@ var world = {
   zones:[], exitField:null, nav:null
 };
 
-function disposeObject(obj){
-  obj.traverse(function(o){
+function disposeObject(/** @type {any} */ obj){
+  obj.traverse(function(/** @type {any} */ o){
     if(o.geometry) o.geometry.dispose();
     if(o.material){
       var mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach(function(m){ if(m.dispose) m.dispose(); });
+      mats.forEach(function(/** @type {any} */ m){ if(m.dispose) m.dispose(); });
     }
   });
 }
@@ -4075,11 +4075,11 @@ function clearWorld(){
   world.zones = []; world.exitField = null; world.nav = null;
 }
 
-var lightPool = [];   // 非常灯用の固定ポイントライト（付け外しせず位置だけ動かす＝シェーダ再コンパイル回避）
-var flashlight, flashTarget, playerLight, ambient, hemi, hunterMark, hunterEyeLight;
+var lightPool = /** @type {any[]} */ ([]);   // 非常灯用の固定ポイントライト（付け外しせず位置だけ動かす＝シェーダ再コンパイル回避）
+var flashlight = /** @type {any} */ (undefined), flashTarget = /** @type {any} */ (undefined), playerLight = /** @type {any} */ (undefined), ambient = /** @type {any} */ (undefined), hemi, hunterMark = /** @type {any} */ (undefined), hunterEyeLight = /** @type {any} */ (undefined);
 // 一人称の腕。壁にめり込まないよう専用のシーンで最後に描く
-var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts = null;
-var viewHandL = null, HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
+var viewScene = /** @type {any} */ (null), viewCam = /** @type {any} */ (null), viewArm = /** @type {any} */ (null), viewRig = /** @type {any} */ (null), viewParts = /** @type {any} */ (null);
+var viewHandL = /** @type {any} */ (null), HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
@@ -4170,7 +4170,7 @@ function cullLights(){
   if(hunterEyeLight) applyLightCull(hunterEyeLight);
   if(world.exitLight) applyLightCull(world.exitLight);
 }
-function applyLightCull(L){
+function applyLightCull(/** @type {any} */ L){
   if(L.intensity <= 0.001){ L.visible = false; return; }
   _lightSphere.center.copy(L.position);
   _lightSphere.radius = L.distance > 0 ? L.distance : 1e6;   // 減衰なしなら常に効く
@@ -4199,7 +4199,7 @@ function prewarmLights(){
    粒はプレイヤーの周り 7m の箱に散らし、動いたら箱の外に出たぶんだけ
    反対側へ回り込ませる（無限に湧いているように見える）。
    ランプが消えているときは薄くする——照らされていない埃は見えない。 */
-var dustPts = null, dustPos = null;
+var dustPts = /** @type {any} */ (null), dustPos = /** @type {any} */ (null);
 var DUST_BOX = 7.0;
 
 function buildDust(){
@@ -4224,7 +4224,7 @@ function buildDust(){
   scene.add(dustPts);
 }
 
-function updateDust(dt){
+function updateDust(/** @type {number} */ dt){
   if(!dustPts) return;
   var arr = dustPos, n = arr.length/3;
   var t = performance.now()*0.001;
@@ -4255,7 +4255,7 @@ function updateDust(dt){
    扉が開いた瞬間、そこが目的地だと一目で分かってほしい。
    加算合成の円錐を扉から通路側へ寝かせて置く。体積光の代わりだが、
    暗い廊下ではこれで十分に「光が漏れている」に見える。 */
-var exitShaft = null;
+var exitShaft = /** @type {any} */ (null);
 function buildExitShaft(){
   if(exitShaft){ scene.remove(exitShaft); exitShaft.geometry.dispose(); exitShaft.material.dispose(); exitShaft = null; }
   if(!QC.shaft || !world.exit) return;
@@ -4269,7 +4269,7 @@ function buildExitShaft(){
   exitShaft.frustumCulled = false;
   scene.add(exitShaft);
 }
-function updateExitShaft(dt){
+function updateExitShaft(/** @type {number} */ dt){
   if(!exitShaft || !world.exit) return;
   var open = world.exit.open;
   var want = open ? 0.16 + 0.05*Math.sin(performance.now()*0.0031) : 0;
@@ -4305,7 +4305,7 @@ function updateExitShaft(dt){
    ——実際の散乱と同じ見え方になる。
 
    深度テストは有効にする。壁で切られてくれないと隣の部屋まで伸びる。 */
-var lampShafts = [];
+var lampShafts = /** @type {any[]} */ ([]);
 function buildLampShafts(){
   for(var i=0;i<lampShafts.length;i++){
     var o = lampShafts[i];
@@ -4374,7 +4374,7 @@ function buildLampShafts(){
 }
 /* 非常灯のカリング（lightPool）と同じ並びで駆動する。
    点いていない灯には光柱も出さない。 */
-function updateLampShafts(dt){
+function updateLampShafts(/** @type {number} */ dt){
   for(var i=0;i<lampShafts.length;i++){
     var m = lampShafts[i], pl = lightPool[i];
     var u = m.material.uniforms;
@@ -4404,7 +4404,7 @@ function updateLampShafts(dt){
 /* ---- ポストプロセス（色収差・ノイズ・走査線・歪み） ----
    EffectComposer は three r128 の配布ファイルに含まれないため、
    レンダーターゲット＋フルスクリーンシェーダで同等の処理を自前で行う */
-var postRT = null, postScene = null, postCam = null, postMat = null;
+var postRT = /** @type {any} */ (null), postScene = /** @type {any} */ (null), postCam = /** @type {any} */ (null), postMat = /** @type {any} */ (null);
 var postFX = { aberr:0, noise:0, scan:0, warp:0, target:{ aberr:0, noise:0, scan:0, warp:0 } };
 
 /* ブルーム（光の滲み）。
@@ -4415,7 +4415,7 @@ var postFX = { aberr:0, noise:0, scan:0, warp:0, target:{ aberr:0, noise:0, scan
    EffectComposer が使えないので、1/4 の大きさのバッファを 2 枚だけ使って
    明るい所を抜き出す → 横にぼかす → 縦にぼかす、を自前で回す。
    縮小してあるので 9 タップでも十分に広がる。最高品質でのみ通す。 */
-var bloomA = null, bloomB = null, brightMat = null, blurMat = null, bloomQuad = null;
+var bloomA = /** @type {any} */ (null), bloomB = /** @type {any} */ (null), brightMat = /** @type {any} */ (null), blurMat = /** @type {any} */ (null), bloomQuad = /** @type {any} */ (null);
 
 function buildPost(){
   var size = new THREE.Vector2();
@@ -4612,7 +4612,7 @@ function dropBloom(){
   if(bloomB){ bloomB.dispose(); bloomB = null; }
 }
 
-function buildBloom(size){
+function buildBloom(/** @type {any} */ size){
   var bw = Math.max(1, Math.floor(size.x/4)), bh = Math.max(1, Math.floor(size.y/4));
   var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
               format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false };
@@ -4664,13 +4664,13 @@ function buildBloom(size){
    接地の陰：深度だけで作る（法線は持たない）。深度をそのまま比べると、斜めに
    見ている床が一面に暗くなる。周りの深度から「平らならここはこの深さ」を
    1/z の平面で予想し、それより手前に在る分だけを陰にする。 */
-var fxRT = null, fxMat = null, fxScene = null;
+var fxRT = /** @type {any} */ (null), fxMat = /** @type {any} */ (null), fxScene = /** @type {any} */ (null);
 function fxWant(){
   var beam = QC.beam && settings.fxBeam && playAs !== 'hunter';
   var ao = QC.ssao && settings.fxAO;
   return { beam:!!beam, ao:!!ao, any:!!(beam || ao) };
 }
-function buildFx(size){
+function buildFx(/** @type {any} */ size){
   var w = Math.max(1, Math.floor(size.x/2)), h = Math.max(1, Math.floor(size.y/2));
   fxRT = new THREE.WebGLRenderTarget(w, h, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
     format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false });
@@ -4748,7 +4748,7 @@ function buildFx(size){
 }
 function dropFx(){ if(fxRT){ fxRT.dispose(); fxRT = null; } }
 /* 本編を postRT に描いた直後（手を描く前）に呼ぶ。作ったら true */
-function renderFx(dt){
+function renderFx(/** @type {number} */ dt){
   var fw = fxWant();
   if(!postRT || !fw.any){ if(fxRT) dropFx(); return false; }
   if(!fxRT || !fxMat){ var sz = new THREE.Vector2(); renderer.getDrawingBufferSize(sz); buildFx(sz); }
@@ -4780,11 +4780,11 @@ function renderFx(dt){
    逆算して読む（カメラの動きはこれで吸収される）。動く物（あれ）の尾引きは、今の画素の
    周り 3×3 の明暗の幅に前の値を押し込めて抑える。速く振り向いた所は今の値を重くする。
    手は別の視点で描くので混ぜない（深度の型抜きで最終合成が生の値に戻す）。最高品質のみ。 */
-var taaA = null, taaB = null, taaMat = null, taaScene = null, taaPrevVP = null, taaN = 0, taaReset = true;
-var taaPrevPos = null, _taaM = null, _taaInv = null;
+var taaA = /** @type {any} */ (null), taaB = /** @type {any} */ (null), taaMat = /** @type {any} */ (null), taaScene = /** @type {any} */ (null), taaPrevVP = /** @type {any} */ (null), taaN = 0, taaReset = true;
+var taaPrevPos = /** @type {any} */ (null), _taaM = /** @type {any} */ (null), _taaInv = /** @type {any} */ (null);
 function taaWant(){ return !!(QC.bloom && settings.fxAA && postRT); }
-function halton(i, b){ var f = 1, r = 0; while(i > 0){ f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
-function buildTaa(size){
+function halton(/** @type {any} */ i, /** @type {any} */ b){ var f = 1, r = 0; while(i > 0){ f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
+function buildTaa(/** @type {any} */ size){
   var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat,
               stencilBuffer:false, depthBuffer:false };
   taaA = new THREE.WebGLRenderTarget(Math.max(1,size.x), Math.max(1,size.y), opt);
@@ -4886,7 +4886,7 @@ function renderBloom(){
 
 function postEnabled(){ return !!(postRT && QC.post); }
 
-function updatePost(dt){
+function updatePost(/** @type {number} */ dt){
   if(!postMat) return;
   var panic = 1 - player.sanity/100;
   var hurt = clamp(player.hurtT / 0.5, 0, 1);
@@ -5077,7 +5077,7 @@ function buildViewModel(){
      最高品質だけ 26 に上げる（腕は一つに焼き固めるのでドローコールは
      増えない。増えるのは頂点だけ）。 */
   var LSEG = QC.detail ? 26 : 14;
-  function tube(rTop, rBot, len, mat, seg){
+  function tube(/** @type {any} */ rTop, /** @type {any} */ rBot, /** @type {any} */ len, /** @type {any} */ mat, /** @type {any} */ seg){
     var m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, seg || 10), mat || skin);
     m.rotation.x = Math.PI/2;                 // 軸を Z 方向へ
     return m;
@@ -5143,7 +5143,7 @@ function buildViewModel(){
 
   // 楕円断面の掃引。stations は ARM ローカル座標で直接指定する。
   // up は断面の縦軸を決めるベクトル（進行方向と直交化して使う）
-  function sweepGeo(st, radial, capA, capB){
+  function sweepGeo(/** @type {any} */ st, /** @type {any} */ radial, /** @type {any} */ capA, /** @type {any} */ capB){
     var n = st.length, R = radial;
     var pos = [], uvs = [], ind = [];
     var T = new THREE.Vector3(), U = new THREE.Vector3(), Rt = new THREE.Vector3();
@@ -5185,7 +5185,7 @@ function buildViewModel(){
        「平らに切り落とした多角形」に見えていた（画面の手前 40cm にある
        指先で、面が 5〜6 枚読める）。半球の断面に沿った輪を 1〜2 段
        挟んでから頂点へ閉じる。dome が 0 のとき（平らな蓋）は従来どおり。 */
-    function cap(si, dirSign, dome){
+    function cap(/** @type {any} */ si, /** @type {any} */ dirSign, /** @type {any} */ dome){
       var s0 = st[si];
       var a2 = st[Math.max(0,si-1)].p, b2 = st[Math.min(n-1,si+1)].p;
       T.set(b2[0]-a2[0], b2[1]-a2[1], b2[2]-a2[2]).normalize();
@@ -5243,14 +5243,14 @@ function buildViewModel(){
      手の頂点が胴の半径より内側へ入ったら、外へ押し出して表面に沿わせる。
      実際に物を握った指の腹も接触面で平らに潰れるので、形としても正しい。
      半径はランプ各部の実寸から引いている（胴 0.022 / 握り輪 0.0245 / 頭 0.021→0.033）。 */
-  function barrelRadiusAt(z){
+  function barrelRadiusAt(/** @type {any} */ z){
     var r = 0;
     if(z > -0.145 && z < 0.026) r = 0.022;
     if(z > -0.047 && z < 0.007) r = Math.max(r, 0.0245);
     if(z > -0.202 && z <= -0.145) r = Math.max(r, 0.021 + ((-0.145 - z)/0.057)*0.012);
     return r;
   }
-  function hugBarrel(geo, clearance){
+  function hugBarrel(/** @type {any} */ geo, /** @type {any} */ clearance){
     var pa = geo.attributes.position, changed = 0;
     for(var i=0;i<pa.count;i++){
       var x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
@@ -5271,15 +5271,15 @@ function buildViewModel(){
      握った指の輪郭が階段状に見えていた（画面の手前 40cm にあるので
      そのまま読める）。手のひらは 12 分割で 30 度ごと。最高品質だけ上げる。 */
   var DSEG = QC.detail ? 12 : 8, PSEG = QC.detail ? 16 : 10;
-  var skinParts = [], bandParts = [], nailParts = [], digitLens = [], digitSt = [];
-  function addSkin(geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
-  function addBand(geo){ bandParts.push(new THREE.Mesh(geo, band)); }
+  var skinParts = [], bandParts = [], nailParts = /** @type {any[]} */ ([]), digitLens = [], digitSt = [];
+  function addSkin(/** @type {any} */ geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
+  function addBand(/** @type {any} */ geo){ bandParts.push(new THREE.Mesh(geo, band)); }
 
   /* 指：基節・中節・末節の3節。長さの比はおよそ 45% : 30% : 25% で、
      これは実際の指骨の比率に近い。関節では骨頭が張り出すので径を膨らませ、
      節の中ほどはやや細くする。ランプの胴を握るため、節ごとに進行方向を
      回して巻き付ける（MCP 50°・PIP 80°・DIP 45°、合計でほぼ半周）。 */
-  function digit(o){
+  function digit(/** @type {any} */ o){
     /* 指は自由な円弧では曲げない。曲げ角を積むだけだと、できあがる円弧の
        中心が胴の軸とずれ、指が宙に浮いて「握っている」ように見えない
        （実際そうなっていた。接触は一点だけで、指の中央は胴から 2〜3cm 離れていた）。
@@ -5332,7 +5332,7 @@ function buildViewModel(){
      掃引の断面は up=[0,0,1] のとき rx が半径方向＝厚み、ry が指の幅方向になる。
      ここを取り違えると、爪が指から半径方向へ飛び出した板になって
      指先に白い塊が乗っているように見える（実際そうなっていた）。 */
-  function nail(st, r){
+  function nail(/** @type {any} */ st, /** @type {any} */ r){
     var i0 = st.length-4, ns = [];
     for(var i=0;i<4;i++){
       var a = st[Math.min(st.length-1, i0+i)];
@@ -5577,7 +5577,7 @@ function buildViewModel(){
     viewHandL.visible = false;
     viewScene.add(viewHandL);
   })();
-  viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
+  viewArm.traverse(function(/** @type {any} */ o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
                 base:{ x:0, y:0, z:0 }, root:ARM,
                 /* ランプから出た光（直接・跳ね返り）は、消灯したら消える。
@@ -5609,7 +5609,7 @@ function buildViewModel(){
    そのまま使われる。0x2a322e を「暗い緑」のつもりで置いても
    線形 16% ＝ かなり明るい灰になる。暗いつもりの物が軒並み暗くならず、
    髪も配管も羽根板も白っぽく出ていた原因。sRGB で書いて線形へ直す。 */
-function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
+function SRGB(/** @type {any} */ hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
 
 /* three r128 の computeVertexNormals は、最後に normalizeNormals で
    n = 1/sqrt(x²+y²+z²) を掛ける。ゼロ長を守っていないので、隣接面の法線が
@@ -5620,7 +5620,7 @@ function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
    部品だけが消える。実測：追跡者の胴に 40 頂点、四肢の骨に各 6 頂点。
    実機（iPhone/Safari）で「頭と手と衣服と足だけ見える」と報告された症状の
    正体がこれ。壊れた法線を、原点から外向きの方向で置き換える。 */
-function fixNormals(g){
+function fixNormals(/** @type {any} */ g){
   var na = g.attributes.normal, pa = g.attributes.position;
   if(!na || !pa) return 0;
   var a = na.array, p = pa.array, n = na.count, bad = 0;
@@ -5638,14 +5638,14 @@ function fixNormals(g){
 }
 
 /* シーン全体の法線を検める。fixNormals をぶら下がっている形すべてに掛ける。 */
-function sanitizeNormals(root){
+function sanitizeNormals(/** @type {any} */ root){
   var bad = 0;
   if(!root) return 0;
-  root.traverse(function(o){ if(o.isMesh && o.geometry) bad += fixNormals(o.geometry); });
+  root.traverse(function(/** @type {any} */ o){ if(o.isMesh && o.geometry) bad += fixNormals(o.geometry); });
   return bad;
 }
 
-function loftGeo(rows, R, rad, opts){
+function loftGeo(/** @type {any} */ rows, /** @type {any} */ R, /** @type {any} */ rad, /** @type {any} */ opts){
   opts = opts || {};
   var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
   var pos = new Float32Array(n*W*3), uvs = new Float32Array(n*W*2);
@@ -5659,7 +5659,7 @@ function loftGeo(rows, R, rad, opts){
      周長は行ごとに変わるが、行ごとに変えると texture が斜めに歪むので
      部品全体の平均で一定にする。テクスチャ側は鏡像で繰り返す
      （継ぎ目のある絵でも折り返せば必ず繋がる）。 */
-  var uvU = 1, uvV = null;
+  var uvU = 1, uvV = /** @type {any} */ (null);
   if(opts.uvPerM){
     var rsum = 0;
     for(i=0;i<n;i++) rsum += (rows[i].rx + rows[i].rz) * 0.5;
@@ -5726,8 +5726,8 @@ function loftGeo(rows, R, rad, opts){
      最初の行の下へ、capB は最後の行の上へ伸びる。 */
   if(opts.capA || opts.capB){
     var base = g.attributes.position.count;
-    var extraP = [], extraU = [], extraC = [];
-    function addCap(rowIdx, dir, dome){
+    var extraP = /** @type {any[]} */ ([]), extraU = /** @type {any[]} */ ([]), extraC = /** @type {any[]} */ ([]);
+    function addCap(/** @type {any} */ rowIdx, /** @type {any} */ dir, /** @type {any} */ dome){
       var rw2 = rows[rowIdx];
       extraP.push(rw2.cx||0, rw2.y + dir*dome, rw2.cz||0);
       /* 蓋の頂点の v も、実寸に比例させた範囲に合わせる。
@@ -5776,7 +5776,7 @@ function loftGeo(rows, R, rad, opts){
    ものを通すと色が消えて真っ黒になる（追跡者の足で一度やった）。
    髪の束のように「掃引で作った・頂点色を持つ・相対運動しない」部品を
    まとめるためのもの。全て同じ座標系に置いてから渡す。 */
-function mergeGeos(list){
+function mergeGeos(/** @type {any} */ list){
   var pos = [], nor = [], uvs = [], col = [], ind = [], base = 0;
   for(var i=0;i<list.length;i++){
     var g = list[i];
@@ -5817,7 +5817,7 @@ function mergeGeos(list){
    自己診断が「焼いた遮蔽」と区別できるよう、係数はここだけに置く。
    out に [r,g,b] の倍率を書き込む。 */
 var BODY_TOP = 1.95;
-function bodyDirt(y, out){
+function bodyDirt(/** @type {any} */ y, /** @type {any} */ out){
   var u = clamp(y / BODY_TOP, 0, 1);
   var f = 0.60 + 0.40*u;                     // 足元 0.60、頭 1.00
   out[0] = f;
@@ -5826,7 +5826,7 @@ function bodyDirt(y, out){
   return out;
 }
 
-function hairRibbon(len, wide, fall, ph){
+function hairRibbon(/** @type {any} */ len, /** @type {any} */ wide, /** @type {any} */ fall, /** @type {any} */ ph){
   /* 分割数。束は厚みが幅の 3 割しかない扁平な帯なので、断面を 8 分割
      しても丸みは見えない。6 で足りる（実測：頭の髪 3,408 → 2,556 三角形、
      見た目の差は分からなかった）。 */
@@ -5848,12 +5848,12 @@ function hairRibbon(len, wide, fall, ph){
      蓋の大きさはメートルで指定する（割合ではない）。ここを 0.5 と 0.7 で
      書いたら束の先から 70cm の棘が生え、頭の上に黒い線が何本も突き抜けた。
      細いので正面からは気づかず、見上げて初めて分かった。 */
-  return loftGeo(rows, QC.detail ? 6 : 5, function(th, v){
+  return loftGeo(rows, QC.detail ? 6 : 5, function(/** @type {any} */ th, /** @type {any} */ v){
     return 1 + 0.13*Math.sin(th*3.0 + ph*5) * (0.35 + 0.65*(1-v));
   }, { capA:0.010, capB:0.004 });
 }
 
-function mergeTinted(parts){
+function mergeTinted(/** @type {any} */ parts){
   var pos = [], nor = [], uvs = [], col = [];
   var m4 = new THREE.Matrix4(), eu = new THREE.Euler(), cv = new THREE.Color();
   for(var i=0;i<parts.length;i++){
@@ -5913,9 +5913,9 @@ function buildWorld(){
      格子ゲームなので光線を飛ばす必要はない。ある点の周りにどれだけ
      壁マスが詰まっているかを距離で重み付けして数えれば、それがそのまま
      「どれだけ囲まれているか」になる。実測 3ms。 */
-  function solidAt(cx, cy){ return !inBounds(cx,cy) || g[idx(cx,cy)] === 1; }
+  function solidAt(/** @type {any} */ cx, /** @type {any} */ cy){ return !inBounds(cx,cy) || g[idx(cx,cy)] === 1; }
   var AO_R = CELL * 1.55;
-  function gridOcc(wx, wz, skx, sky){
+  function gridOcc(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ skx, /** @type {any} */ sky){
     var c = worldToCell(wx, wz), occ = 0, wsum = 0;
     for(var oy=-2; oy<=2; oy++) for(var ox=-2; ox<=2; ox++){
       var gx = c.x+ox, gy = c.y+oy, wc = cellToWorld(gx, gy);
@@ -5934,7 +5934,7 @@ function buildWorld(){
   }
   /* 平らな面に遮蔽を焼くには頂点が要る。1 枚板（頂点 4 つ）のままでは
      どこも同じ明るさにしかならないので、マス目に合わせて割る。 */
-  function bakePlane(geo, k){
+  function bakePlane(/** @type {any} */ geo, /** @type {any} */ k){
     var pa = geo.attributes.position, n = pa.count, col = new Float32Array(n*3);
     for(var i=0;i<n;i++){
       var ao = 1 - k * gridOcc(pa.getX(i), pa.getZ(i));
@@ -6075,8 +6075,8 @@ function buildWorld(){
 
      どちらも壁と同じく 1 つのジオメトリに畳むので、ドローコールは
      2 回増えるだけ。当たり判定には一切関与しない（歩ける場所は変えない）。 */
-  var trimPos = [], trimNor = [], trimUv = [], trimIdx = [];
-  function quad(px, py, pz, ax, ay, az, bx, by, bz, nx, ny, nz, uu, vv){
+  var trimPos = /** @type {any[]} */ ([]), trimNor = /** @type {any[]} */ ([]), trimUv = /** @type {any[]} */ ([]), trimIdx = /** @type {any[]} */ ([]);
+  function quad(/** @type {number} */ px, /** @type {any} */ py, /** @type {number} */ pz, /** @type {any} */ ax, /** @type {any} */ ay, /** @type {any} */ az, /** @type {any} */ bx, /** @type {any} */ by, /** @type {any} */ bz, /** @type {number} */ nx, /** @type {any} */ ny, /** @type {number} */ nz, /** @type {any} */ uu, /** @type {any} */ vv){
     var base = trimPos.length/3;
     var pts = [[0,0],[1,0],[1,1],[0,1]];
     for(var q=0; q<4; q++){
@@ -6319,7 +6319,7 @@ function buildWorld(){
   for(var i=pool.length-1;i>0;i--){ var j=(rnd()*(i+1))|0; var t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
 
   var used = {};
-  function take(minSep){
+  function take(/** @type {any} */ minSep){
     for(var k=0;k<pool.length;k++){
       var c = pool[k];
       var key = c.x+','+c.y;
@@ -7122,7 +7122,7 @@ function buildWorld(){
    全部を1メッシュにまとめないのは、そうすると視錐台カリングが効かなくなり、
    壁の裏の什器まで毎フレーム描くことになるため。区画表示板と同じ 3x3 の
    区画で割り、区画ごとに固めることで、カリングの効きを保ったまま数を減らす。 */
-function mergeMeshes(list, parentInv){
+function mergeMeshes(/** @type {any} */ list, /** @type {any} */ parentInv){
   // 使っているのは Box / Plane / Cylinder だけで、いずれも
   // position・normal・uv の3属性を持つ。連結もこの3つに絞る
   var vtot = 0, itot = 0, i, gs;
@@ -7174,10 +7174,10 @@ function bakeStaticFurniture(){
   world.group.updateMatrixWorld(true);
   var parentInv = new THREE.Matrix4().copy(world.group.matrixWorld).invert();
   var buckets = {}, order = [];
-  var targets = [];
+  var targets = /** @type {any[]} */ ([]);
 
   // 印はグループ側に付ける。動くもの（誘導矢印など）だけ noBake で除外する
-  world.group.traverse(function(o){
+  world.group.traverse(function(/** @type {any} */ o){
     if(!o.isMesh || o.isInstancedMesh) return;
     if(o.userData && o.userData.noBake) return;
     var bakeable = false;
@@ -7224,13 +7224,13 @@ function bakeStaticFurniture(){
 // 机・ドラム缶・ロッカーで塞がったマスへ平気で突っ込み、
 // そこで押し戻され続けて動けなくなっていた。
 // 通り抜けられる幅が残っているかを実測して、塞がったマスを壁として扱う。
-function buildNavGrid(g, seedCell){
+function buildNavGrid(/** @type {any} */ g, /** @type {any} */ seedCell){
   var R = 0.40;                     // 追跡者の当たり半径 0.34 に余裕を持たせる
   var nav = new Uint8Array(g.length);
   nav.set(g);
   var half = CELL/2, blocked = [];
 
-  function standable(cx, cy){
+  function standable(/** @type {any} */ cx, /** @type {any} */ cy){
     var w = cellToWorld(cx, cy);
     // マス内を格子状に試し、体が収まる場所が一つでもあれば通れる
     for(var sy=-2; sy<=2; sy++){
@@ -7303,8 +7303,8 @@ function buildNavGrid(g, seedCell){
    間取りの後に続く全部（追跡者の徘徊など）がずれ、これまでの測定と
    比べられなくなる。間取りそのものから種を作って別の乱数で引く。 */
 var BOTTLES_PER_RUN = [4, 3, 3];
-var bottleGeo = null;
-function placeBottles(pool, used, startC){
+var bottleGeo = /** @type {any} */ (null);
+function placeBottles(/** @type {any} */ pool, /** @type {any} */ used, /** @type {any} */ startC){
   if(!bottleGeo){
     bottleGeo = mergeTinted([
       { type:'cyl', r:0.050, h:0.170, y:0,     c:0x2f4a3a },   // 胴（緑の硝子）
@@ -7315,7 +7315,7 @@ function placeBottles(pool, used, startC){
   }
   var h = (pool.length * 2654435761 ^ (startC.x * 7919) ^ (startC.y * 104729)) >>> 0;
   var br = mulberry32(h || 1);
-  var free = pool.filter(function(c){ return !used[c.x + ',' + c.y] &&
+  var free = pool.filter(function(/** @type {any} */ c){ return !used[c.x + ',' + c.y] &&
     (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
   var n = BOTTLES_PER_RUN[clamp(settings.diff|0, 0, 2)];
   for(var i=0; i<n && free.length; i++){
@@ -7339,8 +7339,8 @@ function placeBottles(pool, used, startC){
 
 /* --- 包帯（第 5.5 節）。拾うと振りほどける回数が 1 回戻る。
    瓶と同じく、ゲームの乱数を引かずに置く（間取りと展開を変えない） */
-var bandageGeo = null;
-function placeBandages(pool, used, startC){
+var bandageGeo = /** @type {any} */ (null);
+function placeBandages(/** @type {any} */ pool, /** @type {any} */ used, /** @type {any} */ startC){
   if(!bandageGeo){
     bandageGeo = mergeTinted([
       { type:'cyl', r:0.070, h:0.090, y:0,     c:0xd9d2bf },   // 巻いた包帯
@@ -7351,8 +7351,8 @@ function placeBandages(pool, used, startC){
   var h = (pool.length * 40503 ^ (startC.x * 65537) ^ (startC.y * 257)) >>> 0;
   var br = mulberry32(h || 7);
   var taken = {};
-  world.bottles.forEach(function(b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
-  var free = pool.filter(function(c){ var k = c.x + ',' + c.y;
+  world.bottles.forEach(function(/** @type {any} */ b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
+  var free = pool.filter(function(/** @type {any} */ c){ var k = c.x + ',' + c.y;
     return !used[k] && !taken[k] && (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
   var n = BANDAGES_PER_RUN[clamp(settings.diff|0, 0, 2)];
   for(var i=0; i<n && free.length; i++){
@@ -7376,7 +7376,7 @@ function placeBandages(pool, used, startC){
      あれ   … 足音が水音に紛れて聞こえにくくなる
    区画の選び方は間取りから作った乱数で決める（ゲームの rnd は引かない）。 */
 var WATER_Y = 0.16;
-var waterMesh = null;
+var waterMesh = /** @type {any} */ (null);
 function clearWater(){
   if(waterMesh){
     if(waterMesh.parent) waterMesh.parent.remove(waterMesh);
@@ -7385,7 +7385,7 @@ function clearWater(){
   }
   world.water = null;
 }
-function buildWater(info, on){
+function buildWater(/** @type {any} */ info, /** @type {any} */ on){
   clearWater();
   if(!on) return;
   var g = world.grid;
@@ -7423,14 +7423,14 @@ function buildWater(info, on){
   waterMesh.renderOrder = 3;
   world.group.add(waterMesh);
 }
-function inWater(x, z){
+function inWater(/** @type {any} */ x, /** @type {any} */ z){
   if(!world.water) return false;
   var c = worldToCell(x, z);
   return inBounds(c.x, c.y) && world.water[idx(c.x, c.y)] === 1;
 }
 
 /* さざ波の法線マップ。いくつかの波を重ねた高さから法線を起こす（画像ファイルは使わない） */
-var waterNTex = null;
+var waterNTex = /** @type {any} */ (null);
 function waterNormals(){
   if(waterNTex) return waterNTex;
   var S = 128, c = makeCanvas(S), x = c.getContext('2d'), im = x.createImageData(S, S), H = new Float32Array(S*S);
@@ -7451,7 +7451,7 @@ function waterNormals(){
   waterNTex.wrapS = waterNTex.wrapT = THREE.RepeatWrapping;
   return waterNTex;
 }
-function updateWater(dt){
+function updateWater(/** @type {number} */ dt){
   if(!waterMesh || !waterNTex) return;
   waterNTex.offset.x = (waterNTex.offset.x + dt*0.012) % 1;
   waterNTex.offset.y = (waterNTex.offset.y + dt*0.007) % 1;
@@ -7501,7 +7501,7 @@ var HERO_ROOMS = {
 };
 HERO_ROOMS[0] = HERO_ROOMS[1];
 HERO[0] = HERO[1];                                         // 夜勤はナースステーション
-function heroPiece(kind){
+function heroPiece(/** @type {any} */ kind){
   var P = [], r = 0.6, h = 1.0, len = 2.2;
   var C = { steel:0x6f756f, dark:0x33352f, paper:0xd6cfbb, cream:0xc9c1a8, green:0x55635c, wood:0x5c4632, rust:0x6b4a33 };
   if(kind === 'counter'){ len = 3.2; h = 1.05; r = 0.9;
@@ -7568,8 +7568,8 @@ function heroPiece(kind){
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
   return { parts:P, len:len, h:h, r:r };
 }
-var heroMat = null, heroSignTex = {};
-function heroSign(text){
+var heroMat = /** @type {any} */ (null), heroSignTex = {};
+function heroSign(/** @type {any} */ text){
   if(heroSignTex[text]) return heroSignTex[text];
   var c = makeCanvas(512); c.height = 128;
   var x = c.getContext('2d');
@@ -7583,7 +7583,7 @@ function heroSign(text){
 }
 /* 壁の落書き。赤錆色で、字の線を少しずつ揺らして手で書いたように見せる。
    地の色は透明（壁の汚れの上に字だけが乗る） */
-function graffitiMesh(text){
+function graffitiMesh(/** @type {any} */ text){
   var c = makeCanvas(512); c.height = 256;
   var x = c.getContext('2d'); x.clearRect(0, 0, 512, 256);
   var str = trText(text), fs = str.length > 10 ? 44 : 64;
@@ -7605,7 +7605,7 @@ function graffitiMesh(text){
   m.renderOrder = 3;
   return m;
 }
-function heroRoom(g, hall, def){
+function heroRoom(/** @type {any} */ g, /** @type {any} */ hall, /** @type {any} */ def){
   if(!def || !hall) return 0;
   if(!heroMat) heroMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.8, metalness:0.1,
                                                          map:TEX.grunge || null });
@@ -7617,8 +7617,8 @@ function heroRoom(g, hall, def){
                 { ax:'x', from:x0+W, to:x0, fix:z0+D, n:[0,-1], cellFix:hall.y+hall.h-1, outside:[0,1] },
                 { ax:'z', from:z0+D, to:z0, fix:x0, n:[1,0], cellFix:hall.x, outside:[-1,0] } ];
   var kit = def.kit.slice(), si = 0, cursor = 0.8, placed = 0, guard = 60;
-  var occ0 = [];                       // 北の壁（名札の壁）で什器が占めている区間
-  function blockedAt(px, pz, rr){
+  var occ0 = /** @type {any[]} */ ([]);                       // 北の壁（名札の壁）で什器が占めている区間
+  function blockedAt(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ rr){
     for(var i=0; i<world.props.length; i++){ var o = world.props[i];
       if((o.x-px)*(o.x-px) + (o.z-pz)*(o.z-pz) < (o.r+rr+0.3)*(o.r+rr+0.3)) return true; }
     var items = world.records.concat(world.batteries, world.bottles || [], world.bandages || [], world.key ? [world.key] : []);
@@ -7626,7 +7626,7 @@ function heroRoom(g, hall, def){
       if((it.x-px)*(it.x-px) + (it.z-pz)*(it.z-pz) < (rr+1.0)*(rr+1.0)) return true; }
     return false;
   }
-  function openingAt(S, t){          // その位置の壁の向こうが通路なら、口なので塞がない
+  function openingAt(/** @type {any} */ S, /** @type {any} */ t){          // その位置の壁の向こうが通路なら、口なので塞がない
     var c = S.ax === 'x' ? worldToCell(t, S.fix + S.n[1]*0.5) : worldToCell(S.fix + S.n[0]*0.5, t);
     var ox = c.x + S.outside[0], oy = c.y + S.outside[1];
     return inBounds(ox, oy) && g[idx(ox, oy)] === 0;
@@ -7692,7 +7692,7 @@ function heroRoom(g, hall, def){
   return placed;
 }
 /* 大広間と、掘った部屋のうち大きい順に 3 つ。大広間のすぐ隣や出発点の部屋は避ける */
-function heroRooms(g, bigHall, startC){
+function heroRooms(/** @type {any} */ g, /** @type {any} */ bigHall, /** @type {any} */ startC){
   var n = runDef().n, def = HERO[n];
   world.graffiti = [];
   var placed = heroRoom(g, bigHall, def);
@@ -7716,12 +7716,12 @@ function heroRooms(g, bigHall, startC){
    光の筋（加算の面で作る四角い錐）、床に落ちた光の溜まり、の 3 つで「月が出ている」を作る。
    選ぶのは間取りの乱数（rnd）ではなくマスの座標のハッシュ。rnd を引くと、窓を足しただけで
    同じ種の病棟の置き物が全部ずれる */
-var MOON_TEX = null;
-function moonWindows(g){
+var MOON_TEX = /** @type {any} */ (null);
+function moonWindows(/** @type {any} */ g){
   world.moon = [];
   var want = [2, 5, 6, 7][clamp(settings.quality|0, 0, 3)];
   var cand = [];
-  function h(x, y){ var v = (x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995; v = Math.imul(v ^ (v >>> 13), 0x5bd1e995); return ((v ^ (v >>> 15)) >>> 0) / 4294967296; }
+  function h(/** @type {any} */ x, /** @type {any} */ y){ var v = (x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995; v = Math.imul(v ^ (v >>> 13), 0x5bd1e995); return ((v ^ (v >>> 15)) >>> 0) / 4294967296; }
   var ex = world.exit ? worldToCell(world.exit.x, world.exit.z) : null;
   for(var y=1; y<GH-1; y++) for(var x=1; x<GW-1; x++){
     if(g[idx(x, y)] !== 0) continue;
@@ -7767,7 +7767,7 @@ function moonWindows(g){
       var tl = [-W/2, Y + H/2, 0], tr = [W/2, Y + H/2, 0], br = [W/2, Y - H/2, 0], bl = [-W/2, Y - H/2, 0];
       var fl = [-0.75, 0.02, 2.9], fr = [0.75, 0.02, 2.9], nr = [0.75, 0.02, 0.9], nl = [-0.75, 0.02, 0.9];
       var quads = [[tl, tr, fr, fl], [bl, br, nr, nl], [tl, bl, nl, fl], [tr, br, nr, fr]];
-      var pos = [], col = [];
+      var pos = /** @type {any[]} */ ([]), col = /** @type {any[]} */ ([]);
       quads.forEach(function(q){
         [[0,1,2],[0,2,3]].forEach(function(t){ t.forEach(function(k){ var p = q[k]; pos.push(p[0], p[1], p[2]);
           var top = p[1] > 1 ? 1 : 0; col.push(0.030*top + 0.002, 0.042*top + 0.003, 0.062*top + 0.005); }); });
@@ -7790,7 +7790,7 @@ function moonWindows(g){
    控えてある（見た目だけ。当たり・視線・乱数には関わらないので遊びは変わらない）。
    hide を持つ場所は手続きの物（時計）の代わりなので、そちらを隠す */
 var MODELS = { cache:{}, mats:{} };
-function modelGeo(name){
+function modelGeo(/** @type {any} */ name){
   if(MODELS.cache[name] !== undefined) return MODELS.cache[name];
   var A = window.W7_ASSETS; if(!A || !A['models/' + name + '/meta']){ MODELS.cache[name] = null; return null; }
   var meta = JSON.parse(A['models/' + name + '/meta']);
@@ -7799,7 +7799,7 @@ function modelGeo(name){
   var buf = u8.buffer, mn = meta.box[0], mx = meta.box[1], umn = meta.uv[0], umx = meta.uv[1];
   var cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2, by = mn[1];
   var L = new THREE.TextureLoader();
-  var parts = meta.groups.map(function(g){
+  var parts = meta.groups.map(function(/** @type {any} */ g){
     var P = new Int16Array(buf, g.off[0], g.v*3), N = new Int8Array(buf, g.off[1], g.v*3),
         U = new Int16Array(buf, g.off[2], g.v*2), I = g.big ? new Uint32Array(buf, g.off[3], g.i) : new Uint16Array(buf, g.off[3], g.i);
     var pos = new Float32Array(g.v*3), nor = new Float32Array(g.v*3), uv = new Float32Array(g.v*2);
@@ -7829,10 +7829,10 @@ function modelGeo(name){
 function applyModels(){
   if(!photoWanted() || !world.modelSlots || world.modelsPlaced) return;
   var placed = 0;
-  world.modelSlots.forEach(function(sl){
+  world.modelSlots.forEach(function(/** @type {any} */ sl){
     var parts = modelGeo(sl.kind); if(!parts) return;
     var g = new THREE.Group();
-    parts.forEach(function(p){
+    parts.forEach(function(/** @type {any} */ p){
       var mt = p.mat;
       if(sl.tint){ mt = p.mat.clone(); mt.color.setHex(sl.tint); }
       var m = new THREE.Mesh(p.geo, mt); m.castShadow = false; m.receiveShadow = true; g.add(m); });
@@ -7917,7 +7917,7 @@ var UV_PER_M = 3.2;
    入れる。実行中の負荷はゼロ。当たり判定は部品を陰関数として持つ
    ——三角形と交差判定するより桁で速く、部品が凸なので自分自身に
    誤ヒットしない（法線側へ出た光線は自分の外へ出るだけ）。 */
-function specSolid(sp){
+function specSolid(/** @type {any} */ sp){
   var e = new THREE.Euler(sp.rx||0, sp.ry||0, sp.rz||0);
   var m = new THREE.Matrix4().makeRotationFromEuler(e);
   m.setPosition(sp.x||0, sp.y||0, sp.z||0);
@@ -7941,7 +7941,7 @@ function specSolid(sp){
   s.cx = sp.x||0; s.cy = sp.y||0; s.cz = sp.z||0;
   return s;
 }
-function inSolid(s, wx, wy, wz){
+function inSolid(/** @type {any} */ s, /** @type {any} */ wx, /** @type {any} */ wy, /** @type {any} */ wz){
   // 粗い球で弾いてから正確に見る。9 割はここで帰る
   var dx = wx-s.cx, dy = wy-s.cy, dz = wz-s.cz;
   if(dx*dx + dy*dy + dz*dz > s.rr) return false;
@@ -7964,7 +7964,7 @@ function inSolid(s, wx, wy, wz){
 }
 /* 半球の光線方向。乱数で撒くと部品ごとに模様が変わって縞に見えるので、
    黄金角のらせん（どの本数でも均一に散る）で決め打ちにする。 */
-var HEMI = [], HEMI_N = -1;
+var HEMI = /** @type {any[]} */ ([]), HEMI_N = -1;
 function hunterSegs(){
   SEG = QC.detail ? 10 : 6;
   var n = QC.hao || 1;
@@ -7986,17 +7986,17 @@ var AO_REACH = 0.13;        // これより遠い部品は陰らせない（体�
        頂点は、光線を飛ばすまでもなく明るいと決まる。
    実測 +221ms → +30.6ms（最高品質）／+13.7ms（高精細）。 */
 /* 部品の代表寸法。小さすぎる部品の遮蔽を省くのに使う */
-function specSize(sp){
+function specSize(/** @type {any} */ sp){
   if(sp.type === 'cyl') return Math.max(sp.rt, sp.rb, sp.h*0.5);
   if(sp.type === 'sph') return sp.r * Math.max(sp.sx||1, sp.sy||1, sp.sz||1);
   return Math.max(sp.w, sp.h, sp.d) * 0.5;
 }
 var _ones = new Float32Array(0);
-function ONES(n){
+function ONES(/** @type {any} */ n){
   if(_ones.length < n){ _ones = new Float32Array(n); _ones.fill(1); }
   return _ones;
 }
-function bakeSolids(specs){
+function bakeSolids(/** @type {any} */ specs){
   // 部品が 1 つだけなら陰るところが無い（凸なので自分自身を隠せない）
   if(!QC.hao || specs.length < 2) return null;
   var solids = [];
@@ -8004,7 +8004,7 @@ function bakeSolids(specs){
   return solids;
 }
 // bg（変換済み・インデックス付き）の各頂点に対する遮蔽率を返す
-function bakeAOFor(bg, solids){
+function bakeAOFor(/** @type {any} */ bg, /** @type {any} */ solids){
   var pa = bg.attributes.position.array, na = bg.attributes.normal.array;
   var n = bg.attributes.position.count, ao = new Float32Array(n);
   if(!solids){ ao.fill(1); return ao; }
@@ -8050,7 +8050,7 @@ function bakeAOFor(bg, solids){
   return ao;
 }
 
-function mergeBoxes(specs){
+function mergeBoxes(/** @type {any} */ specs){
   var pos = [], nor = [], uvs = [], cls = [];
   var solids = bakeSolids(specs);
   for(var i=0;i<specs.length;i++){
@@ -8188,7 +8188,7 @@ function buildHunter(){
      筒は骨であって腕ではない。痩せた体なので膨らみは控えめにし、
      代わりに先端側をよく絞る。 */
   var BSEG = QC.detail ? 16 : 9;
-  function boneRows(r, len, n){
+  function boneRows(/** @type {any} */ r, /** @type {any} */ len, /** @type {any} */ n){
     var rows = [], i;
     for(i=0;i<n;i++){
       var u = i/(n-1);                      // 0 が下端、1 が上端
@@ -8206,7 +8206,7 @@ function buildHunter(){
     }
     return rows;
   }
-  function boneDown(w, len, d, mat){
+  function boneDown(/** @type {any} */ w, /** @type {any} */ len, /** @type {any} */ d, /** @type {any} */ mat){
     var r = w * 0.5;
     var m = new THREE.Mesh(loftGeo(boneRows(r, len, QC.detail ? 15 : 9), BSEG, null,
                                    { capA:r*0.42, capB:r*0.10, uvPerM:SKIN_UV }), mat || skin);
@@ -8220,7 +8220,7 @@ function buildHunter(){
      mergeBoxes の回転は XYZ 順のオイラー角なので、円柱の +Y 軸は
      (-sinψ, cosψ·cosθ, cosψ·sinθ) へ写る。これを望む向き d と等しいと
      置いて ψ と θ を逆算する。 */
-  function chain(out, p, dir, len, rBase, rTip){
+  function chain(/** @type {any} */ out, /** @type {any} */ p, /** @type {any} */ dir, /** @type {any} */ len, /** @type {any} */ rBase, /** @type {any} */ rTip){
     var L = Math.sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]) || 1;
     var dx = dir[0]/L, dy = dir[1]/L, dz = dir[2]/L;
     var psi = Math.asin(clamp(-dx, -1, 1));
@@ -8232,7 +8232,7 @@ function buildHunter(){
     out.push({ type:'sph', r:rBase*1.05, x:p[0], y:p[1], z:p[2] });
     return [p[0] + dx*len, p[1] + dy*len, p[2] + dz*len];
   }
-  function boneUp(w, len, d, mat){
+  function boneUp(/** @type {any} */ w, /** @type {any} */ len, /** @type {any} */ d, /** @type {any} */ mat){
     var r2 = w * 0.5;
     // 上へ伸びる骨は、下向きの骨を上下ひっくり返して使う
     var g2 = loftGeo(boneRows(r2, len, QC.detail ? 15 : 9), BSEG, null,
@@ -8267,7 +8267,7 @@ function buildHunter(){
   ];
   var torsoRows = TR.map(function(r){ return { y:r[0], rx:r[1], rz:r[2] }; });
   var TSEG = QC.detail ? 26 : 14;
-  function torsoRad(th, v){
+  function torsoRad(/** @type {any} */ th, /** @type {any} */ v){
     var m = 1;
     var front = Math.max(0, Math.sin(th));          // +Z が正面
     var back  = Math.max(0, -Math.sin(th));
@@ -8310,7 +8310,7 @@ function buildHunter(){
   // 正面（+Z）はθ=π/2。そこから少し脇へずらして左胸から腹にかけて垂らす
   spine.add(torsoDecal(Math.PI*0.5 - 0.30, 0.30, 0.74, 1.25));
 
-  function torsoDecal(thC, y0, y1, thW){
+  function torsoDecal(/** @type {any} */ thC, /** @type {any} */ y0, /** @type {any} */ y1, /** @type {any} */ thW){
     var NU = QC.detail ? 14 : 8, NV = QC.detail ? 12 : 7;
     var pos = [], uv = [], ind = [];
     var yA = TR[0][0], yB = TR[TR.length-1][0];
@@ -8369,7 +8369,7 @@ function buildHunter(){
     return { y:r[0], rx:r[1], rz:r[2], cz:-0.012 - 0.020*Math.max(0, (r[0]-0.02))*3 };
   });
   var HSEG = QC.detail ? 24 : 13;
-  var headGeo = loftGeo(headRows, HSEG, function(th, v){
+  var headGeo = loftGeo(headRows, HSEG, function(/** @type {any} */ th, /** @type {any} */ v){
     var m = 1;
     var front = Math.max(0, Math.sin(th));       // +Z が正面
     var side  = Math.abs(Math.cos(th));
@@ -8459,7 +8459,7 @@ function buildHunter(){
   });
   var ebGeo = new THREE.SphereGeometry(0.0215, QC.detail?12:8, QC.detail?8:6);
   var irisGeo = new THREE.SphereGeometry(0.0125, 8, 6);
-  function eye(sx, irisMat){
+  function eye(/** @type {any} */ sx, /** @type {any} */ irisMat){
     var grp = new THREE.Group();
     grp.position.set(sx*0.055, 0.075, 0.118);
     var eb = new THREE.Mesh(ebGeo, eyeball);
@@ -8565,7 +8565,7 @@ function buildHunter(){
   }
 
   // --- 異常に長い腕 ---
-  function arm(sx){
+  function arm(/** @type {any} */ sx){
     var up = boneDown(0.085, 0.58, 0.085);
     up.position.set(sx*0.27, 0.9, 0); spine.add(up);
     var fore = boneDown(0.07, 0.66, 0.07);
@@ -8578,11 +8578,11 @@ function buildHunter(){
        きたときに熊手にしか見えなかった。人の指は 3 節あり、力を抜くと
        必ず内側へ丸まる。節ごとに角度を足していくと、その丸まりが出る。
        親指だけは他の指と向かい合うので、横へ開いてから曲げる。 */
-    var fg = [];
+    var fg = /** @type {any[]} */ ([]);
     /* 中手骨（手の甲の中の骨）。手首から指の付け根へ広がる。
        終点はナックルの座標そのものにする。向きと長さを別々に書くと
        骨の先と関節の玉がずれて、指が浮いて見える。 */
-    var KNU = [];
+    var KNU = /** @type {any[]} */ ([]);
     for(var f=0; f<4; f++){
       var wr = [(-0.014 + f*0.009)*sx, -0.035, 0];
       var kn = [(-0.036 + f*0.024)*sx, -0.086, 0.004 + Math.abs(f - 1.4)*0.004];
@@ -8594,7 +8594,7 @@ function buildHunter(){
        力の抜けた半握り。角度 1 つで決まるので、同じ手を丸め違いで 2 体
        作り、姿勢側で見せ分ける（指に関節を持たせると 5 本 × 3 節 ×
        左右で 30 個のジョイントが増え、結合ジオメトリの利点が消える）。 */
-    function digits(dst, curl){
+    function digits(/** @type {any} */ dst, /** @type {any} */ curl){
     for(var f2=0; f2<4; f2++){
       // 中指・薬指が長い。長さの順序は 中 > 薬 > 示 > 小
       var scl = [0.90, 1.0, 0.96, 0.80][f2];
@@ -8632,7 +8632,7 @@ function buildHunter(){
   var armL = arm(-1), armR = arm(1);
 
   // --- 逆関節の脚 ---
-  function leg(sx){
+  function leg(/** @type {any} */ sx){
     var th = boneDown(0.105, THIGH, 0.105);
     th.position.set(sx*0.12, 0.02, 0); spine.add(th);
     var sn = boneDown(0.085, SHIN, 0.085);
@@ -8673,7 +8673,7 @@ function buildHunter(){
   (function(){
     g.updateMatrixWorld(true);
     var v3 = new THREE.Vector3(), fc = [0,0,0];
-    g.traverse(function(o){
+    g.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || o.material !== skin) return;
       var ca = o.geometry.attributes.color, pa = o.geometry.attributes.position;
       if(!ca || !pa) return;
@@ -8698,7 +8698,7 @@ function buildHunter(){
     });
   })();
 
-  if(QC.shadows){ g.traverse(function(o){ if(o.isMesh) o.castShadow = true; }); }
+  if(QC.shadows){ g.traverse(function(/** @type {any} */ o){ if(o.isMesh) o.castShadow = true; }); }
 
   var sh = new THREE.Mesh(
     new THREE.PlaneGeometry(1.6,1.6),
@@ -8719,15 +8719,15 @@ function buildHunter(){
      増やしたときに漏れる。ここで一度掛けておけば、作り方が増えても
      NaN の法線が実機へ出ていくことはない。 */
   var nanFix = 0;
-  g.traverse(function(o){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
+  g.traverse(function(/** @type {any} */ o){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
   scene.add(g); scene.add(sh);
   g.visible = false; sh.visible = false;
 }
 
-function placeHunter(reach, startC){
+function placeHunter(/** @type {any} */ reach, /** @type {any} */ startC){
   var field = bfsField(world.grid, startC.x, startC.y);
   var best = null, bestD = -1;
-  reach.forEach(function(c){
+  reach.forEach(function(/** @type {any} */ c){
     var d = field[idx(c.x,c.y)];
     if(d > bestD && d > 9){ bestD = d; best = c; }
   });
@@ -8763,12 +8763,12 @@ function placeHunter(reach, startC){
    体は追跡者を組み上げた直後（まだ一度も動かしていない静止姿勢）を
    写し取り、材質ごとに 1 つのメッシュへ畳む。40 部品を毎回 40 回描くと
    iPhone の描画予算（第 7.2 節：最低端末で 150）をこれだけで食い潰す。 */
-var patients = [];
+var patients = /** @type {any[]} */ ([]);
 var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
 var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
 var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
 var patientMats = {};
-function patientMat(m){
+function patientMat(/** @type {any} */ m){
   if(patientMats[m.uuid]) return patientMats[m.uuid];
   var c = m.clone();
   if(c.color) c.color.multiplyScalar(0.72);          // 追跡者より灰色がかって見えるように
@@ -8776,11 +8776,11 @@ function patientMat(m){
   patientMats[m.uuid] = c;
   return c;
 }
-function bakeFigure(src){
+function bakeFigure(/** @type {any} */ src){
   src.updateMatrixWorld(true);
   var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
-  var byMat = {}, keys = [];
-  src.traverseVisible(function(o){
+  var byMat = {}, keys = /** @type {any[]} */ ([]);
+  src.traverseVisible(function(/** @type {any} */ o){
     if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
     var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -8800,7 +8800,7 @@ function bakeFigure(src){
   var out = new THREE.Group();
   keys.forEach(function(k){
     var merged = THREE.BufferGeometryUtils.mergeGeometries(byMat[k].list, false);
-    byMat[k].list.forEach(function(g){ g.dispose(); });
+    byMat[k].list.forEach(function(/** @type {any} */ g){ g.dispose(); });
     if(!merged) return;
     fixNormals(merged);
     out.add(new THREE.Mesh(merged, patientMat(byMat[k].mat)));
@@ -8809,18 +8809,18 @@ function bakeFigure(src){
 }
 function clearPatients(){
   patients.forEach(function(p){ if(p.group.parent) p.group.parent.remove(p.group);
-    p.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); });
+    p.group.traverse(function(/** @type {any} */ o){ if(o.geometry) o.geometry.dispose(); }); });
   patients = [];
   Object.keys(patientMats).forEach(function(k){ patientMats[k].dispose(); });
   patientMats = {};
 }
-function buildPatients(info, n){
+function buildPatients(/** @type {any} */ info, /** @type {any} */ n){
   clearPatients();
   if(!n || !hunter.group) return;
   var g = world.grid, field = info.field;
   // 置き場所は間取りから作った別の乱数で引く（ゲームの rnd を引くと展開が変わる）
   var br = mulberry32(((info.reach.length * 2246822519) ^ (info.start.x * 3266489917) ^ (info.start.y * 668265263)) >>> 0 || 3);
-  var cand = info.reach.filter(function(c){
+  var cand = info.reach.filter(function(/** @type {any} */ c){
     if(field[idx(c.x, c.y)] < 9) return false;                         // 開始地点の近くには置かない
     if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
     var walls = 0;
@@ -8844,16 +8844,16 @@ function buildPatients(info, n){
     // 追跡者の前は -Z ではなく +Z 向き（yaw=atan2(dx,dz)）で組んである
     var yaw0 = Math.atan2(ddx, ddz);
     var grp = new THREE.Group();
-    fig.children.forEach(function(m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
+    fig.children.forEach(function(/** @type {any} */ m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
     grp.position.set(px, 0, pz);
     grp.rotation.y = yaw0;
     grp.scale.setScalar(0.93 + br()*0.05);
     scene.add(grp);
     patients.push({ group:grp, x:px, z:pz, yaw0:yaw0, yaw:yaw0, state:'idle', t:0, cool:0, ph:br()*TAU });
   }
-  fig.children.forEach(function(m){ m.geometry.dispose(); });
+  fig.children.forEach(function(/** @type {any} */ m){ m.geometry.dispose(); });
 }
-function updatePatients(dt){
+function updatePatients(/** @type {number} */ dt){
   for(var i=0; i<patients.length; i++){
     var p = patients[i];
     var dx = player.x - p.x, dz = player.z - p.z, d = Math.sqrt(dx*dx + dz*dz);
@@ -8898,7 +8898,7 @@ function updatePatients(dt){
     p.group.rotation.set(Math.sin(p.t*0.6 + p.ph)*0.025, p.yaw, Math.sin(p.t*0.43 + p.ph)*0.018);
   }
 }
-function lerpAngle(a, b, t){
+function lerpAngle(/** @type {any} */ a, /** @type {any} */ b, /** @type {any} */ t){
   var dd = ((b - a + Math.PI*3) % TAU) - Math.PI;
   return a + dd * t;
 }
@@ -8908,15 +8908,15 @@ function lerpAngle(a, b, t){
    入っている間は姿も目も無い（見られないし、襲ってもこない）。
    代わりに天井裏を這う金属の音が、上から、動いていく方向に鳴る。
    降りる直前にいちばん大きく鳴るので、耳を澄ませていれば先回りに気づける。 */
-var vents = [];
+var vents = /** @type {any[]} */ ([]);
 var VENT_CD = 35;            // 一度使ったら、次に使えるまで
 var VENT_SPEED = 6.5;        // 天井裏を進む速さ（m/s）
 function clearVents(){
   vents.forEach(function(v){ if(v.mesh.parent) v.mesh.parent.remove(v.mesh); v.mesh.geometry.dispose(); });
   vents = [];
 }
-var ventGeo = null, ventMat = null;
-function buildVents(info, n){
+var ventGeo = /** @type {any} */ (null), ventMat = /** @type {any} */ (null);
+function buildVents(/** @type {any} */ info, /** @type {any} */ n){
   clearVents();
   hunter.vent = null; hunter.ventT = 0; hunter.ventCd = 8;
   if(!n) return;
@@ -8929,7 +8929,7 @@ function buildVents(info, n){
   }
   var g = world.grid;
   var br = mulberry32(((info.reach.length * 374761393) ^ (info.start.x * 2654435761) ^ (info.start.y * 97)) >>> 0 || 5);
-  var cand = info.reach.filter(function(c){
+  var cand = info.reach.filter(function(/** @type {any} */ c){
     if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
     for(var k=0; k<4; k++){ var nx = c.x + [1,-1,0,0][k], ny = c.y + [0,0,1,-1][k];
       if(!inBounds(nx, ny) || g[idx(nx, ny)] !== 0) return true; }
@@ -8952,7 +8952,7 @@ function buildVents(info, n){
     vents.push({ mesh:m, x:w.x, z:w.z, cx:c.x, cy:c.y });
   }
 }
-function nearestVent(x, z, maxD, not){
+function nearestVent(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ maxD, /** @type {any} */ not){
   var best = null, bd = maxD;
   for(var i=0; i<vents.length; i++){
     if(vents[i] === not) continue;
@@ -8980,7 +8980,7 @@ function ventTryEnter(){
   return true;
 }
 /* 天井裏を進む。戻り値 true の間は、追跡者の他の処理を全部止める */
-function ventUpdate(dt){
+function ventUpdate(/** @type {number} */ dt){
   if(!hunter.vent) return false;
   var V = hunter.vent;
   hunter.ventT -= dt;
@@ -9004,7 +9004,7 @@ function ventUpdate(dt){
   haptic(40);
   return false;
 }
-function ventBang(x, z, loud){
+function ventBang(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ loud){
   var dx = x - player.x, dz = z - player.z, d = Math.sqrt(dx*dx + dz*dz);
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
   Audio2.clang(d, clamp((dx*rx + dz*rz) / Math.max(1, d), -1, 1), loud);
@@ -9022,16 +9022,16 @@ var shade = { group:null, on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:
 var SHADE_SPEED = 1.2;        // 歩き（3.1 m/s）の半分より遅い
 var SHADE_WAIT = 5.0;         // 灯りを消してから現れるまで
 var SHADE_LIT = 1.2;          // これだけ照らし続けると消える
-var shadeMat = null;
-function buildShade(on){
+var shadeMat = /** @type {any} */ (null);
+function buildShade(/** @type {any} */ on){
   if(shade.group){ if(shade.group.parent) shade.group.parent.remove(shade.group);
-    shade.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); shade.group = null; }
+    shade.group.traverse(function(/** @type {any} */ o){ if(o.geometry) o.geometry.dispose(); }); shade.group = null; }
   shade.enabled = !!on; shade.on = false; shade.darkT = 0; shade.litT = 0; shade.cool = 6; shade.whisperT = 0;
   if(!on || !hunter.group) return;
   if(!shadeMat) shadeMat = new THREE.MeshLambertMaterial({ color:0x5a5c60 });
   var fig = bakeFigure(hunter.group);
   shade.group = new THREE.Group();
-  fig.children.forEach(function(m){ shade.group.add(new THREE.Mesh(m.geometry, shadeMat)); });
+  fig.children.forEach(function(/** @type {any} */ m){ shade.group.add(new THREE.Mesh(m.geometry, shadeMat)); });
   shade.group.visible = false;
   shade.group.scale.set(0.96, 1.04, 0.96);                    // 少しだけ縦に長い
   scene.add(shade.group);
@@ -9053,7 +9053,7 @@ function shadeSpawn(){
   shade.group.visible = true;
   return true;
 }
-function updateShade(dt){
+function updateShade(/** @type {number} */ dt){
   if(!shade.enabled || !shade.group) return;
   if(shade.cool > 0) shade.cool -= dt;
   var dark = !player.lamp && !player.hiding;
@@ -9130,7 +9130,7 @@ var player = {
 };
 
 // 家具（円で近似）から押し出す。プレイヤーと追跡者の両方で使う
-function pushOutOfSolids(px, pz, R){
+function pushOutOfSolids(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ R){
   var list = world.props;
   for(var i=0;i<list.length;i++){
     var o = list[i];
@@ -9148,7 +9148,7 @@ function pushOutOfSolids(px, pz, R){
 }
 
 // 壁への食い込みを最小距離で押し戻す（瞬間移動させないための共通処理）
-function pushOutOfWalls(px, pz, R){
+function pushOutOfWalls(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ R){
   var g = world.grid;
   var c0 = worldToCell(px - R, pz - R), c1 = worldToCell(px + R, pz + R);
   for(var yy=c0.y; yy<=c1.y; yy++){
@@ -9168,9 +9168,9 @@ function pushOutOfWalls(px, pz, R){
   return { x:px, z:pz };
 }
 
-function collideMove(nx, nz){
+function collideMove(/** @type {number} */ nx, /** @type {number} */ nz){
   var g = world.grid, R = player.radius;
-  function blocked(px, pz){
+  function blocked(/** @type {number} */ px, /** @type {number} */ pz){
     // グリッド壁
     var c0 = worldToCell(px - R, pz - R);
     var c1 = worldToCell(px + R, pz + R);
@@ -9212,7 +9212,7 @@ var SNEAK_V = 1.75;          // これ未満の速さなら忍び足（歩きは
 var SNEAK_LEN = 0.45;        // PC の忍び足キーで抑える入力の大きさ
 var BOTTLE_MAX = 2;          // 同時に持てる瓶の数
 var THROW_V = 9.5;           // 投げ出す速さ（m/s）
-var throws = [];
+var throws = /** @type {any[]} */ ([]);
 function clearThrows(){
   throws.forEach(function(t){ if(t.mesh && t.mesh.parent) t.mesh.parent.remove(t.mesh); });
   throws = [];
@@ -9231,7 +9231,7 @@ function throwBottle(){
   Audio2.click(false);
   return true;
 }
-function updateThrows(dt){
+function updateThrows(/** @type {number} */ dt){
   for(var i=throws.length-1; i>=0; i--){
     var t = throws[i];
     t.vy -= 9.8 * dt;
@@ -9250,7 +9250,7 @@ function updateThrows(dt){
     t.mesh.rotation.set(t.spin, t.spin*0.6, 0);
   }
 }
-function shatter(x, z){
+function shatter(/** @type {any} */ x, /** @type {any} */ z){
   var dx = x - player.x, dz = z - player.z;
   var dist = Math.sqrt(dx*dx + dz*dz);
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
@@ -9292,12 +9292,12 @@ var BANDAGES_PER_RUN = [2, 2, 1];
    覗く：立ち止まっている間だけ、開けている側へ頭を 0.42m 出す。体はその場に残るので、
    角の向こうを、姿を見せずに（あれの目はこちらの体の位置で見る）確かめられる。 */
 var DOOR_SLOW = 1.4;
-function updateDoor(dt){
+function updateDoor(/** @type {number} */ dt){
   var L = world.lockDoor;
   if(!L || !L.opening) return;
   L.opening = Math.max(0, L.opening - dt);
   var k = 1 - L.opening / DOOR_SLOW;
-  L.group.children.forEach(function(leaf){ leaf.scale.x = Math.max(0.04, 1 - k); });
+  L.group.children.forEach(function(/** @type {any} */ leaf){ leaf.scale.x = Math.max(0.04, 1 - k); });
   if(L.opening <= 0){ L.open = true; L.group.visible = false; L.opening = 0; toast('扉が開いた', 1.6); }
 }
 var PEEK = { k:0, side:0, want:false };
@@ -9305,13 +9305,13 @@ var PEEK_OUT = 0.42;
 function peekSide(){
   // 右と左、どちらに頭を出せるか。壁のすぐ手前なら出せない
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
-  function open(s){
+  function open(/** @type {any} */ s){
     var x = player.x + rx*s*0.9, z = player.z + rz*s*0.9, c = worldToCell(x, z);
     return inBounds(c.x, c.y) && world.grid[idx(c.x, c.y)] === 0;
   }
   return open(1) ? 1 : (open(-1) ? -1 : 0);
 }
-function updatePeek(dt){
+function updatePeek(/** @type {number} */ dt){
   var moving = Math.sqrt(player.vx*player.vx + player.vz*player.vz) > 0.3;
   var want = PEEK.want && !moving && !player.hiding && player.grabT <= 0;
   if(want && PEEK.k < 0.05) PEEK.side = peekSide();
@@ -9343,7 +9343,7 @@ var humanKeys = {}, stickIn = { fwd:0, side:0, run:false };
 
 var pointers = {};   // id -> {mode, sx, sy, x, y}
 var stickEl = $('stick'), stickKnob = stickEl.querySelector('i');
-var stickId = null, lookId = null, stickRunning = false, holdBtnDown = false, backBtnDown = false;
+var stickId = /** @type {any} */ (null), lookId = /** @type {any} */ (null), stickRunning = false, holdBtnDown = false, backBtnDown = false;
 var stickOrigin = {x:0,y:0};
 
 /* スティックの効き。指を倒した割合 v(0..1) を速度の割合に写す。
@@ -9351,13 +9351,14 @@ var stickOrigin = {x:0,y:0};
    そこから先は v^1.55 でゆっくり立ち上げ、外側でちょうど 1 に届く。
    自己診断から呼べるように関数に出してある（端が 1 に届かないと
    全力疾走が出なくなり、追跡者に必ず捕まる）。 */
-function stickCurve(v){
+function stickCurve(/** @type {any} */ v){
   v = clamp(v, 0, 1);
   var dead = 0.12;
   if(v <= dead) return 0;
   return Math.pow((v - dead) / (1 - dead), 1.55);
 }
 
+/** @param {any} on @param {any} [ox] @param {any} [oy] @param {number} [dx] @param {any} [dy] */
 function setStickVisual(on, ox, oy, dx, dy){
   if(on){
     stickEl.style.left = ox+'px'; stickEl.style.top = oy+'px';
@@ -9371,7 +9372,7 @@ function setStickVisual(on, ox, oy, dx, dy){
   }
 }
 
-function onPointerDown(e){
+function onPointerDown(/** @type {any} */ e){
   if(e.pointerType === 'touch') lastInputKind = 'touch';
   else if(e.pointerType === 'mouse' && lastInputKind === 'touch') lastInputKind = 'kb';
   if(state !== STATE.PLAY) return;
@@ -9393,7 +9394,7 @@ function onPointerDown(e){
     pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
   }
 }
-function onPointerMove(e){
+function onPointerMove(/** @type {any} */ e){
   if(state !== STATE.PLAY) return;
   if(e.pointerId === stickId){
     var dx = e.clientX - stickOrigin.x, dy = e.clientY - stickOrigin.y;
@@ -9427,7 +9428,7 @@ function onPointerMove(e){
     input.lookY += my * 0.0042 * settings.sens * (settings.invert ? -1 : 1);
   }
 }
-function onPointerUp(e){
+function onPointerUp(/** @type {any} */ e){
   if(e.pointerId === stickId){
     stickId = null; input.fwd = 0; input.side = 0; input.run = false;
     stickIn.fwd = 0; stickIn.side = 0; stickIn.run = false;
@@ -9488,7 +9489,7 @@ var KEYACT_BY = {};
 KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
 /* 実キー → canon の表。割り当てを変えたら作り直す */
 var KEYMAP = {};
-function keyOf(a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
+function keyOf(/** @type {any} */ a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
 function rebuildKeymap(){
   KEYMAP = {};
   KEYACT.forEach(function(k){
@@ -9502,7 +9503,7 @@ function rebuildKeymap(){
   // 主キーに取られた控えは外す（主キーが優先）
   KEYACT.forEach(function(k){ KEYMAP[keyOf(k.a)] = k.canon; });
 }
-function keyLabel(code){
+function keyLabel(/** @type {any} */ code){
   if(!code) return '—';
   if(/^Key[A-Z]$/.test(code)) return code.slice(3);
   if(/^Digit[0-9]$/.test(code)) return code.slice(5);
@@ -9512,7 +9513,7 @@ function keyLabel(code){
             Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
 }
 rebuildKeymap();
-var keyCapture = null;                // 設定画面で「キーを押す」を待っている操作
+var keyCapture = /** @type {any} */ (null);                // 設定画面で「キーを押す」を待っている操作
 document.addEventListener('keydown', function(e){
   if(keyCapture){ e.preventDefault(); var kc = keyCapture; keyCapture = null; kc(e.code); return; }
   if(e.repeat) return;
@@ -9533,7 +9534,7 @@ document.addEventListener('keyup', function(e){
 /* いま使っている入力機器（操作説明の出し分け。第 11.4 節）：'touch' | 'kb' | 'pad' */
 var lastInputKind = IS_TOUCH ? 'touch' : 'kb';
 
-function readKeys(dt){
+function readKeys(/** @type {number} */ dt){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
      キーで動かすので、スティックを握っていてもキーを読む。 */
   if(IS_TOUCH && stickId !== null && playAs !== 'hunter') return;
@@ -9553,22 +9554,22 @@ function readKeys(dt){
    ボタンは押した瞬間だけ拾う（押しっぱなしで連打にならないように）。
    スティックの遊びは 0.15、その外側を 0..1 に引き直してから曲線を通す。 */
 var PAD_DEAD = 0.15;
-var padPrev = [];
+var padPrev = /** @type {any[]} */ ([]);
 var pad = { back:false, hold:false, sneak:false, active:false, t:0 };
-function padAxis(v){
+function padAxis(/** @type {any} */ v){
   var a = Math.abs(v);
   if(a < PAD_DEAD) return 0;
   return Math.sign(v) * (a - PAD_DEAD) / (1 - PAD_DEAD);
 }
-function readPad(simDt){
+function readPad(/** @type {any} */ simDt){
   pad.back = pad.hold = pad.sneak = false;
   if(!navigator.getGamepads) return;
   var list = navigator.getGamepads(), gp = null;
   for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
   if(!gp){ pad.active = false; pad.t = 0; return; }
   var ax = gp.axes, bt = gp.buttons;
-  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
-  function edge(n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
+  function down(/** @type {any} */ n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(/** @type {any} */ n){ var d = down(n), was = !!padPrev[n]; padPrev[n] = d; return d && !was; }
   var mx = padAxis(ax[0] || 0), my = padAxis(ax[1] || 0);
   var lx = padAxis(ax[2] || 0), ly = padAxis(ax[3] || 0);
   var used = !!(mx || my || lx || ly);
@@ -9597,23 +9598,23 @@ function readPad(simDt){
 }
 
 // --- タッチボタン ---
-function bindHold(el, onDown, onUp){
-  el.addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); onDown(); }, {passive:false});
+function bindHold(/** @type {any} */ el, /** @type {any} */ onDown, /** @type {any} */ onUp){
+  el.addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); onDown(); }, {passive:false});
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
-    el.addEventListener(ev, function(e){ e.stopPropagation(); if(onUp) onUp(); });
+    el.addEventListener(ev, function(/** @type {any} */ e){ e.stopPropagation(); if(onUp) onUp(); });
   });
 }
-$('bLight').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); toggleLamp(); }, {passive:false});
+$('bLight').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); toggleLamp(); }, {passive:false});
 bindHold($('bHold'),
   function(){ holdBtnDown = true; },
   function(){ holdBtnDown = false; });
 bindHold($('bBack'),
   function(){ backBtnDown = true; },
   function(){ backBtnDown = false; });
-$('bUse').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
+$('bUse').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); input.use = true; }, {passive:false});
 bindHold($('bPeek'), function(){ PEEK.touchWant = true; }, function(){ PEEK.touchWant = false; });
-$('bThrow').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
-$('bPause').addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
+$('bThrow').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); throwBottle(); }, {passive:false});
+$('bPause').addEventListener('pointerdown', function(/** @type {any} */ e){ e.preventDefault(); e.stopPropagation(); if(state===STATE.PLAY) doPause(); }, {passive:false});
 
 function toggleLamp(){
   if(state !== STATE.PLAY) return;
@@ -9633,13 +9634,13 @@ function visiblePanel(){
   for(var i=0; i<panels.length; i++){ var el = $(panels[i]); if(el && !el.hidden) return el; }
   return null;
 }
-function focusables(root){
+function focusables(/** @type {any} */ root){
   return Array.prototype.filter.call(root.querySelectorAll('button, input[type=range]'), function(el){
     if(el.disabled) return false;
     var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   });
 }
-function moveFocus(root, dx, dy){
+function moveFocus(/** @type {any} */ root, /** @type {number} */ dx, /** @type {any} */ dy){
   var list = focusables(root); if(!list.length) return;
   var cur = /** @type {any} */ (document.activeElement);
   if(list.indexOf(cur) < 0){ list[0].focus(); return; }
@@ -9656,7 +9657,7 @@ function moveFocus(root, dx, dy){
   });
   if(best){ best.focus(); best.scrollIntoView({ block:'nearest' }); }
 }
-function updatePadMenu(dt){
+function updatePadMenu(/** @type {number} */ dt){
   if(state === STATE.PLAY && !visiblePanel()) return;
   var root = visiblePanel(); if(!root) return;
   if(!navigator.getGamepads) return;
@@ -9664,8 +9665,8 @@ function updatePadMenu(dt){
   for(var i=0; i<list.length; i++){ if(list[i] && list[i].connected){ gp = list[i]; break; } }
   if(!gp) return;
   var bt = gp.buttons, ax = gp.axes;
-  function down(n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
-  function edge(n){ var d = down(n), w = !!padMenu.prev[n]; padMenu.prev[n] = d; return d && !w; }
+  function down(/** @type {any} */ n){ return !!(bt[n] && (bt[n].pressed || bt[n].value > 0.5)); }
+  function edge(/** @type {any} */ n){ var d = down(n), w = !!padMenu.prev[n]; padMenu.prev[n] = d; return d && !w; }
   /* 画面が切り替わった最初のフレームは、ボタンの今の状態を控えるだけにする。
      Start で一時停止した瞬間に、同じ押下で「続ける」が押されてしまうため */
   if(padMenu.root !== root){
@@ -9782,7 +9783,7 @@ function lettersRead(){
 
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
-function buildNoteOrder(need){
+function buildNoteOrder(/** @type {any} */ need){
   var pool = [];
   for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
   for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
@@ -9793,7 +9794,7 @@ function buildNoteOrder(need){
   out.push(NOTE_LAST);
   return out;
 }
-function showNote(i){
+function showNote(/** @type {any} */ i){
   var order = world.noteOrder || buildNoteOrder(player.need || 5);
   var ni = order[i % order.length] % NOTES.length;
   var n = NOTES[ni];
@@ -9810,17 +9811,17 @@ function showNote(i){
   noteT = 7.5;
 }
 
-function toast(msg, dur){
+function toast(/** @type {any} */ msg, /** @type {any} */ dur){
   var t = $('toast');
   t.textContent = msg;
   t.classList.add('on');
   toastT = dur || 2;
 }
-function updateBar(id, v){
+function updateBar(/** @type {any} */ id, /** @type {any} */ v){
   var el = $(id).firstElementChild;
   el.style.transform = 'scaleX(' + clamp(v,0,1).toFixed(3) + ')';
 }
-function drawECG(dt, bpm){
+function drawECG(/** @type {number} */ dt, /** @type {any} */ bpm){
   ecgT += dt;
   var interval = 60/bpm;
   var w = ecg.width, h = ecg.height;
@@ -9862,7 +9863,7 @@ function positionRadar(){
 }
 window.addEventListener('resize', function(){ if(!radarEl.hidden) positionRadar(); });
 
-function drawRadar(dt){
+function drawRadar(/** @type {number} */ dt){
   var mode = detectMode();
   if(mode === 0 || state !== STATE.PLAY){
     if(!radarEl.hidden) radarEl.hidden = true;
@@ -9893,14 +9894,14 @@ function drawRadar(dt){
 
   var sy = Math.sin(player.viewYaw), cyw = Math.cos(player.viewYaw);
   var fx = -sy, fz = -cyw, rx = cyw, rz = -sy;
-  function project(wx, wz){
+  function project(/** @type {any} */ wx, /** @type {any} */ wz){
     var dx = wx - player.x, dz = wz - player.z;
     var px = dx*rx + dz*rz, pu = dx*fx + dz*fz;
     var d = Math.sqrt(px*px + pu*pu);
     var k = (d > range && d > 0) ? range/d : 1;
     return { x: cx + px*k/range*R, y: cy - pu*k/range*R, d:d, edge:(d > range) };
   }
-  function dot(p, color, r, ring){
+  function dot(/** @type {any} */ p, /** @type {any} */ color, /** @type {any} */ r, /** @type {any} */ ring){
     g.fillStyle = color;
     g.beginPath(); g.arc(p.x, p.y, r, 0, TAU); g.fill();
     if(ring){
@@ -9952,7 +9953,7 @@ function drawRadar(dt){
    聞こえたかを画面の縁の弧と短い字幕で出す。距離は言葉で粗くだけ伝える
    （正確な距離を出すと音より強い手掛かりになってしまう）。 */
 var CUE = { t:0 };
-function soundCue(label, dist, hot){
+function soundCue(/** @type {any} */ label, /** @type {number} */ dist, /** @type {any} */ hot){
   if(!settings.cues || state !== STATE.PLAY) return;
   var dx = hunter.x - player.x, dz = hunter.z - player.z;
   var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
@@ -9968,7 +9969,7 @@ function soundCue(label, dist, hot){
   el.classList.add('on');
   CUE.t = 1.2;
 }
-function updateCue(dt){
+function updateCue(/** @type {number} */ dt){
   if(CUE.t <= 0) return;
   CUE.t -= dt;
   if(CUE.t <= 0 || state !== STATE.PLAY) $('cue').classList.remove('on');
@@ -9979,12 +9980,12 @@ function updateCue(dt){
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
 var journalReturn = 'title', jSel = {};
-function noteVoice(head){
+function noteVoice(/** @type {any} */ head){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
   return 2;                                   // 通達・配線記録
 }
-function openJournal(from){
+function openJournal(/** @type {any} */ from){
   journalReturn = from || 'title';
   jSel = {};
   renderJournal();
@@ -10033,7 +10034,7 @@ function renderJournal(){
   $('jLinkHint').textContent = hint;
 }
 function tryLink(){
-  var picked = [];
+  var picked = /** @type {any[]} */ ([]);
   for(var k in jSel) if(jSel[k]) picked.push(+k);
   if(picked.length < 3) return;
   var ok = picked.length === 3 && LETTER_SISTER.every(function(x){ return picked.indexOf(x) >= 0; });
@@ -10056,7 +10057,7 @@ var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
 function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
 function hintTarget(){
   var best = null, bd = 1e9;
-  function consider(o, what){
+  function consider(/** @type {any} */ o, /** @type {any} */ what){
     var dx = o.x - player.x, dz = o.z - player.z, dd = dx*dx + dz*dz;
     if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
   }
@@ -10069,7 +10070,7 @@ function hintTarget(){
   }
   return best;
 }
-function updateHint(dt){
+function updateHint(/** @type {number} */ dt){
   if(BOT.on || playAs === 'hunter') return;
   if(player.got !== HINT.lastGot || player.hasKey !== HINT.lastKey){
     HINT.lastGot = player.got; HINT.lastKey = player.hasKey;
@@ -10153,7 +10154,7 @@ function drawMap(){
     if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
   }
   // 非常口（見たことがあれば）
-  function w2m(wx, wz){
+  function w2m(/** @type {any} */ wx, /** @type {any} */ wz){
     var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
     return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
   if(MAPV.exitSeen && world.exit){
@@ -10185,7 +10186,7 @@ function teleLoad(){
   try{ TELE.ev = JSON.parse(Store.get('ward7.tele') || '[]'); }catch(e){ TELE.ev = []; }
   if(!Array.isArray(TELE.ev)) TELE.ev = [];
 }
-function tele(kind, data){
+function tele(/** @type {any} */ kind, /** @type {any} */ data){
   if(!settings.tele || BOT.on) return;
   teleLoad();
   var e = { k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 };
@@ -10194,7 +10195,7 @@ function tele(kind, data){
   if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
   Store.set('ward7.tele', JSON.stringify(TELE.ev));
 }
-function teleFrame(dt){
+function teleFrame(/** @type {number} */ dt){
   if(!settings.tele || BOT.on || state !== STATE.PLAY) return;
   TELE.ft.push(dt); TELE.ftT += dt;
   if(TELE.ftT < 60) return;
@@ -10225,7 +10226,7 @@ function teleExport(){
 var TIPS = { seen:{}, cool:0, still:0 };
 try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
 var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
-function tipKey(a){
+function tipKey(/** @type {any} */ a){
   var ja = LANG !== 'en';
   if(lastInputKind === 'pad') return PAD_NAME[a];
   if(lastInputKind === 'touch'){
@@ -10236,14 +10237,14 @@ function tipKey(a){
   }
   return keyLabel(keyOf(a === 'hold' ? 'run' : a));
 }
-function tipShow(id, ja, en){
+function tipShow(/** @type {any} */ id, /** @type {any} */ ja, /** @type {any} */ en){
   if(TIPS.seen[id] || BOT.on || playAs === 'hunter' || TIPS.cool > 0) return false;
   TIPS.seen[id] = 1; TIPS.cool = 7;
   try{ Store.set('ward7.tips', JSON.stringify(TIPS.seen)); }catch(e){}
   toast(LANG === 'en' ? en : ja, 4.8);
   return true;
 }
-function updateTips(dt){
+function updateTips(/** @type {number} */ dt){
   if(state !== STATE.PLAY || BOT.on || playAs === 'hunter') return;
   TIPS.cool = Math.max(0, TIPS.cool - dt);
   var k = tipKey, touch = lastInputKind === 'touch', chase = hunter.mode === 'chase';
@@ -10277,7 +10278,7 @@ function updateTips(dt){
    13. 画面遷移
    ========================================================================= */
 var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal','credits'];
-function showPanel(name){
+function showPanel(/** @type {any} */ name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
     if(radarEl) radarEl.hidden = true;
@@ -10288,7 +10289,7 @@ function showPanel(name){
   $('touch').classList.toggle('on', playing);
   $('bPause').style.display = playing ? 'flex' : 'none';
 }
-function blackout(on, instant){
+function blackout(/** @type {any} */ on, /** @type {any} */ instant){
   var b = $('blackout');
   b.style.transition = instant ? 'none' : 'opacity 1.1s';
   b.style.opacity = on ? '1' : '0';
@@ -10315,12 +10316,12 @@ function syncQualityHint(){
    「この明るさなら病棟でも見える」が設定画面の中で確かめられる。
    ここを目分量の説明文で済ませると、暗すぎる／明るすぎるの相談が
    永遠に終わらない。 */
-function acesApprox(x){
+function acesApprox(/** @type {any} */ x){
   // three の ACESFilmicToneMapping と同じ近似式
   var a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
   return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
 }
-function toSRGB(v){
+function toSRGB(/** @type {any} */ v){
   return v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055;
 }
 var CALIB_STEPS = [0.006, 0.011, 0.020, 0.036, 0.065, 0.118];
@@ -10418,7 +10419,7 @@ var cheatReturn = 'title';
 function updateCheatBadge(){ $('cheatBadge').hidden = !anyCheat(); }
 function buildCheatUI(){
   var list = $('cheatList'); list.innerHTML = '';
-  var lastG = null;
+  var lastG = /** @type {any} */ (null);
   CHEATS.forEach(function(c){
     if(c.g && c.g !== lastG){
       lastG = c.g;
@@ -10452,7 +10453,7 @@ function buildCheatUI(){
   });
   updateCheatBadge();
 }
-function doCheatAct(k){
+function doCheatAct(/** @type {any} */ k){
   if(state !== STATE.PLAY && state !== STATE.PAUSE){
     toast('プレイ中のみ使えます', 2); return;
   }
@@ -10546,16 +10547,16 @@ function doCheatAct(k){
     toast('追跡者を引き離した', 2);
   }
 }
-function openCheats(from){
+function openCheats(/** @type {any} */ from){
   cheatReturn = from;
   buildCheatUI();
   showPanel('cheat');
 }
 
-$('title').querySelectorAll('[data-diff]').forEach(function(b){
+$('title').querySelectorAll('[data-diff]').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.diff = +b.dataset.diff; saveSettings(); syncSettingsUI(); });
 });
-$('segQ').querySelectorAll('button').forEach(function(b){
+$('segQ').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){
     settings.quality = +b.dataset.q; saveSettings(); syncSettingsUI();
     BENCH.on = false; Store.set('ward7.bench', JSON.stringify({ done:1, manual:1 }));   // 人が選んだら自動で変えない
@@ -10565,7 +10566,7 @@ $('segQ').querySelectorAll('button').forEach(function(b){
     setTimeout(function(){ location.reload(); }, 300);
   });
 });
-$('segI').querySelectorAll('button').forEach(function(b){
+$('segI').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.invert = (+b.dataset.i === 1); saveSettings(); syncSettingsUI(); });
 });
 $('gam').addEventListener('input', /** @this {HTMLInputElement} */ function(){
@@ -10607,7 +10608,7 @@ Array.prototype.forEach.call($('segC').children, function(b){
 $('sens').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
 $('vol').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
-$('segD').querySelectorAll('button').forEach(function(b){
+$('segD').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.detect = +b.dataset.d; saveSettings(); syncSettingsUI(); });
 });
 $('btnCheat').addEventListener('click', function(){ openCheats('title'); });
@@ -10715,7 +10716,7 @@ function buildKeyUI(){
     bt.textContent = keyLabel(keyOf(k.a));
     bt.addEventListener('click', function(){
       bt.textContent = 'キーを押す…'; bt.classList.add('wait');
-      keyCapture = function(code){
+      keyCapture = function(/** @type {any} */ code){
         bt.classList.remove('wait');
         if(code !== 'Escape'){
           /* 他の操作が同じキーを主キーにしていたら、入れ替える（1 つのキーに 2 つの操作を載せず、
@@ -10740,8 +10741,8 @@ buildKeyUI();
    位置は画面に対する中心の割合で持つので、縦横や機種が変わっても同じ辺りに来る。
    置いていないボタンは CSS の既定（左手持ちならその配置）のまま */
 var LAYOUT_IDS = ['bUse', 'bLight', 'bBack', 'bHold', 'bThrow', 'bPeek'];
-var layoutEdit = null;
-function btnHalf(el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
+var layoutEdit = /** @type {any} */ (null);
+function btnHalf(/** @type {any} */ el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
 function applyBtnLayout(){
   LAYOUT_IDS.forEach(function(id){
     var el = $(id), p = settings.btnPos && settings.btnPos[id];
@@ -10773,7 +10774,7 @@ function closeLayoutEdit(){
   saveSettings();
 }
 // 編集中は捕獲の段で拾い、ボタン本来の働き（ランプを点けるなど）には渡さない
-$('touch').addEventListener('pointerdown', function(e){
+$('touch').addEventListener('pointerdown', function(/** @type {any} */ e){
   if(!layoutEdit) return;
   var el = e.target && e.target.closest ? e.target.closest('.tbtn') : null;
   e.preventDefault(); e.stopPropagation();
@@ -10798,9 +10799,9 @@ applyBtnLayout();
 /* =========================================================================
    14. ゲーム開始
    ========================================================================= */
-var buildInfo = null;
+var buildInfo = /** @type {any} */ (null);
 
-var forcedSeed = null;
+var forcedSeed = /** @type {any} */ (null);
 var skipUI = false;
 function startGame(){
   if(CTX_LOST){ toast('描画の復帰を待っています', 2); return; }
@@ -10963,7 +10964,7 @@ function startGame(){
 var _v3 = new THREE.Vector3(), _hv1 = new THREE.Vector3(), _hv2 = new THREE.Vector3();
 
 // ワールド座標をプレイヤー基準の「音量・左右・こもり具合」に変換する
-function spatial(wx, wz, maxD, blocked, refD){
+function spatial(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ maxD, /** @type {boolean} */ blocked, /** @type {any} */ refD){
   var dx = wx - player.x, dz = wz - player.z;
   var d = Math.sqrt(dx*dx + dz*dz);
   var n = clamp(d / maxD, 0, 1);
@@ -10989,7 +10990,7 @@ function spatial(wx, wz, maxD, blocked, refD){
    向き（左右）は、音が入ってくる開口（こちらのマスの隣の、道の最後の 1 マス）
    から鳴らす。角の向こうの足音は、角の方から聞こえる。 */
 var PATHF = { t:0, cx:-1, cy:-1, field:null };
-function updatePathField(dt){
+function updatePathField(/** @type {number} */ dt){
   PATHF.t -= dt;
   var c = worldToCell(player.x, player.z);
   if(PATHF.field && PATHF.t > 0 && c.x === PATHF.cx && c.y === PATHF.cy) return;
@@ -11007,7 +11008,7 @@ function updatePathField(dt){
     if(y < GH-1   && F[i+GW] < 0 && g[i+GW] === 0){ F[i+GW] = dv; q.push(i+GW); }
   }
 }
-function spatialPath(wx, wz, maxD, blocked, refD){
+function spatialPath(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ maxD, /** @type {boolean} */ blocked, /** @type {any} */ refD){
   if(!blocked || !PATHF.field) return spatial(wx, wz, maxD, blocked, refD);
   var F = PATHF.field, c = worldToCell(wx, wz);
   if(!inBounds(c.x, c.y) || F[idx(c.x, c.y)] < 1) return spatial(wx, wz, maxD, blocked, refD);
@@ -11038,7 +11039,7 @@ function spatialPath(wx, wz, maxD, blocked, refD){
 /* 床の硬さ。マスの座標から決まる固定値なので、同じ場所は毎回同じ音になる。
    「ここは剥がれたリノリウム、ここはタイル」が歩いているうちに分かる。
    地形の意味は見ていない（部屋か廊下かは音の担当ではない）。 */
-function floorMat(x, z){
+function floorMat(/** @type {any} */ x, /** @type {any} */ z){
   var c = worldToCell(x, z);
   var h = Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5453;
   return (h - Math.floor(h));
@@ -11108,12 +11109,12 @@ function nearestInteractable(){
    キーボードでしか出ず、モバイル前提のゲームでタッチだけが不利だった。
    追跡者は最速 4.473（絶望でも 5.72）で、5.8 m/s を前提に調整されている。
    自己診断から呼べるように関数に出してある。 */
-function moveScale(f, s){
+function moveScale(/** @type {any} */ f, /** @type {any} */ s){
   var len = Math.sqrt(f*f + s*s);
   return len > 1 ? 1 : len;
 }
 
-function updatePlayer(dt){
+function updatePlayer(/** @type {number} */ dt){
   readKeys(dt);
 
   // 視点（移動量は腕のスウェイにも使う）
@@ -11623,7 +11624,7 @@ function beamHitDist(){
      照らされていないので、寄られても露出を変えてはいけない。
      こちらを向いた物なので入射は正面（1）とみなす。 */
   var COSB = Math.cos(LAMP_ANG);
-  function consider(px, py, pz, rad){
+  function consider(/** @type {number} */ px, /** @type {any} */ py, /** @type {number} */ pz, /** @type {any} */ rad){
     var vx = px - player.x, vy = py - eyeY, vz = pz - player.z;
     var L = Math.sqrt(vx*vx + vy*vy + vz*vz);
     if(L < 0.2 || L >= d) return;
@@ -11636,7 +11637,7 @@ function beamHitDist(){
   BEAM.d = d; BEAM.ndl = clamp(ndl, 0.05, 1);
   return d;
 }
-function updateExposure(dt, lampOn){
+function updateExposure(/** @type {number} */ dt, /** @type {any} */ lampOn){
   var d = Math.max(0.55, beamHitDist());
   // 環境光ぶんの下駄。電源が入っている区画は天井灯があるので底上げする
   var ret = 0.10 * (world.power ? 1.7 : 1) +
@@ -11654,7 +11655,7 @@ function updateExposure(dt, lampOn){
   renderer.toneMappingExposure = exposureNow();
 }
 
-function avoidProps(x, z, dx, dz, look, rad){
+function avoidProps(/** @type {any} */ x, /** @type {any} */ z, /** @type {number} */ dx, /** @type {number} */ dz, /** @type {any} */ look, /** @type {any} */ rad){
   var pr = world.props, bestT = 1e9, hit = null;
   for(var i=0; i<pr.length; i++){
     var o = pr[i], ox = o.x - x, oz = o.z - z;
@@ -11675,7 +11676,7 @@ function avoidProps(x, z, dx, dz, look, rad){
   return { x:Math.cos(base), z:Math.sin(base) };
 }
 
-function updateHunter(dt, info){
+function updateHunter(/** @type {number} */ dt, /** @type {any} */ info){
   var g = world.grid;
   var hd = info.hd;
   // 通気口（第 9 章）。天井裏にいる間は、見ることも襲うこともない
@@ -12509,7 +12510,7 @@ function resetHunterVox(){
    歩行周期の節目を表に書き、位相で引く。表は [位相, 角度] の昇順で、
    端は巻き戻して繋ぐ。位相 0 が接地（踵接地）で、足音もそこで鳴る
    （bob は 1 歩ぶんで π 進み、stepAcc も同じ moved で駆動しているため）。 */
-function gaitKey(tbl, ph){
+function gaitKey(/** @type {any} */ tbl, /** @type {any} */ ph){
   ph -= Math.floor(ph);
   var n = tbl.length, i;
   for(i=0;i<n;i++) if(tbl[i][0] > ph) break;
@@ -12539,13 +12540,13 @@ var GAIT_ANK_R   = [[0.00, 0.10],[0.08,-0.10],[0.30,-0.22],[0.44,-0.55],[0.58, 0
 /* 歩きと走りの表を混ぜる。mode が chase に入った瞬間に表を差し替えると、
    その 1 フレームで腿が 0.2 rad 飛ぶ（歩きの立脚中期と走りの蹴り出しが
    同じ位相に並んでいるため）。混ぜる比を時定数 0.25 秒で送る。 */
-function gaitMix(tw, tr, ph, rk){
+function gaitMix(/** @type {any} */ tw, /** @type {any} */ tr, /** @type {any} */ ph, /** @type {any} */ rk){
   return rk <= 0.001 ? gaitKey(tw, ph)
        : rk >= 0.999 ? gaitKey(tr, ph)
        : gaitKey(tw, ph)*(1-rk) + gaitKey(tr, ph)*rk;
 }
 
-function updateHunterVox(dt, info, hs){
+function updateHunterVox(/** @type {number} */ dt, /** @type {any} */ info, /** @type {any} */ hs){
   // 追跡者がまだ出ていない間は、状態だけ追って声は出さない
   if(!hs){ voxPrevMode = hunter.mode; return; }
   voxT = Math.max(0, voxT - dt);
@@ -12573,7 +12574,7 @@ function updateHunterVox(dt, info, hs){
   voxIdleT = (m === 'chase') ? (1.9 + rndFx()*1.8) : (7 + rndFx()*9);
 }
 
-function updateEnv(dt, info){
+function updateEnv(/** @type {number} */ dt, /** @type {any} */ info){
   // 非常灯：最寄り n 個だけをライトプールに割り当てる
   var lamps = world.lamps.slice();
   lamps.sort(function(a,b){
@@ -12728,13 +12729,13 @@ function updateEnv(dt, info){
    何も起きていない間は沈ませて、暗がりの方を見させる。
    情報を隠すためではなく、変化に注意を向けるための切り替え。 */
 var HUDW = { t:0, bat:100, sta:100, hp:100, got:-1 };
-function hudWake(sec){ HUDW.t = Math.max(HUDW.t, sec); }
+function hudWake(/** @type {number} */ sec){ HUDW.t = Math.max(HUDW.t, sec); }
 
 /* 見え方に関わるチートの面倒をまとめて見る。
    毎フレーム状態を合わせにいく（切り替えた瞬間に効いてほしいし、
    切ったときに元へ戻らないと「直らないバグ」に見える）。 */
 var CV = { fov:0, marked:false };
-function updateCheatView(dt){
+function updateCheatView(/** @type {number} */ dt){
   // 視野
   var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0) + settings.fov;
   if(state === STATE.PLAY && Math.abs(camera.fov - wantFov) > 0.01){
@@ -12745,7 +12746,7 @@ function updateCheatView(dt){
   var wantItems = !!cheats.markItems, wantHides = !!cheats.markHides;
   if(CV.items !== wantItems){
     CV.items = wantItems;
-    var mark = function(sp){ if(!sp) return;
+    var mark = function(/** @type {any} */ sp){ if(!sp) return;
       sp.material.depthTest = !wantItems; sp.renderOrder = wantItems ? 12 : 0;
       sp.material.opacity = wantItems ? 0.9 : 0.55; sp.material.needsUpdate = true; };
     world.records.forEach(function(r){ mark(r.spr); });
@@ -12756,7 +12757,7 @@ function updateCheatView(dt){
     CV.hides = wantHides;
     world.hides.forEach(function(h){
       if(!h.group) return;
-      h.group.traverse(function(o){
+      h.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.material || !o.material.emissive) return;
         if(wantHides){
           if(o.userData.emSave === undefined) o.userData.emSave = o.material.emissiveIntensity || 0;
@@ -12785,7 +12786,7 @@ function updateCheatView(dt){
   }
 }
 
-function updateHUD(dt, bpm, info){
+function updateHUD(/** @type {number} */ dt, /** @type {any} */ bpm, /** @type {any} */ info){
   if(skipUI) return;
   // 変化の検出。しきい値はどれも「人が気づく程度」に置く
   if(Math.abs(player.battery - HUDW.bat) > 0.8 ||
@@ -13069,14 +13070,14 @@ function doWin(){
 }
 /* 結果は表で出す。カルテの表と同じ作法にして、
    ゲームの中の書類とつながって見えるようにする。 */
-function endTable(rows){
+function endTable(/** @type {any} */ rows){
   var h = '<div class="endrows">';
   for(var i=0;i<rows.length;i++)
     h += '<div class="row"><span>' + rows[i][0] + '</span><b>' + rows[i][1] + '</b></div>';
   return h + '</div>';
 }
 
-function fmtTime(s){
+function fmtTime(/** @type {any} */ s){
   var m = Math.floor(s/60), r = Math.floor(s%60);
   return m + ':' + (r<10?'0':'') + r;
 }
@@ -13100,7 +13101,7 @@ var SIM_DT = 1/60, simAcc = 0;
 var fpsAcc = 0, fpsN = 0, fpsShown = 0;
 var autoDropChecked = false, lowFpsTime = 0;
 
-function loop(now){
+function loop(/** @type {number} */ now){
   requestAnimationFrame(loop);
   var dt = (now - lastT)/1000;
   lastT = now;
@@ -13203,7 +13204,7 @@ function loop(now){
         if(!QC.shadows && renderer.shadowMap.enabled){
           renderer.shadowMap.enabled = false;
           if(flashlight) flashlight.castShadow = false;
-          scene.traverse(function(o){
+          scene.traverse(function(/** @type {any} */ o){
             if(!o.material) return;
             var ms = Array.isArray(o.material) ? o.material : [o.material];
             for(var mi=0; mi<ms.length; mi++) ms[mi].needsUpdate = true;
@@ -13231,7 +13232,7 @@ function updateDbg(){
 /* 初回起動の実測（第 8.4 節）。タイトルの情景が出てから 1 秒の暖気を捨て、5 秒のフレーム時間の
    中央値で決める。タイトルは本編より軽いので、下げる閾値は 20ms（本編では 30ms 前後になる）、
    上げるのは 10ms を切るときだけ（上げた先で重ければ戻して終わる） */
-function updateBench(dt){
+function updateBench(/** @type {number} */ dt){
   if(!BENCH.on || state !== STATE.TITLE || !titleCam.ready) return;
   BENCH.t += dt;
   if(BENCH.t < 1) return;
@@ -13256,7 +13257,7 @@ function updateBench(dt){
 }
 
 /* 遊びの 1 刻み（固定 1/60 秒）。loop から呼ばれる */
-function simStep(dt){
+function simStep(/** @type {number} */ dt){
   player.time += dt;
   // 追う側で遊ぶときは、人間の操作をボットに上書きされる前に写し取る
   if(playAs === 'hunter') captureHunterInput();
@@ -13316,30 +13317,30 @@ function simStep(dt){
    ?debug=1 のとき F8 で取り、F9 で戻す（開発用。製品の画面には出さない）。 */
 var SNAP_REG = ['hides', 'records', 'batteries', 'bottles', 'bandages', 'props', 'rooms', 'lamps', 'reach'];
 /* reach（歩けるマスの一覧）は world ではなく buildInfo にある。巡回先はこの要素そのものを指す */
-function snapArr(name){ return name === 'reach' ? (buildInfo ? buildInfo.reach : null) : world[name]; }
+function snapArr(/** @type {any} */ name){ return name === 'reach' ? (buildInfo ? buildInfo.reach : null) : world[name]; }
 function snapRoots(){
   return { player:player, hunter:hunter, world:world, DIRECTOR:DIRECTOR, shade:shade, PATHF:PATHF,
            BOT:BOT, HINT:HINT, TIPS:TIPS, MAPV:MAPV, CUE:CUE, PEEK:PEEK, HANDL:HANDL, input:input,
            patients:patients, vents:vents, throws:throws, BEAM:BEAM, HUDW:HUDW, RUN:RUN };
 }
-function snapSkip(v){
+function snapSkip(/** @type {any} */ v){
   return !!(v && (v.isObject3D || v.isMaterial || v.isTexture || v.isBufferGeometry || v.isRenderTarget ||
                (typeof AudioNode !== 'undefined' && v instanceof AudioNode) ||
                (typeof v.nodeType === 'number' && typeof v.nodeName === 'string')));
 }
 function snapRefIndex(){
   var m = new Map();
-  SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(o, i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
+  SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(/** @type {any} */ o, /** @type {any} */ i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
   return m;
 }
-function snapVal(v, refs, depth, home){
+function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} */ depth, /** @type {any} */ home){
   if(v === null || typeof v !== 'object') return (typeof v === 'function') ? { $skip:1 } : v;
   if(snapSkip(v)) return { $skip:1 };
   if(depth > 10) return { $skip:1 };
   if(!home && refs.has(v)) return { $ref:refs.get(v) };
   if(ArrayBuffer.isView(v)) return { $ta:Array.prototype.slice.call(v), $k:v.constructor.name };
   if(v instanceof Map || v instanceof Set) return { $skip:1 };
-  if(Array.isArray(v)) return v.map(function(e){ return snapVal(e, refs, depth + 1, false); });
+  if(Array.isArray(v)) return v.map(function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
   var o = {};
   for(var k in v){ if(Object.prototype.hasOwnProperty.call(v, k)) o[k] = snapVal(v[k], refs, depth + 1, false); }
   return o;
@@ -13348,14 +13349,14 @@ function snapTake(){
   var refs = snapRefIndex(), R = snapRoots(), out = { roots:{}, reg:{}, n:{} };
   Object.keys(R).forEach(function(k){ out.roots[k] = snapVal(R[k], refs, 0, true); });
   // world の配列の要素そのもの（ここだけは参照にせず中身を持つ）
-  SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(o){ return snapVal(o, refs, 1, true); }); });
+  SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(/** @type {any} */ o){ return snapVal(o, refs, 1, true); }); });
   out.n = { toastT:toastT, noteT:noteT, lampFlick:lampFlick, ambientCreakT:ambientCreakT, heartT:heartT,
             voxPrevMode:voxPrevMode, voxT:voxT, voxIdleT:voxIdleT, botRndState:botRndState, botLookState:botLookState,
             simAcc:simAcc, state:state, cheatUsed:cheatUsed,
             rnd:rnd.getState(), rndAI:rndAI.getState(), rndFx:rndFx.getState() };
   return JSON.stringify(out);
 }
-function snapResolve(s, refs){
+function snapResolve(/** @type {any} */ s, /** @type {any} */ refs){
   if(s && typeof s === 'object' && s.$ref){ var a = snapArr(s.$ref[0]); return a ? a[s.$ref[1]] : null; }
   if(s && typeof s === 'object' && s.$ta){ var C = /** @type {any} */ (window[s.$k] || Float32Array); return new C(s.$ta); }
   if(Array.isArray(s)) return s.map(function(e){ return snapResolve(e, refs); });
@@ -13364,7 +13365,7 @@ function snapResolve(s, refs){
 }
 /* 今ある物 t へ写しの値 s を書き戻す。飛ばした物（$skip）は触らない。写しに無い鍵は消す
    （取った後に増えた印が残ると、戻した先で展開が変わる） */
-function snapInto(t, s){
+function snapInto(/** @type {any} */ t, /** @type {any} */ s){
   if(Array.isArray(s)){
     if(!Array.isArray(t)) return snapResolve(s);
     for(var i=0; i<s.length; i++){
@@ -13391,7 +13392,7 @@ function snapInto(t, s){
   }
   return t;
 }
-function snapRestore(json){
+function snapRestore(/** @type {any} */ json){
   var S = typeof json === 'string' ? JSON.parse(json) : json;
   SNAP_REG.forEach(function(name){ var a = snapArr(name); if(a && S.reg[name]) snapInto(a, S.reg[name]); });
   var R = snapRoots();
@@ -13403,12 +13404,12 @@ function snapRestore(json){
   rnd.setState(n.rnd); rndAI.setState(n.rndAI); rndFx.setState(n.rndFx);
   // 見た目を値に合わせる（拾った物は消し、扉は開けたなら消す）
   ['records', 'batteries', 'bottles', 'bandages'].forEach(function(name){
-    (world[name] || []).forEach(function(o){ var vis = !o.taken; if(o.grp) o.grp.visible = vis; if(o.mesh) o.mesh.visible = vis; if(o.spr) o.spr.visible = vis; });
+    (world[name] || []).forEach(function(/** @type {any} */ o){ var vis = !o.taken; if(o.grp) o.grp.visible = vis; if(o.mesh) o.mesh.visible = vis; if(o.spr) o.spr.visible = vis; });
   });
   if(world.key && world.key.grp){ world.key.grp.visible = !world.key.taken; if(world.key.spr) world.key.spr.visible = !world.key.taken; }
   if(world.lockDoor && world.lockDoor.group) world.lockDoor.group.visible = !world.lockDoor.open;
 }
-var SNAP_SLOT = null;
+var SNAP_SLOT = /** @type {any} */ (null);
 if(DEBUG){
   document.addEventListener('keydown', function(e){
     if(state !== STATE.PLAY && state !== STATE.PAUSE) return;
@@ -13420,8 +13421,8 @@ if(DEBUG){
    18. セルフテスト（?debug=1 でコンソール出力）
    ========================================================================= */
 function runSelfTest(){
-  var out = [], ok = true;
-  function t(name, cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
+  var out = /** @type {any[]} */ ([]), ok = true;
+  function t(/** @type {any} */ name, /** @type {any} */ cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
 
   // three.js を上げたときに光の計算が旧来へ戻せているか（第 1 章）
   t('three.js の光を旧来の計算へ戻せた', THREE_LEGACY_LIGHTS === true);
@@ -13518,9 +13519,9 @@ function runSelfTest(){
      いるだけでは気づけない。数で押さえる。 */
   (function(){
     var bad = 0, meshes = 0;
-    function scan(root){
+    function scan(/** @type {any} */ root){
       if(!root) return;
-      root.traverse(function(o){
+      root.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.geometry) return;
         meshes++;
         var at = o.geometry.attributes;
@@ -13629,7 +13630,7 @@ function runSelfTest(){
      暗い部屋なので目視では「影かな」で済んでしまい、気づけない。 */
   (function(){
     var noCol = 0, meshes = 0, aoMin = 1, aoMax = 0, aoN = 0, aoSum = 0, nan = 0;
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       if(!o.isMesh) return;
       meshes++;
       var ca = o.geometry.attributes.color;
@@ -13661,7 +13662,7 @@ function runSelfTest(){
        体が一様な明るさに戻り、暗がりで石膏の人形に見える。 */
     (function(){
       var worstR = 9, seen = 0;
-      hunter.group.traverse(function(o){
+      hunter.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.userData || !o.userData.ao) return;
         var ca2 = o.geometry.attributes.color, sm = 0;
         for(var i2=0;i2<ca2.count;i2++) sm += ca2.getX(i2);
@@ -13680,7 +13681,7 @@ function runSelfTest(){
        高さ方向の密度（UV の縦幅 ÷ 実寸の高さ）を部位間で比べる。 */
     (function(){
       var lo4 = 1e9, hi4 = 0, cnt4 = 0;
-      hunter.group.traverse(function(o){
+      hunter.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.userData || !o.userData.loft) return;
         if(o.material !== hunter.parts.skin) return;   // skin は buildHunter の中の名前
         var ua = o.geometry.attributes.uv, pa4 = o.geometry.attributes.position;
@@ -13725,7 +13726,7 @@ function runSelfTest(){
      実測：正常な追跡者で 2.4〜2.7 倍、棘を戻すと 10.3 倍。6 で切る。 */
   (function(){
     var worst = 0, worstN = '';
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) return;
       var pa = o.geometry.attributes.position, ix = o.geometry.index;
       if(pa.count < 120) return;
@@ -13780,14 +13781,14 @@ function runSelfTest(){
   t('静的什器を焼き固めている', !!world.bakeInfo && world.bakeInfo.baked > 0);
   // 変換行列を間違えると什器が別の場所へ飛ぶ。空になったグループの座標に
   // 焼いたジオメトリの頂点があるかを、いくつか抜き取って確かめる
-  var bakedPts = [];
-  world.group.children.forEach(function(o){
+  var bakedPts = /** @type {any[]} */ ([]);
+  world.group.children.forEach(function(/** @type {any} */ o){
     if(!o.isMesh || o.isInstancedMesh || o.geometry.parameters) return;
     var pa = o.geometry.attributes.position;
     for(var vi=0; vi<pa.count; vi+=3) bakedPts.push(pa.getX(vi), pa.getZ(vi));
   });
   var placeOK = true, sampled = 0;
-  world.group.children.forEach(function(o){
+  world.group.children.forEach(function(/** @type {any} */ o){
     if(sampled >= 4 || !o.isGroup || !o.userData.bake) return;
     sampled++;
     var near = 1e9;
@@ -13803,7 +13804,7 @@ function runSelfTest(){
      頂点色を使っていると、焼いた瞬間に色属性が消えて真っ黒になる
      （追跡者の足で一度これをやった）。暗い場面では影と見分けが付かない。 */
   var bakedVC = 0;
-  world.group.traverse(function(o){
+  world.group.traverse(function(/** @type {any} */ o){
     if(o.isMesh && o.material && o.material.vertexColors && !o.geometry.attributes.color) bakedVC++;
   });
   t('頂点色を使う什器を焼き固めていない', bakedVC === 0);
@@ -13836,7 +13837,7 @@ function runSelfTest(){
     // 食い込みが 0 でも、離れて浮いていたら握りに見えない。
     // 中節から先は胴に触れているはず（自由な円弧で曲げると必ずここが浮く）
     var gripOK = true, gapMax = 0;
-    viewParts.digitSt.forEach(function(dst){
+    viewParts.digitSt.forEach(function(/** @type {any} */ dst){
       for(var si=4; si<dst.length-1; si++){
         var pw = dst[si].p;
         var gap = Math.sqrt(pw[0]*pw[0] + pw[1]*pw[1]) - viewParts.barrelAt(pw[2]) - dst[si].rx;
@@ -13852,7 +13853,7 @@ function runSelfTest(){
        実際、爪・包帯・リストバンドの 3 つが外れていて、暗い廊下で
        指先と手首だけが紙のように光っていた。 */
     var rawTone = 0;
-    viewScene.traverse(function(o){
+    viewScene.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || !o.material) return;
       var ml = Array.isArray(o.material) ? o.material : [o.material];
       for(var mi3=0; mi3<ml.length; mi3++)
@@ -13867,8 +13868,8 @@ function runSelfTest(){
        この場面に出るのは汚れた布・肌・ゴムだけ。実測で今いちばん
        明るい面が 0.313、飛んでいた包帯を戻すと 0.381。0.35 で切る
        （両側におよそ 1 割の余裕を取った位置）。 */
-    var tooBright = null;
-    viewScene.traverse(function(o){
+    var tooBright = /** @type {any} */ (null);
+    viewScene.traverse(function(/** @type {any} */ o){
       if(tooBright || !o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
       var m3 = o.material;
       if(m3.metalness > 0.5) return;              // 金属は拡散反射が無いので別勘定
@@ -14059,7 +14060,7 @@ function runSelfTest(){
      鳴らす側（Audio2 の stepAtten）と戻す側で式が食い違わないよう、
      鳴らす側と同じ減衰を作って往復させる。 */
   (function(){
-    var att = function(d){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
+    var att = function(/** @type {any} */ d){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
     var worst = 0, ok = true;
     [2, 5, 9, 14, 20, 26, 33].forEach(function(d){
       var e = botStepDist(att(d), true);                  // 見通せる足音
@@ -14087,7 +14088,7 @@ function runSelfTest(){
   (function(){
     if(!hunter.parts || !hunter.group) return;
     var bad = [], seen = 0;
-    hunter.group.traverse(function(o){
+    hunter.group.traverse(function(/** @type {any} */ o){
       seen++;
       var v = [o.position.x,o.position.y,o.position.z,
                o.rotation.x,o.rotation.y,o.rotation.z,
@@ -14099,7 +14100,7 @@ function runSelfTest(){
 
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
-  scene.traverse(function(o){
+  scene.traverse(function(/** @type {any} */ o){
     if(o.isPointLight && o.intensity <= 0.001 && o.visible) lightsOK = false;
   });
   t('消灯中のポイントライトを無効化している', lightsOK);
@@ -14246,7 +14247,7 @@ function botReset(){
   BOT.ready = true;
   botSay('病棟に入った');
 }
-function botSay(m){
+function botSay(/** @type {any} */ m){
   if(BOT.note === m) return;
   BOT.note = m; BOT.noteT = 2.6;
 }
@@ -14266,7 +14267,7 @@ function botThreat(){
    作り直し方針：向きそのものを渡す。代わりに距離と遮蔽に応じた角度誤差を
    乗せ、0.9 秒ごとに引き直す。前後は潰れないが精度は距離なりに落ちる。
    BOT.ear.worldA が「音のする向き」の世界角、botHearRel() が正面基準。 */
-function botHear(dt){
+function botHear(/** @type {number} */ dt){
   var e = BOT.ear;
   if(e.vol <= 0.006){
     e.conf = Math.max(0, e.conf - dt*0.9);
@@ -14294,19 +14295,19 @@ function botHearRel(){ return botNorm(BOT.ear.worldA - player.yaw); }
 // 足音は鳴った瞬間の向きをそのまま覚えている
 function botStepRel(){ return botNorm(BOT.ear.stepWorld - player.yaw); }
 // 角度を -π..π に畳む。逃走方向の計算で手書きして符号を間違えたので関数にする
-function botNorm(a){ return ((a % TAU) + TAU + Math.PI) % TAU - Math.PI; }
-function botAway(rel){ return botNorm(rel + Math.PI); }   // 「その向きの逆」
+function botNorm(/** @type {any} */ a){ return ((a % TAU) + TAU + Math.PI) % TAU - Math.PI; }
+function botAway(/** @type {any} */ rel){ return botNorm(rel + Math.PI); }   // 「その向きの逆」
 function botEyeRange(){ return player.lamp ? 20 : 6.5; }
-function botBearing(x, z){
+function botBearing(/** @type {any} */ x, /** @type {any} */ z){
   return ((Math.atan2(-(x-player.x), -(z-player.z)) - player.yaw + Math.PI*3) % TAU) - Math.PI;
 }
-function botCanSee(x, z){
+function botCanSee(/** @type {any} */ x, /** @type {any} */ z){
   var d = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
   if(d > botEyeRange()) return false;
   if(d > 1.2 && Math.abs(botBearing(x,z)) > 1.08) return false;   // 視野 ±62度
   return hasSight(world.grid, player.x, player.z, x, z);
 }
-function botRemember(kind, x, z, ref){
+function botRemember(/** @type {any} */ kind, /** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ ref){
   var k = kind + ':' + x.toFixed(1) + ',' + z.toFixed(1);
   if(BOT.seenKey[k]) return;
   BOT.seenKey[k] = true;
@@ -14338,7 +14339,7 @@ function botScan(){
   /* カルテ・電池・鍵は加算合成のグロースプライト（emissive 付き）で描かれていて、
      暗がりでも光って見える。誘導灯と同じ理屈で、ランプが消えていても
      少し離れたところから気づけるようにする。誘導灯より控えめの 13m。 */
-  var glowSee = function(x, z){
+  var glowSee = function(/** @type {any} */ x, /** @type {any} */ z){
     if(botCanSee(x, z)) return true;
     var gd = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
     return gd < 18 && Math.abs(botBearing(x, z)) < 1.22 &&
@@ -14418,7 +14419,7 @@ function botAvoidSrc(){
   if(botThreat() > 0.05) return { rel:botHearRel(), hot:false };
   return null;
 }
-function botAvoidRel(rel){
+function botAvoidRel(/** @type {any} */ rel){
   var src = botAvoidSrc();
   if(!src) return rel;
   var th2 = botThreat();
@@ -14445,7 +14446,7 @@ function botAvoidRel(rel){
 /* 思考の上書き：進路の脇に拾えるものがあれば、寄り道と呼べない範囲で寄る。
    目的地そのものは変えない。電池を取りに行く途中でカルテを踏んだり、
    逃げている途中で電池の上を通ったりするのに、素通りしていた。 */
-function botDetour(wantRel){
+function botDetour(/** @type {any} */ wantRel){
   var best = null, bd = 1e9;
   for(var i=0;i<BOT.seen.length;i++){
     var sn = BOT.seen[i];
@@ -14471,7 +14472,7 @@ function botDetour(wantRel){
    直線で見えるいちばん先のマスを目標にしていたので、角に着いてから
    曲がる向きを決めていた。曲がるたび減速し、そこで詰められる。
    ひとつ先の区間の向きを見て、角の内側へ寄せた点を狙う（インを突く）。 */
-function botFleeAim(gx, gy){
+function botFleeAim(/** @type {any} */ gx, /** @type {any} */ gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
   var ai = -1;
@@ -14495,7 +14496,7 @@ function botFleeAim(gx, gy){
   return { x:cx, z:cz };
 }
 
-function botPathAim(gx, gy){
+function botPathAim(/** @type {any} */ gx, /** @type {any} */ gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
   var aim = null;
@@ -14507,7 +14508,7 @@ function botPathAim(gx, gy){
   return aim || cellToWorld(path[0].x, path[0].y);
 }
 // 什器は壁ではないが、ぶつかれば止まる。直線化の判定には入れる
-function botPropInWay(x0, z0, x1, z1){
+function botPropInWay(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var dx = x1-x0, dz = z1-z0, len = Math.sqrt(dx*dx+dz*dz);
   if(len < 0.01) return false;
   var n = Math.min(20, Math.max(2, Math.ceil(len/0.5)));
@@ -14539,7 +14540,7 @@ function botNearProps(){
   return out;
 }
 // 正面から rel だけずれた向きへ、体の幅で reach まで進めるか
-function botDirOpen(rel, reach, near){
+function botDirOpen(/** @type {any} */ rel, /** @type {any} */ reach, /** @type {any} */ near){
   var a = player.yaw + rel;
   var fx = -Math.sin(a), fz = -Math.cos(a);
   var nx = -fz * (player.radius + 0.06), nz = fx * (player.radius + 0.06);
@@ -14567,7 +14568,7 @@ function botDirOpen(rel, reach, near){
   return true;
 }
 /* 目的地からの歩数場。avoid=true なら危険地図の濃いマスを壁として扱う。 */
-function botFlow(gx, gy, lock, avoid){
+function botFlow(/** @type {any} */ gx, /** @type {any} */ gy, /** @type {any} */ lock, /** @type {any} */ avoid){
   var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
   var DX=[1,-1,0,0], DY=[0,0,1,-1];
   var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
@@ -14587,7 +14588,7 @@ function botFlow(gx, gy, lock, avoid){
   return dist;
 }
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
-function botPathList(gx, gy){
+function botPathList(/** @type {any} */ gx, /** @type {any} */ gy){
   var st0 = worldToCell(player.x, player.z);
   st0.x = clamp(st0.x,1,GW-2); st0.y = clamp(st0.y,1,GH-2);
   gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
@@ -14615,7 +14616,7 @@ function botPathList(gx, gy){
   return out;
 }
 
-function botPathNext(gx, gy){
+function botPathNext(/** @type {any} */ gx, /** @type {any} */ gy){
   var s = worldToCell(player.x, player.z);
   s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
   gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
@@ -14642,7 +14643,7 @@ function botPathNext(gx, gy){
    探索先の選定で避けさせてみたが、遠回りが増えて exposure が伸び、
    生存時間の中央値が 125→80 秒に縮んだので判断には使っていない。
    （相手は歩き回るので、古い位置情報の価値が低いのだと思う） */
-function botMarkDanger(dt, th, hpos){
+function botMarkDanger(/** @type {number} */ dt, /** @type {any} */ th, /** @type {any} */ hpos){
   BOT.dangerT -= dt;
   if(BOT.dangerT <= 0){                       // 0.5 秒ごとに全体を薄める
     for(var i=0;i<BOT.danger.length;i++) if(BOT.danger[i] > 0) BOT.danger[i] -= 1;
@@ -14731,7 +14732,7 @@ function botFrontier(){
   return BOT.exploreTgt;
 }
 
-function botNearest(kind){
+function botNearest(/** @type {any} */ kind){
   var best = null, bd = 1e9;
   for(var i=0;i<BOT.seen.length;i++){
     var it = BOT.seen[i];
@@ -14891,7 +14892,7 @@ function botChooseGoal(){
    壁越しは 0.55 倍で鳴るが、そのときは低い音だけが届いてこもって聞こえる
    ので、遮蔽の有無は音色で分かる（stepHot）。先に割り戻してから解く。
    人が「音量と音色で距離を測る」のと同じことを、二分法でやっているだけ。 */
-function botStepDist(att, hot){
+function botStepDist(/** @type {any} */ att, /** @type {any} */ hot){
   var a = att / (hot ? 1 : 0.55);
   if(a <= 0.0002) return 40;
   var lo = 0, hi = 40;
@@ -14906,7 +14907,7 @@ function botStepDist(att, hot){
    足音は 1.5m 歩くごとに 40m まで鳴っており、徘徊中でも音量が落ちない
    （立体音響の vol は mode で 0.42 倍されるが、足音はされない）。
    つまりこれが唯一の遠距離警報で、これまで向きしか使っていなかった。 */
-function botBelief(dt){
+function botBelief(/** @type {number} */ dt){
   BOT.belAge += dt;
   if(BOT.ear.stepT <= BOT.belT) return;
   BOT.belT = BOT.ear.stepT;
@@ -14932,7 +14933,7 @@ function botHunterDist(){
   return Math.max(1.5, BOT.belD - BOT.belAge * 4.48);
 }
 
-function botTrackHunter(dt, sawHunter){
+function botTrackHunter(/** @type {number} */ dt, /** @type {any} */ sawHunter){
   botBelief(dt);
   // 自分の足跡を残す。追跡者は経路を辿って追ってくるので、
   // 見えていないときの「相手のいるあたり」は自分が通ってきた道の上にある。
@@ -14982,7 +14983,7 @@ function botTrackHunter(dt, sawHunter){
    実測の対応（hunt 中）:
      3.2m→0.355  6m→0.092  9m→0.072  13m→0.048  18m→0.025
    これに合う減衰曲線に置き換える（4.3 / 9.5 / 14 / 20m と答える）。 */
-function botEstHunter(rel, th){
+function botEstHunter(/** @type {any} */ rel, /** @type {any} */ th){
   var d = clamp(2.2 / Math.pow(Math.max(th, 0.012), 0.6), 2.0, 26);
   var a = player.yaw + rel;
   return { x: player.x - Math.sin(a)*d, z: player.z - Math.cos(a)*d };
@@ -15032,7 +15033,7 @@ function botEstHunter(rel, th){
    世界の grid をそのまま読むと「まだ見ていない壁」まで使えてしまう。
    知らないマスは通り抜けられる（＝見通せる）ものとして扱う——見えると
    思って外すぶんには安全側に倒れる。 */
-function botLOSKnown(x0, z0, x1, z1){
+function botLOSKnown(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var K = BOT.known;
   var dx = x1-x0, dz = z1-z0;
   var dist = Math.sqrt(dx*dx+dz*dz);
@@ -15047,14 +15048,14 @@ function botLOSKnown(x0, z0, x1, z1){
   return true;
 }
 
-function botFleeStep(hpos){
+function botFleeStep(/** @type {any} */ hpos){
   var K = BOT.known;
   var hc = worldToCell(hpos.x, hpos.z);
   hc.x = clamp(hc.x,1,GW-2); hc.y = clamp(hc.y,1,GH-2);
   var s0 = worldToCell(player.x, player.z);
   s0.x = clamp(s0.x,1,GW-2); s0.y = clamp(s0.y,1,GH-2);
   var DX=[1,-1,0,0], DY=[0,0,1,-1];
-  function field(sx, sy){
+  function field(/** @type {any} */ sx, /** @type {any} */ sy){
     var d = new Int32Array(K.length).fill(-1);
     var q = [sy*GW+sx]; d[idx(sx,sy)] = 0;
     for(var h=0; h<q.length; h++){
@@ -15138,7 +15139,7 @@ function botFleeStep(hpos){
   return botPathNext(best.x, best.y);
 }
 
-function botPickEscape(awayRel, hpos){
+function botPickEscape(/** @type {any} */ awayRel, /** @type {any} */ hpos){
   var best = awayRel, bs = -1e9;
   for(var i=-6;i<=6;i++){
     var rel = awayRel + i*0.314;
@@ -15169,7 +15170,7 @@ function botPickEscape(awayRel, hpos){
    歩いているあいだも視線が水平で固まったりはしない。
    ゲーム側の判定（追跡者の視認・ランプの向き）は viewYaw しか見ていないので、
    上下は見た目と気配の演出にだけ効く。 */
-function botLookHeight(kind){
+function botLookHeight(/** @type {any} */ kind){
   if(kind === 'カルテ') return 0.90;
   if(kind === '電池')   return 0.62;
   if(kind === '鍵')     return 0.85;
@@ -15178,7 +15179,7 @@ function botLookHeight(kind){
   if(kind === '隠れ場所' || kind === '待機') return 1.25;
   return 1.55;
 }
-function botPitchTarget(fleeing){
+function botPitchTarget(/** @type {any} */ fleeing){
   // 隠れている間は、箱の隙間から外をうかがう程度に落ち着く
   if(player.hiding){
     // ベッドや机の下は目線が低い（camY 0.4 前後）。上を向いて外をうかがう
@@ -15199,7 +15200,7 @@ function botPitchTarget(fleeing){
   }
   return BOT.idlePitch;
 }
-function botSteer(wantRel, dt, vmax){
+function botSteer(/** @type {any} */ wantRel, /** @type {number} */ dt, /** @type {any} */ vmax){
   BOT.noiseT -= dt;
   if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + botRnd()*0.4; BOT.noise = (botRnd()-0.5)*0.045; }
   /* 人の首は一定速度では回らない。「速く振る → 止めて確かめる」の繰り返しで、
@@ -15257,7 +15258,7 @@ function botSteer(wantRel, dt, vmax){
 
    F（事実）… その瞬間に知覚できたこと。ここより後では作らない。
    A（方針）… どこへ向かい、走るか、前へ出るか。向きの補正はまだ掛けない。 */
-function botUpdate(dt){
+function botUpdate(/** @type {number} */ dt){
   if(!BOT.ready) return;
   BOT.noteT -= dt;
   botScan();
@@ -15305,7 +15306,7 @@ function botFacts(){
 }
 
 /* --- 箱の中にいるあいだ ---------------------------------------------------- */
-function botHidden(dt, F){
+function botHidden(/** @type {number} */ dt, /** @type {any} */ F){
   if(!player.hiding){ BOT.hideT = 0; BOT.quietT = 0; holdBtnDown = false; return false; }
   input.keys.KeyW = input.keys.KeyS = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
     /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
@@ -15363,7 +15364,7 @@ function botHidden(dt, F){
 }
 
 /* --- 気分：逃走・警戒・被弾への反応 ---------------------------------------- */
-function botMood(dt, F){
+function botMood(/** @type {number} */ dt, /** @type {any} */ F){
     if(F.danger){
     /* 逃げ始める瞬間に、前の逃走で使った行き先を捨てる。
        escGoalT は逃走中しか減らないので、切れた追跡の続きから
@@ -15389,7 +15390,7 @@ function botMood(dt, F){
 }
 
 /* --- 方針：逃げる ---------------------------------------------------------- */
-function botPlanFlee(dt, F){
+function botPlanFlee(/** @type {number} */ dt, /** @type {any} */ F){
   var A = { rel:0, fwd:true, run:false, hideMove:false };
   var th = F.th, sawHunter = F.saw;
       botSay('見つかった');
@@ -15506,7 +15507,7 @@ function botPlanFlee(dt, F){
 }
 
 /* --- 方針：探索する -------------------------------------------------------- */
-function botPlanExplore(dt, F){
+function botPlanExplore(/** @type {number} */ dt, /** @type {any} */ F){
   var A = { rel:0, fwd:true, run:false, hideMove:false, backing:false };
   var th = F.th, sawHunter = F.saw;
   BOT.repath -= dt;
@@ -15677,7 +15678,7 @@ function botPlanExplore(dt, F){
 }
 
 /* --- 体の向き。補正を掛ける場所はここ一箇所だけ ---------------------------- */
-function botAim(dt, F, A){
+function botAim(/** @type {number} */ dt, /** @type {any} */ F, /** @type {any} */ A){
     /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
      実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
   if(player.blockedT > 0.3 && BOT.unstickT <= 0){
@@ -15700,7 +15701,7 @@ function botAim(dt, F, A){
 }
 
 /* --- 足：出せる 5 方向から選ぶ --------------------------------------------- */
-function botFeet(A, F){
+function botFeet(/** @type {any} */ A, /** @type {any} */ F){
     /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
      その 5 つを体の幅で先に検査し、通るものの中から目標に一番近いものを採る。
      つまり塞がっている向きのキーは最初から押さない。
@@ -15806,7 +15807,7 @@ function botFeet(A, F){
 }
 
 /* --- ランプ ---------------------------------------------------------------- */
-function botLamp(dt, F){
+function botLamp(/** @type {number} */ dt, /** @type {any} */ F){
   var fleeing = F.flee, th = F.th;
     /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
@@ -15869,7 +15870,7 @@ function botLamp(dt, F){
 }
 
 /* --- 手：拾う・使う -------------------------------------------------------- */
-function botHands(dt, F){
+function botHands(/** @type {number} */ dt, /** @type {any} */ F){
   var fleeing = F.flee;
     // 拾う・使う
   BOT.useCd -= dt;
@@ -15895,7 +15896,7 @@ function botHands(dt, F){
 }
 
 /* --- 詰まりの検出 ---------------------------------------------------------- */
-function botUnstick(dt, F, moving){
+function botUnstick(/** @type {number} */ dt, /** @type {any} */ F, /** @type {any} */ moving){
   var fleeing = F.flee;
     // 引っかかり
   var moved = Math.sqrt((player.x-BOT.lastX)*(player.x-BOT.lastX)+(player.z-BOT.lastZ)*(player.z-BOT.lastZ));
@@ -15928,10 +15929,10 @@ function botUnstick(dt, F, moving){
    表示だけが左右逆になっていた（実機で指摘された）。
    音の向きは目で確かめられないぶん間違いに気づきにくいので、
    自己診断から呼べる形にして押さえる。 */
-function panDir(v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
+function panDir(/** @type {any} */ v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
 /* 聴覚が前後を持つようになったので、表示も 8 方位にする。
    rel は正面基準・左が＋（botBearing と同じ向き）。 */
-function dirName(rel){
+function dirName(/** @type {any} */ rel){
   var a = botNorm(rel), q = Math.abs(a);
   if(q < 0.393) return '前';
   if(q < 1.178) return a > 0 ? '左前' : '右前';
@@ -15990,7 +15991,7 @@ function botMapped(){
    ========================================================================= */
 var HIN = { fwd:0, side:0, run:false, lookX:0, lookY:0 };
 var huntCam = { pitch:0, bob:0, note:'', noteT:0, sprintT:0 };
-var avatar = null;      // 逃げる側の分身（追う側から見える身体）
+var avatar = /** @type {any} */ (null);      // 逃げる側の分身（追う側から見える身体）
 
 /* 人間の操作を写し取る。
    移動は humanKeys / stickIn から読むので input.fwd・input.side には触らない。
@@ -16044,7 +16045,7 @@ function buildAvatar(){
   var hairB = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.17, 0.06), hairM);
   hairB.position.set(0, 0.01, -0.095); head.add(hairB);
 
-  function limb(w, h, mat){
+  function limb(/** @type {any} */ w, /** @type {any} */ h, /** @type {any} */ mat){
     var pivot = new THREE.Group();
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat);
     m.position.y = -h/2; pivot.add(m);
@@ -16090,7 +16091,7 @@ function buildAvatar(){
 
 /* 分身の姿勢。歩幅は player.bob（ゲーム側が歩行で進める位相）に合わせる。
    ここが合っていないと、追う側から見て「滑って移動している」ように見える。 */
-function updateAvatar(dt, spd01){
+function updateAvatar(/** @type {number} */ dt, /** @type {number} */ spd01){
   if(!avatar) return;
   var a = avatar, hiding = !!player.hiding;
   a.group.visible = !hiding;
@@ -16136,7 +16137,7 @@ function updateAvatar(dt, spd01){
    スタミナは持たせない代わりに、突進は押している間だけ。
    逃げる側の全力疾走 5.755 には届かないので、直線で追いつくゲームではない。
    壁と什器への押し戻しも AI と同じ関数を通す。 */
-function moveHunterByInput(dt){
+function moveHunterByInput(/** @type {number} */ dt){
   var d = DIFF[settings.diff];
   hunter.target = null;
   if(cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0) return 0;
@@ -16169,7 +16170,7 @@ function moveHunterByInput(dt){
 
 /* 追跡者の視点。頭の位置に置き、頭のメッシュだけ隠して視界を空ける。
    身体と腕は残す（自分の腕が見えているほうが、間合いが分かる）。 */
-function updateHunterCam(dt){
+function updateHunterCam(/** @type {number} */ dt){
   // 感度と反転はポインタ／マウス側で既に掛かっている。ここで掛け直さない
   hunter.yaw -= HIN.lookX;
   huntCam.pitch = clamp(huntCam.pitch - HIN.lookY, -0.8, 0.8);
@@ -16279,7 +16280,7 @@ function buildTitleScene(){
   }catch(e){ titleCam.ready = false; console.warn('タイトル情景の構築に失敗:', e && e.message); }
 }
 
-function updateTitleScene(dt){
+function updateTitleScene(/** @type {number} */ dt){
   if(!titleCam.ready) return;
   titleCam.t += dt;
   // 前へじわりと進み、行き止まりに近づいたら向きを変える
@@ -16319,7 +16320,7 @@ function updateTitleScene(dt){
 /* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
    load-check.js が読む */
 var BOOT_T = { t0:performance.now(), steps:[] };
-function bootStep(name, fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
+function bootStep(/** @type {any} */ name, /** @type {any} */ fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
 window.__W7BOOT = BOOT_T;
 try{
   bootStep('grain', function(){ $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')'; });
@@ -16352,7 +16353,7 @@ try{
   showPanel('title');
   /* 消えた記録を写しから戻す（第 1 章 Store）。戻したら一度だけ読み直して
      設定と記録を最初から当て直す。二度目は戻すものが無いので繰り返さない */
-  Store.recover(function(restored){
+  Store.recover(function(/** @type {any} */ restored){
     if(!restored) return;
     try{ if(sessionStorage.getItem('ward7.restored')) return;
          sessionStorage.setItem('ward7.restored', '1'); }catch(e){ return; }
@@ -16370,7 +16371,7 @@ try{
   window.__WARD7 = {
     start: startGame, state: function(){ return state; },
     player: player, hunter: hunter, world: world, test: runSelfTest,
-    toTitle: toTitle, setState: function(s){ state = s; },
+    toTitle: toTitle, setState: function(/** @type {any} */ s){ state = s; },
     audio: Audio2, spatial: spatial, camera: camera, cheats: cheats,
     viewArm: function(){ return viewArm; }, viewCam: function(){ return viewCam; },
     /* 描画の実体。検証ツールが本編だけを隠して腕を撮ったり、
@@ -16381,15 +16382,15 @@ try{
     lensMat: function(){ return viewParts.lens; },
     viewPartsRef: function(){ return viewParts; },
     eyeLight: function(){ return hunterEyeLight; }, flashTarget: function(){ return flashTarget; },
-    losTest: function(ax,az,bx,bz){ return hasLOS(world.grid, ax, az, bx, bz); },
-    sightTest: function(ax,az,bx,bz){ return hasSight(world.grid, ax, az, bx, bz); },
-    propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
+    losTest: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return hasLOS(world.grid, ax, az, bx, bz); },
+    sightTest: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return hasSight(world.grid, ax, az, bx, bz); },
+    propBlocks: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return propBlocksSight(ax, az, bx, bz); },
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
     run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; }, vents: function(){ return vents; }, shade: shade,
-    spatialPath: function(x, z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
-    lookBack: function(on){ backBtnDown = !!on; },
-    findLOSSpot: function(px, pz, minD, maxD){
+    spatialPath: function(/** @type {any} */ x, /** @type {any} */ z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
+    lookBack: function(/** @type {any} */ on){ backBtnDown = !!on; },
+    findLOSSpot: function(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ minD, /** @type {any} */ maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
         if(world.grid[idx(x,y)] !== 0) continue;
         var w = cellToWorld(x,y);
@@ -16404,22 +16405,22 @@ try{
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
     // 自動露出。検証で「近い壁を向くと絞るか」を数で見るのに使う
     exposure: function(){ return { adapt:expAdapt, now:exposureNow(), hit:beamHitDist() }; },
-    stepExposure: function(dt, lamp){ updateExposure(dt, lamp === undefined ? 1 : lamp); },
+    stepExposure: function(/** @type {number} */ dt, /** @type {any} */ lamp){ updateExposure(dt, lamp === undefined ? 1 : lamp); },
     forceQC: function(){ QC = qualityCfg(); },
     post: function(){ return { on:postEnabled(), fx:postFX,
       u: postMat ? { aberr:+postMat.uniforms.uAberr.value.toFixed(3),
                      noise:+postMat.uniforms.uNoise.value.toFixed(3),
                      scan:+postMat.uniforms.uScan.value.toFixed(3),
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
-    bot: BOT, botOn: function(v){ BOT.on = !!v; }, input: input,
+    bot: BOT, botOn: function(/** @type {any} */ v){ BOT.on = !!v; }, input: input,
     snapTake: snapTake, snapRestore: snapRestore,
     botHunterDist: botHunterDist, botThreat: botThreat,
     titleCam: titleCam,
-    playAs: function(v){ if(v !== undefined) playAs = v; return playAs; },
+    playAs: function(/** @type {any} */ v){ if(v !== undefined) playAs = v; return playAs; },
     hunterIn: HIN, huntCam: huntCam, avatarRef: function(){ return avatar; },
     humanKeys: humanKeys, stickIn: stickIn,
-    seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
-    skipUI: function(v){ skipUI = !!v; },
+    seed: function(/** @type {any} */ n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
+    skipUI: function(/** @type {any} */ v){ skipUI = !!v; },
     settings: settings, act: doCheatAct,      // cheats は上で公開済み（同じキーが 2 つあった）
     peek: PEEK, peekSide: peekSide, peekOffset: peekOffset,
     openCheats: openCheats, detectMode: detectMode

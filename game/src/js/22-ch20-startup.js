@@ -4,7 +4,7 @@
 /* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
    load-check.js が読む */
 var BOOT_T = { t0:performance.now(), steps:[] };
-function bootStep(name, fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
+function bootStep(/** @type {any} */ name, /** @type {any} */ fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
 window.__W7BOOT = BOOT_T;
 try{
   bootStep('grain', function(){ $('grain').style.backgroundImage = 'url(' + grainDataURL() + ')'; });
@@ -37,7 +37,7 @@ try{
   showPanel('title');
   /* 消えた記録を写しから戻す（第 1 章 Store）。戻したら一度だけ読み直して
      設定と記録を最初から当て直す。二度目は戻すものが無いので繰り返さない */
-  Store.recover(function(restored){
+  Store.recover(function(/** @type {any} */ restored){
     if(!restored) return;
     try{ if(sessionStorage.getItem('ward7.restored')) return;
          sessionStorage.setItem('ward7.restored', '1'); }catch(e){ return; }
@@ -55,7 +55,7 @@ try{
   window.__WARD7 = {
     start: startGame, state: function(){ return state; },
     player: player, hunter: hunter, world: world, test: runSelfTest,
-    toTitle: toTitle, setState: function(s){ state = s; },
+    toTitle: toTitle, setState: function(/** @type {any} */ s){ state = s; },
     audio: Audio2, spatial: spatial, camera: camera, cheats: cheats,
     viewArm: function(){ return viewArm; }, viewCam: function(){ return viewCam; },
     /* 描画の実体。検証ツールが本編だけを隠して腕を撮ったり、
@@ -66,15 +66,15 @@ try{
     lensMat: function(){ return viewParts.lens; },
     viewPartsRef: function(){ return viewParts; },
     eyeLight: function(){ return hunterEyeLight; }, flashTarget: function(){ return flashTarget; },
-    losTest: function(ax,az,bx,bz){ return hasLOS(world.grid, ax, az, bx, bz); },
-    sightTest: function(ax,az,bx,bz){ return hasSight(world.grid, ax, az, bx, bz); },
-    propBlocks: function(ax,az,bx,bz){ return propBlocksSight(ax, az, bx, bz); },
+    losTest: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return hasLOS(world.grid, ax, az, bx, bz); },
+    sightTest: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return hasSight(world.grid, ax, az, bx, bz); },
+    propBlocks: function(/** @type {any} */ ax,/** @type {any} */ az,/** @type {any} */ bx,/** @type {any} */ bz){ return propBlocksSight(ax, az, bx, bz); },
     sightH: function(){ return SIGHT_H; },
     use: function(){ input.use = true; },
     run: RUN, chapters: CHAPTERS, progress: PROGRESS, patients: function(){ return patients; }, vents: function(){ return vents; }, shade: shade,
-    spatialPath: function(x, z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
-    lookBack: function(on){ backBtnDown = !!on; },
-    findLOSSpot: function(px, pz, minD, maxD){
+    spatialPath: function(/** @type {any} */ x, /** @type {any} */ z){ updatePathField(1); return spatialPath(x, z, 30, !hasLOS(world.grid, player.x, player.z, x, z)); },
+    lookBack: function(/** @type {any} */ on){ backBtnDown = !!on; },
+    findLOSSpot: function(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ minD, /** @type {any} */ maxD){
       for(var y=1;y<GH-1;y++) for(var x=1;x<GW-1;x++){
         if(world.grid[idx(x,y)] !== 0) continue;
         var w = cellToWorld(x,y);
@@ -89,22 +89,22 @@ try{
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
     // 自動露出。検証で「近い壁を向くと絞るか」を数で見るのに使う
     exposure: function(){ return { adapt:expAdapt, now:exposureNow(), hit:beamHitDist() }; },
-    stepExposure: function(dt, lamp){ updateExposure(dt, lamp === undefined ? 1 : lamp); },
+    stepExposure: function(/** @type {number} */ dt, /** @type {any} */ lamp){ updateExposure(dt, lamp === undefined ? 1 : lamp); },
     forceQC: function(){ QC = qualityCfg(); },
     post: function(){ return { on:postEnabled(), fx:postFX,
       u: postMat ? { aberr:+postMat.uniforms.uAberr.value.toFixed(3),
                      noise:+postMat.uniforms.uNoise.value.toFixed(3),
                      scan:+postMat.uniforms.uScan.value.toFixed(3),
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
-    bot: BOT, botOn: function(v){ BOT.on = !!v; }, input: input,
+    bot: BOT, botOn: function(/** @type {any} */ v){ BOT.on = !!v; }, input: input,
     snapTake: snapTake, snapRestore: snapRestore,
     botHunterDist: botHunterDist, botThreat: botThreat,
     titleCam: titleCam,
-    playAs: function(v){ if(v !== undefined) playAs = v; return playAs; },
+    playAs: function(/** @type {any} */ v){ if(v !== undefined) playAs = v; return playAs; },
     hunterIn: HIN, huntCam: huntCam, avatarRef: function(){ return avatar; },
     humanKeys: humanKeys, stickIn: stickIn,
-    seed: function(n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
-    skipUI: function(v){ skipUI = !!v; },
+    seed: function(/** @type {any} */ n){ forcedSeed = (n === null || n === undefined) ? null : (n|0); },
+    skipUI: function(/** @type {any} */ v){ skipUI = !!v; },
     settings: settings, act: doCheatAct,      // cheats は上で公開済み（同じキーが 2 つあった）
     peek: PEEK, peekSide: peekSide, peekOffset: peekOffset,
     openCheats: openCheats, detectMode: detectMode

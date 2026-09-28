@@ -1,9 +1,9 @@
 /* =========================================================================
    14. ゲーム開始
    ========================================================================= */
-var buildInfo = null;
+var buildInfo = /** @type {any} */ (null);
 
-var forcedSeed = null;
+var forcedSeed = /** @type {any} */ (null);
 var skipUI = false;
 function startGame(){
   if(CTX_LOST){ toast('描画の復帰を待っています', 2); return; }

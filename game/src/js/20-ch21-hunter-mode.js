@@ -10,7 +10,7 @@
    ========================================================================= */
 var HIN = { fwd:0, side:0, run:false, lookX:0, lookY:0 };
 var huntCam = { pitch:0, bob:0, note:'', noteT:0, sprintT:0 };
-var avatar = null;      // 逃げる側の分身（追う側から見える身体）
+var avatar = /** @type {any} */ (null);      // 逃げる側の分身（追う側から見える身体）
 
 /* 人間の操作を写し取る。
    移動は humanKeys / stickIn から読むので input.fwd・input.side には触らない。
@@ -64,7 +64,7 @@ function buildAvatar(){
   var hairB = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.17, 0.06), hairM);
   hairB.position.set(0, 0.01, -0.095); head.add(hairB);
 
-  function limb(w, h, mat){
+  function limb(/** @type {any} */ w, /** @type {any} */ h, /** @type {any} */ mat){
     var pivot = new THREE.Group();
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat);
     m.position.y = -h/2; pivot.add(m);
@@ -110,7 +110,7 @@ function buildAvatar(){
 
 /* 分身の姿勢。歩幅は player.bob（ゲーム側が歩行で進める位相）に合わせる。
    ここが合っていないと、追う側から見て「滑って移動している」ように見える。 */
-function updateAvatar(dt, spd01){
+function updateAvatar(/** @type {number} */ dt, /** @type {number} */ spd01){
   if(!avatar) return;
   var a = avatar, hiding = !!player.hiding;
   a.group.visible = !hiding;
@@ -156,7 +156,7 @@ function updateAvatar(dt, spd01){
    スタミナは持たせない代わりに、突進は押している間だけ。
    逃げる側の全力疾走 5.755 には届かないので、直線で追いつくゲームではない。
    壁と什器への押し戻しも AI と同じ関数を通す。 */
-function moveHunterByInput(dt){
+function moveHunterByInput(/** @type {number} */ dt){
   var d = DIFF[settings.diff];
   hunter.target = null;
   if(cheats.freeze || hunter.stunT > 0 || hunter.swingT > 0) return 0;
@@ -189,7 +189,7 @@ function moveHunterByInput(dt){
 
 /* 追跡者の視点。頭の位置に置き、頭のメッシュだけ隠して視界を空ける。
    身体と腕は残す（自分の腕が見えているほうが、間合いが分かる）。 */
-function updateHunterCam(dt){
+function updateHunterCam(/** @type {number} */ dt){
   // 感度と反転はポインタ／マウス側で既に掛かっている。ここで掛け直さない
   hunter.yaw -= HIN.lookX;
   huntCam.pitch = clamp(huntCam.pitch - HIN.lookY, -0.8, 0.8);

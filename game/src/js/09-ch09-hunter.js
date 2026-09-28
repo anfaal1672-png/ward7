@@ -72,7 +72,7 @@ var UV_PER_M = 3.2;
    入れる。実行中の負荷はゼロ。当たり判定は部品を陰関数として持つ
    ——三角形と交差判定するより桁で速く、部品が凸なので自分自身に
    誤ヒットしない（法線側へ出た光線は自分の外へ出るだけ）。 */
-function specSolid(sp){
+function specSolid(/** @type {any} */ sp){
   var e = new THREE.Euler(sp.rx||0, sp.ry||0, sp.rz||0);
   var m = new THREE.Matrix4().makeRotationFromEuler(e);
   m.setPosition(sp.x||0, sp.y||0, sp.z||0);
@@ -96,7 +96,7 @@ function specSolid(sp){
   s.cx = sp.x||0; s.cy = sp.y||0; s.cz = sp.z||0;
   return s;
 }
-function inSolid(s, wx, wy, wz){
+function inSolid(/** @type {any} */ s, /** @type {any} */ wx, /** @type {any} */ wy, /** @type {any} */ wz){
   // 粗い球で弾いてから正確に見る。9 割はここで帰る
   var dx = wx-s.cx, dy = wy-s.cy, dz = wz-s.cz;
   if(dx*dx + dy*dy + dz*dz > s.rr) return false;
@@ -119,7 +119,7 @@ function inSolid(s, wx, wy, wz){
 }
 /* 半球の光線方向。乱数で撒くと部品ごとに模様が変わって縞に見えるので、
    黄金角のらせん（どの本数でも均一に散る）で決め打ちにする。 */
-var HEMI = [], HEMI_N = -1;
+var HEMI = /** @type {any[]} */ ([]), HEMI_N = -1;
 function hunterSegs(){
   SEG = QC.detail ? 10 : 6;
   var n = QC.hao || 1;
@@ -141,17 +141,17 @@ var AO_REACH = 0.13;        // これより遠い部品は陰らせない（体�
        頂点は、光線を飛ばすまでもなく明るいと決まる。
    実測 +221ms → +30.6ms（最高品質）／+13.7ms（高精細）。 */
 /* 部品の代表寸法。小さすぎる部品の遮蔽を省くのに使う */
-function specSize(sp){
+function specSize(/** @type {any} */ sp){
   if(sp.type === 'cyl') return Math.max(sp.rt, sp.rb, sp.h*0.5);
   if(sp.type === 'sph') return sp.r * Math.max(sp.sx||1, sp.sy||1, sp.sz||1);
   return Math.max(sp.w, sp.h, sp.d) * 0.5;
 }
 var _ones = new Float32Array(0);
-function ONES(n){
+function ONES(/** @type {any} */ n){
   if(_ones.length < n){ _ones = new Float32Array(n); _ones.fill(1); }
   return _ones;
 }
-function bakeSolids(specs){
+function bakeSolids(/** @type {any} */ specs){
   // 部品が 1 つだけなら陰るところが無い（凸なので自分自身を隠せない）
   if(!QC.hao || specs.length < 2) return null;
   var solids = [];
@@ -159,7 +159,7 @@ function bakeSolids(specs){
   return solids;
 }
 // bg（変換済み・インデックス付き）の各頂点に対する遮蔽率を返す
-function bakeAOFor(bg, solids){
+function bakeAOFor(/** @type {any} */ bg, /** @type {any} */ solids){
   var pa = bg.attributes.position.array, na = bg.attributes.normal.array;
   var n = bg.attributes.position.count, ao = new Float32Array(n);
   if(!solids){ ao.fill(1); return ao; }
@@ -205,7 +205,7 @@ function bakeAOFor(bg, solids){
   return ao;
 }
 
-function mergeBoxes(specs){
+function mergeBoxes(/** @type {any} */ specs){
   var pos = [], nor = [], uvs = [], cls = [];
   var solids = bakeSolids(specs);
   for(var i=0;i<specs.length;i++){
@@ -343,7 +343,7 @@ function buildHunter(){
      筒は骨であって腕ではない。痩せた体なので膨らみは控えめにし、
      代わりに先端側をよく絞る。 */
   var BSEG = QC.detail ? 16 : 9;
-  function boneRows(r, len, n){
+  function boneRows(/** @type {any} */ r, /** @type {any} */ len, /** @type {any} */ n){
     var rows = [], i;
     for(i=0;i<n;i++){
       var u = i/(n-1);                      // 0 が下端、1 が上端
@@ -361,7 +361,7 @@ function buildHunter(){
     }
     return rows;
   }
-  function boneDown(w, len, d, mat){
+  function boneDown(/** @type {any} */ w, /** @type {any} */ len, /** @type {any} */ d, /** @type {any} */ mat){
     var r = w * 0.5;
     var m = new THREE.Mesh(loftGeo(boneRows(r, len, QC.detail ? 15 : 9), BSEG, null,
                                    { capA:r*0.42, capB:r*0.10, uvPerM:SKIN_UV }), mat || skin);
@@ -375,7 +375,7 @@ function buildHunter(){
      mergeBoxes の回転は XYZ 順のオイラー角なので、円柱の +Y 軸は
      (-sinψ, cosψ·cosθ, cosψ·sinθ) へ写る。これを望む向き d と等しいと
      置いて ψ と θ を逆算する。 */
-  function chain(out, p, dir, len, rBase, rTip){
+  function chain(/** @type {any} */ out, /** @type {any} */ p, /** @type {any} */ dir, /** @type {any} */ len, /** @type {any} */ rBase, /** @type {any} */ rTip){
     var L = Math.sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]) || 1;
     var dx = dir[0]/L, dy = dir[1]/L, dz = dir[2]/L;
     var psi = Math.asin(clamp(-dx, -1, 1));
@@ -387,7 +387,7 @@ function buildHunter(){
     out.push({ type:'sph', r:rBase*1.05, x:p[0], y:p[1], z:p[2] });
     return [p[0] + dx*len, p[1] + dy*len, p[2] + dz*len];
   }
-  function boneUp(w, len, d, mat){
+  function boneUp(/** @type {any} */ w, /** @type {any} */ len, /** @type {any} */ d, /** @type {any} */ mat){
     var r2 = w * 0.5;
     // 上へ伸びる骨は、下向きの骨を上下ひっくり返して使う
     var g2 = loftGeo(boneRows(r2, len, QC.detail ? 15 : 9), BSEG, null,
@@ -422,7 +422,7 @@ function buildHunter(){
   ];
   var torsoRows = TR.map(function(r){ return { y:r[0], rx:r[1], rz:r[2] }; });
   var TSEG = QC.detail ? 26 : 14;
-  function torsoRad(th, v){
+  function torsoRad(/** @type {any} */ th, /** @type {any} */ v){
     var m = 1;
     var front = Math.max(0, Math.sin(th));          // +Z が正面
     var back  = Math.max(0, -Math.sin(th));
@@ -465,7 +465,7 @@ function buildHunter(){
   // 正面（+Z）はθ=π/2。そこから少し脇へずらして左胸から腹にかけて垂らす
   spine.add(torsoDecal(Math.PI*0.5 - 0.30, 0.30, 0.74, 1.25));
 
-  function torsoDecal(thC, y0, y1, thW){
+  function torsoDecal(/** @type {any} */ thC, /** @type {any} */ y0, /** @type {any} */ y1, /** @type {any} */ thW){
     var NU = QC.detail ? 14 : 8, NV = QC.detail ? 12 : 7;
     var pos = [], uv = [], ind = [];
     var yA = TR[0][0], yB = TR[TR.length-1][0];
@@ -524,7 +524,7 @@ function buildHunter(){
     return { y:r[0], rx:r[1], rz:r[2], cz:-0.012 - 0.020*Math.max(0, (r[0]-0.02))*3 };
   });
   var HSEG = QC.detail ? 24 : 13;
-  var headGeo = loftGeo(headRows, HSEG, function(th, v){
+  var headGeo = loftGeo(headRows, HSEG, function(/** @type {any} */ th, /** @type {any} */ v){
     var m = 1;
     var front = Math.max(0, Math.sin(th));       // +Z が正面
     var side  = Math.abs(Math.cos(th));
@@ -614,7 +614,7 @@ function buildHunter(){
   });
   var ebGeo = new THREE.SphereGeometry(0.0215, QC.detail?12:8, QC.detail?8:6);
   var irisGeo = new THREE.SphereGeometry(0.0125, 8, 6);
-  function eye(sx, irisMat){
+  function eye(/** @type {any} */ sx, /** @type {any} */ irisMat){
     var grp = new THREE.Group();
     grp.position.set(sx*0.055, 0.075, 0.118);
     var eb = new THREE.Mesh(ebGeo, eyeball);
@@ -720,7 +720,7 @@ function buildHunter(){
   }
 
   // --- 異常に長い腕 ---
-  function arm(sx){
+  function arm(/** @type {any} */ sx){
     var up = boneDown(0.085, 0.58, 0.085);
     up.position.set(sx*0.27, 0.9, 0); spine.add(up);
     var fore = boneDown(0.07, 0.66, 0.07);
@@ -733,11 +733,11 @@ function buildHunter(){
        きたときに熊手にしか見えなかった。人の指は 3 節あり、力を抜くと
        必ず内側へ丸まる。節ごとに角度を足していくと、その丸まりが出る。
        親指だけは他の指と向かい合うので、横へ開いてから曲げる。 */
-    var fg = [];
+    var fg = /** @type {any[]} */ ([]);
     /* 中手骨（手の甲の中の骨）。手首から指の付け根へ広がる。
        終点はナックルの座標そのものにする。向きと長さを別々に書くと
        骨の先と関節の玉がずれて、指が浮いて見える。 */
-    var KNU = [];
+    var KNU = /** @type {any[]} */ ([]);
     for(var f=0; f<4; f++){
       var wr = [(-0.014 + f*0.009)*sx, -0.035, 0];
       var kn = [(-0.036 + f*0.024)*sx, -0.086, 0.004 + Math.abs(f - 1.4)*0.004];
@@ -749,7 +749,7 @@ function buildHunter(){
        力の抜けた半握り。角度 1 つで決まるので、同じ手を丸め違いで 2 体
        作り、姿勢側で見せ分ける（指に関節を持たせると 5 本 × 3 節 ×
        左右で 30 個のジョイントが増え、結合ジオメトリの利点が消える）。 */
-    function digits(dst, curl){
+    function digits(/** @type {any} */ dst, /** @type {any} */ curl){
     for(var f2=0; f2<4; f2++){
       // 中指・薬指が長い。長さの順序は 中 > 薬 > 示 > 小
       var scl = [0.90, 1.0, 0.96, 0.80][f2];
@@ -787,7 +787,7 @@ function buildHunter(){
   var armL = arm(-1), armR = arm(1);
 
   // --- 逆関節の脚 ---
-  function leg(sx){
+  function leg(/** @type {any} */ sx){
     var th = boneDown(0.105, THIGH, 0.105);
     th.position.set(sx*0.12, 0.02, 0); spine.add(th);
     var sn = boneDown(0.085, SHIN, 0.085);
@@ -828,7 +828,7 @@ function buildHunter(){
   (function(){
     g.updateMatrixWorld(true);
     var v3 = new THREE.Vector3(), fc = [0,0,0];
-    g.traverse(function(o){
+    g.traverse(function(/** @type {any} */ o){
       if(!o.isMesh || o.material !== skin) return;
       var ca = o.geometry.attributes.color, pa = o.geometry.attributes.position;
       if(!ca || !pa) return;
@@ -853,7 +853,7 @@ function buildHunter(){
     });
   })();
 
-  if(QC.shadows){ g.traverse(function(o){ if(o.isMesh) o.castShadow = true; }); }
+  if(QC.shadows){ g.traverse(function(/** @type {any} */ o){ if(o.isMesh) o.castShadow = true; }); }
 
   var sh = new THREE.Mesh(
     new THREE.PlaneGeometry(1.6,1.6),
@@ -874,15 +874,15 @@ function buildHunter(){
      増やしたときに漏れる。ここで一度掛けておけば、作り方が増えても
      NaN の法線が実機へ出ていくことはない。 */
   var nanFix = 0;
-  g.traverse(function(o){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
+  g.traverse(function(/** @type {any} */ o){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
   scene.add(g); scene.add(sh);
   g.visible = false; sh.visible = false;
 }
 
-function placeHunter(reach, startC){
+function placeHunter(/** @type {any} */ reach, /** @type {any} */ startC){
   var field = bfsField(world.grid, startC.x, startC.y);
   var best = null, bestD = -1;
-  reach.forEach(function(c){
+  reach.forEach(function(/** @type {any} */ c){
     var d = field[idx(c.x,c.y)];
     if(d > bestD && d > 9){ bestD = d; best = c; }
   });
@@ -918,12 +918,12 @@ function placeHunter(reach, startC){
    体は追跡者を組み上げた直後（まだ一度も動かしていない静止姿勢）を
    写し取り、材質ごとに 1 つのメッシュへ畳む。40 部品を毎回 40 回描くと
    iPhone の描画予算（第 7.2 節：最低端末で 150）をこれだけで食い潰す。 */
-var patients = [];
+var patients = /** @type {any[]} */ ([]);
 var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
 var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
 var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
 var patientMats = {};
-function patientMat(m){
+function patientMat(/** @type {any} */ m){
   if(patientMats[m.uuid]) return patientMats[m.uuid];
   var c = m.clone();
   if(c.color) c.color.multiplyScalar(0.72);          // 追跡者より灰色がかって見えるように
@@ -931,11 +931,11 @@ function patientMat(m){
   patientMats[m.uuid] = c;
   return c;
 }
-function bakeFigure(src){
+function bakeFigure(/** @type {any} */ src){
   src.updateMatrixWorld(true);
   var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
-  var byMat = {}, keys = [];
-  src.traverseVisible(function(o){
+  var byMat = {}, keys = /** @type {any[]} */ ([]);
+  src.traverseVisible(function(/** @type {any} */ o){
     if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
     var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -955,7 +955,7 @@ function bakeFigure(src){
   var out = new THREE.Group();
   keys.forEach(function(k){
     var merged = THREE.BufferGeometryUtils.mergeGeometries(byMat[k].list, false);
-    byMat[k].list.forEach(function(g){ g.dispose(); });
+    byMat[k].list.forEach(function(/** @type {any} */ g){ g.dispose(); });
     if(!merged) return;
     fixNormals(merged);
     out.add(new THREE.Mesh(merged, patientMat(byMat[k].mat)));
@@ -964,18 +964,18 @@ function bakeFigure(src){
 }
 function clearPatients(){
   patients.forEach(function(p){ if(p.group.parent) p.group.parent.remove(p.group);
-    p.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); });
+    p.group.traverse(function(/** @type {any} */ o){ if(o.geometry) o.geometry.dispose(); }); });
   patients = [];
   Object.keys(patientMats).forEach(function(k){ patientMats[k].dispose(); });
   patientMats = {};
 }
-function buildPatients(info, n){
+function buildPatients(/** @type {any} */ info, /** @type {any} */ n){
   clearPatients();
   if(!n || !hunter.group) return;
   var g = world.grid, field = info.field;
   // 置き場所は間取りから作った別の乱数で引く（ゲームの rnd を引くと展開が変わる）
   var br = mulberry32(((info.reach.length * 2246822519) ^ (info.start.x * 3266489917) ^ (info.start.y * 668265263)) >>> 0 || 3);
-  var cand = info.reach.filter(function(c){
+  var cand = info.reach.filter(function(/** @type {any} */ c){
     if(field[idx(c.x, c.y)] < 9) return false;                         // 開始地点の近くには置かない
     if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
     var walls = 0;
@@ -999,16 +999,16 @@ function buildPatients(info, n){
     // 追跡者の前は -Z ではなく +Z 向き（yaw=atan2(dx,dz)）で組んである
     var yaw0 = Math.atan2(ddx, ddz);
     var grp = new THREE.Group();
-    fig.children.forEach(function(m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
+    fig.children.forEach(function(/** @type {any} */ m){ grp.add(new THREE.Mesh(m.geometry.clone(), m.material)); });
     grp.position.set(px, 0, pz);
     grp.rotation.y = yaw0;
     grp.scale.setScalar(0.93 + br()*0.05);
     scene.add(grp);
     patients.push({ group:grp, x:px, z:pz, yaw0:yaw0, yaw:yaw0, state:'idle', t:0, cool:0, ph:br()*TAU });
   }
-  fig.children.forEach(function(m){ m.geometry.dispose(); });
+  fig.children.forEach(function(/** @type {any} */ m){ m.geometry.dispose(); });
 }
-function updatePatients(dt){
+function updatePatients(/** @type {number} */ dt){
   for(var i=0; i<patients.length; i++){
     var p = patients[i];
     var dx = player.x - p.x, dz = player.z - p.z, d = Math.sqrt(dx*dx + dz*dz);
@@ -1053,7 +1053,7 @@ function updatePatients(dt){
     p.group.rotation.set(Math.sin(p.t*0.6 + p.ph)*0.025, p.yaw, Math.sin(p.t*0.43 + p.ph)*0.018);
   }
 }
-function lerpAngle(a, b, t){
+function lerpAngle(/** @type {any} */ a, /** @type {any} */ b, /** @type {any} */ t){
   var dd = ((b - a + Math.PI*3) % TAU) - Math.PI;
   return a + dd * t;
 }
@@ -1063,15 +1063,15 @@ function lerpAngle(a, b, t){
    入っている間は姿も目も無い（見られないし、襲ってもこない）。
    代わりに天井裏を這う金属の音が、上から、動いていく方向に鳴る。
    降りる直前にいちばん大きく鳴るので、耳を澄ませていれば先回りに気づける。 */
-var vents = [];
+var vents = /** @type {any[]} */ ([]);
 var VENT_CD = 35;            // 一度使ったら、次に使えるまで
 var VENT_SPEED = 6.5;        // 天井裏を進む速さ（m/s）
 function clearVents(){
   vents.forEach(function(v){ if(v.mesh.parent) v.mesh.parent.remove(v.mesh); v.mesh.geometry.dispose(); });
   vents = [];
 }
-var ventGeo = null, ventMat = null;
-function buildVents(info, n){
+var ventGeo = /** @type {any} */ (null), ventMat = /** @type {any} */ (null);
+function buildVents(/** @type {any} */ info, /** @type {any} */ n){
   clearVents();
   hunter.vent = null; hunter.ventT = 0; hunter.ventCd = 8;
   if(!n) return;
@@ -1084,7 +1084,7 @@ function buildVents(info, n){
   }
   var g = world.grid;
   var br = mulberry32(((info.reach.length * 374761393) ^ (info.start.x * 2654435761) ^ (info.start.y * 97)) >>> 0 || 5);
-  var cand = info.reach.filter(function(c){
+  var cand = info.reach.filter(function(/** @type {any} */ c){
     if(world.nav && world.nav[idx(c.x, c.y)] !== 0) return false;
     for(var k=0; k<4; k++){ var nx = c.x + [1,-1,0,0][k], ny = c.y + [0,0,1,-1][k];
       if(!inBounds(nx, ny) || g[idx(nx, ny)] !== 0) return true; }
@@ -1107,7 +1107,7 @@ function buildVents(info, n){
     vents.push({ mesh:m, x:w.x, z:w.z, cx:c.x, cy:c.y });
   }
 }
-function nearestVent(x, z, maxD, not){
+function nearestVent(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ maxD, /** @type {any} */ not){
   var best = null, bd = maxD;
   for(var i=0; i<vents.length; i++){
     if(vents[i] === not) continue;
@@ -1135,7 +1135,7 @@ function ventTryEnter(){
   return true;
 }
 /* 天井裏を進む。戻り値 true の間は、追跡者の他の処理を全部止める */
-function ventUpdate(dt){
+function ventUpdate(/** @type {number} */ dt){
   if(!hunter.vent) return false;
   var V = hunter.vent;
   hunter.ventT -= dt;
@@ -1159,7 +1159,7 @@ function ventUpdate(dt){
   haptic(40);
   return false;
 }
-function ventBang(x, z, loud){
+function ventBang(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ loud){
   var dx = x - player.x, dz = z - player.z, d = Math.sqrt(dx*dx + dz*dz);
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
   Audio2.clang(d, clamp((dx*rx + dz*rz) / Math.max(1, d), -1, 1), loud);
@@ -1177,16 +1177,16 @@ var shade = { group:null, on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:
 var SHADE_SPEED = 1.2;        // 歩き（3.1 m/s）の半分より遅い
 var SHADE_WAIT = 5.0;         // 灯りを消してから現れるまで
 var SHADE_LIT = 1.2;          // これだけ照らし続けると消える
-var shadeMat = null;
-function buildShade(on){
+var shadeMat = /** @type {any} */ (null);
+function buildShade(/** @type {any} */ on){
   if(shade.group){ if(shade.group.parent) shade.group.parent.remove(shade.group);
-    shade.group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); }); shade.group = null; }
+    shade.group.traverse(function(/** @type {any} */ o){ if(o.geometry) o.geometry.dispose(); }); shade.group = null; }
   shade.enabled = !!on; shade.on = false; shade.darkT = 0; shade.litT = 0; shade.cool = 6; shade.whisperT = 0;
   if(!on || !hunter.group) return;
   if(!shadeMat) shadeMat = new THREE.MeshLambertMaterial({ color:0x5a5c60 });
   var fig = bakeFigure(hunter.group);
   shade.group = new THREE.Group();
-  fig.children.forEach(function(m){ shade.group.add(new THREE.Mesh(m.geometry, shadeMat)); });
+  fig.children.forEach(function(/** @type {any} */ m){ shade.group.add(new THREE.Mesh(m.geometry, shadeMat)); });
   shade.group.visible = false;
   shade.group.scale.set(0.96, 1.04, 0.96);                    // 少しだけ縦に長い
   scene.add(shade.group);
@@ -1208,7 +1208,7 @@ function shadeSpawn(){
   shade.group.visible = true;
   return true;
 }
-function updateShade(dt){
+function updateShade(/** @type {number} */ dt){
   if(!shade.enabled || !shade.group) return;
   if(shade.cool > 0) shade.cool -= dt;
   var dark = !player.lamp && !player.hiding;

@@ -126,7 +126,7 @@ function botReset(){
   BOT.ready = true;
   botSay('病棟に入った');
 }
-function botSay(m){
+function botSay(/** @type {any} */ m){
   if(BOT.note === m) return;
   BOT.note = m; BOT.noteT = 2.6;
 }
@@ -146,7 +146,7 @@ function botThreat(){
    作り直し方針：向きそのものを渡す。代わりに距離と遮蔽に応じた角度誤差を
    乗せ、0.9 秒ごとに引き直す。前後は潰れないが精度は距離なりに落ちる。
    BOT.ear.worldA が「音のする向き」の世界角、botHearRel() が正面基準。 */
-function botHear(dt){
+function botHear(/** @type {number} */ dt){
   var e = BOT.ear;
   if(e.vol <= 0.006){
     e.conf = Math.max(0, e.conf - dt*0.9);
@@ -174,19 +174,19 @@ function botHearRel(){ return botNorm(BOT.ear.worldA - player.yaw); }
 // 足音は鳴った瞬間の向きをそのまま覚えている
 function botStepRel(){ return botNorm(BOT.ear.stepWorld - player.yaw); }
 // 角度を -π..π に畳む。逃走方向の計算で手書きして符号を間違えたので関数にする
-function botNorm(a){ return ((a % TAU) + TAU + Math.PI) % TAU - Math.PI; }
-function botAway(rel){ return botNorm(rel + Math.PI); }   // 「その向きの逆」
+function botNorm(/** @type {any} */ a){ return ((a % TAU) + TAU + Math.PI) % TAU - Math.PI; }
+function botAway(/** @type {any} */ rel){ return botNorm(rel + Math.PI); }   // 「その向きの逆」
 function botEyeRange(){ return player.lamp ? 20 : 6.5; }
-function botBearing(x, z){
+function botBearing(/** @type {any} */ x, /** @type {any} */ z){
   return ((Math.atan2(-(x-player.x), -(z-player.z)) - player.yaw + Math.PI*3) % TAU) - Math.PI;
 }
-function botCanSee(x, z){
+function botCanSee(/** @type {any} */ x, /** @type {any} */ z){
   var d = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
   if(d > botEyeRange()) return false;
   if(d > 1.2 && Math.abs(botBearing(x,z)) > 1.08) return false;   // 視野 ±62度
   return hasSight(world.grid, player.x, player.z, x, z);
 }
-function botRemember(kind, x, z, ref){
+function botRemember(/** @type {any} */ kind, /** @type {any} */ x, /** @type {any} */ z, /** @type {any} */ ref){
   var k = kind + ':' + x.toFixed(1) + ',' + z.toFixed(1);
   if(BOT.seenKey[k]) return;
   BOT.seenKey[k] = true;
@@ -218,7 +218,7 @@ function botScan(){
   /* カルテ・電池・鍵は加算合成のグロースプライト（emissive 付き）で描かれていて、
      暗がりでも光って見える。誘導灯と同じ理屈で、ランプが消えていても
      少し離れたところから気づけるようにする。誘導灯より控えめの 13m。 */
-  var glowSee = function(x, z){
+  var glowSee = function(/** @type {any} */ x, /** @type {any} */ z){
     if(botCanSee(x, z)) return true;
     var gd = Math.sqrt((x-player.x)*(x-player.x) + (z-player.z)*(z-player.z));
     return gd < 18 && Math.abs(botBearing(x, z)) < 1.22 &&
@@ -298,7 +298,7 @@ function botAvoidSrc(){
   if(botThreat() > 0.05) return { rel:botHearRel(), hot:false };
   return null;
 }
-function botAvoidRel(rel){
+function botAvoidRel(/** @type {any} */ rel){
   var src = botAvoidSrc();
   if(!src) return rel;
   var th2 = botThreat();
@@ -325,7 +325,7 @@ function botAvoidRel(rel){
 /* 思考の上書き：進路の脇に拾えるものがあれば、寄り道と呼べない範囲で寄る。
    目的地そのものは変えない。電池を取りに行く途中でカルテを踏んだり、
    逃げている途中で電池の上を通ったりするのに、素通りしていた。 */
-function botDetour(wantRel){
+function botDetour(/** @type {any} */ wantRel){
   var best = null, bd = 1e9;
   for(var i=0;i<BOT.seen.length;i++){
     var sn = BOT.seen[i];
@@ -351,7 +351,7 @@ function botDetour(wantRel){
    直線で見えるいちばん先のマスを目標にしていたので、角に着いてから
    曲がる向きを決めていた。曲がるたび減速し、そこで詰められる。
    ひとつ先の区間の向きを見て、角の内側へ寄せた点を狙う（インを突く）。 */
-function botFleeAim(gx, gy){
+function botFleeAim(/** @type {any} */ gx, /** @type {any} */ gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
   var ai = -1;
@@ -375,7 +375,7 @@ function botFleeAim(gx, gy){
   return { x:cx, z:cz };
 }
 
-function botPathAim(gx, gy){
+function botPathAim(/** @type {any} */ gx, /** @type {any} */ gy){
   var path = botPathList(gx, gy);
   if(!path || !path.length) return null;
   var aim = null;
@@ -387,7 +387,7 @@ function botPathAim(gx, gy){
   return aim || cellToWorld(path[0].x, path[0].y);
 }
 // 什器は壁ではないが、ぶつかれば止まる。直線化の判定には入れる
-function botPropInWay(x0, z0, x1, z1){
+function botPropInWay(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var dx = x1-x0, dz = z1-z0, len = Math.sqrt(dx*dx+dz*dz);
   if(len < 0.01) return false;
   var n = Math.min(20, Math.max(2, Math.ceil(len/0.5)));
@@ -419,7 +419,7 @@ function botNearProps(){
   return out;
 }
 // 正面から rel だけずれた向きへ、体の幅で reach まで進めるか
-function botDirOpen(rel, reach, near){
+function botDirOpen(/** @type {any} */ rel, /** @type {any} */ reach, /** @type {any} */ near){
   var a = player.yaw + rel;
   var fx = -Math.sin(a), fz = -Math.cos(a);
   var nx = -fz * (player.radius + 0.06), nz = fx * (player.radius + 0.06);
@@ -447,7 +447,7 @@ function botDirOpen(rel, reach, near){
   return true;
 }
 /* 目的地からの歩数場。avoid=true なら危険地図の濃いマスを壁として扱う。 */
-function botFlow(gx, gy, lock, avoid){
+function botFlow(/** @type {any} */ gx, /** @type {any} */ gy, /** @type {any} */ lock, /** @type {any} */ avoid){
   var K = BOT.known, dist = new Int32Array(K.length).fill(-1);
   var DX=[1,-1,0,0], DY=[0,0,1,-1];
   var q = [gy*GW+gx]; dist[idx(gx,gy)] = 0;
@@ -467,7 +467,7 @@ function botFlow(gx, gy, lock, avoid){
   return dist;
 }
 // 目的地までの経路をマスの並びで返す（先頭が次の一歩）
-function botPathList(gx, gy){
+function botPathList(/** @type {any} */ gx, /** @type {any} */ gy){
   var st0 = worldToCell(player.x, player.z);
   st0.x = clamp(st0.x,1,GW-2); st0.y = clamp(st0.y,1,GH-2);
   gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
@@ -495,7 +495,7 @@ function botPathList(gx, gy){
   return out;
 }
 
-function botPathNext(gx, gy){
+function botPathNext(/** @type {any} */ gx, /** @type {any} */ gy){
   var s = worldToCell(player.x, player.z);
   s.x = clamp(s.x,1,GW-2); s.y = clamp(s.y,1,GH-2);
   gx = clamp(gx,1,GW-2); gy = clamp(gy,1,GH-2);
@@ -522,7 +522,7 @@ function botPathNext(gx, gy){
    探索先の選定で避けさせてみたが、遠回りが増えて exposure が伸び、
    生存時間の中央値が 125→80 秒に縮んだので判断には使っていない。
    （相手は歩き回るので、古い位置情報の価値が低いのだと思う） */
-function botMarkDanger(dt, th, hpos){
+function botMarkDanger(/** @type {number} */ dt, /** @type {any} */ th, /** @type {any} */ hpos){
   BOT.dangerT -= dt;
   if(BOT.dangerT <= 0){                       // 0.5 秒ごとに全体を薄める
     for(var i=0;i<BOT.danger.length;i++) if(BOT.danger[i] > 0) BOT.danger[i] -= 1;
@@ -611,7 +611,7 @@ function botFrontier(){
   return BOT.exploreTgt;
 }
 
-function botNearest(kind){
+function botNearest(/** @type {any} */ kind){
   var best = null, bd = 1e9;
   for(var i=0;i<BOT.seen.length;i++){
     var it = BOT.seen[i];
@@ -771,7 +771,7 @@ function botChooseGoal(){
    壁越しは 0.55 倍で鳴るが、そのときは低い音だけが届いてこもって聞こえる
    ので、遮蔽の有無は音色で分かる（stepHot）。先に割り戻してから解く。
    人が「音量と音色で距離を測る」のと同じことを、二分法でやっているだけ。 */
-function botStepDist(att, hot){
+function botStepDist(/** @type {any} */ att, /** @type {any} */ hot){
   var a = att / (hot ? 1 : 0.55);
   if(a <= 0.0002) return 40;
   var lo = 0, hi = 40;
@@ -786,7 +786,7 @@ function botStepDist(att, hot){
    足音は 1.5m 歩くごとに 40m まで鳴っており、徘徊中でも音量が落ちない
    （立体音響の vol は mode で 0.42 倍されるが、足音はされない）。
    つまりこれが唯一の遠距離警報で、これまで向きしか使っていなかった。 */
-function botBelief(dt){
+function botBelief(/** @type {number} */ dt){
   BOT.belAge += dt;
   if(BOT.ear.stepT <= BOT.belT) return;
   BOT.belT = BOT.ear.stepT;
@@ -812,7 +812,7 @@ function botHunterDist(){
   return Math.max(1.5, BOT.belD - BOT.belAge * 4.48);
 }
 
-function botTrackHunter(dt, sawHunter){
+function botTrackHunter(/** @type {number} */ dt, /** @type {any} */ sawHunter){
   botBelief(dt);
   // 自分の足跡を残す。追跡者は経路を辿って追ってくるので、
   // 見えていないときの「相手のいるあたり」は自分が通ってきた道の上にある。
@@ -862,7 +862,7 @@ function botTrackHunter(dt, sawHunter){
    実測の対応（hunt 中）:
      3.2m→0.355  6m→0.092  9m→0.072  13m→0.048  18m→0.025
    これに合う減衰曲線に置き換える（4.3 / 9.5 / 14 / 20m と答える）。 */
-function botEstHunter(rel, th){
+function botEstHunter(/** @type {any} */ rel, /** @type {any} */ th){
   var d = clamp(2.2 / Math.pow(Math.max(th, 0.012), 0.6), 2.0, 26);
   var a = player.yaw + rel;
   return { x: player.x - Math.sin(a)*d, z: player.z - Math.cos(a)*d };
@@ -912,7 +912,7 @@ function botEstHunter(rel, th){
    世界の grid をそのまま読むと「まだ見ていない壁」まで使えてしまう。
    知らないマスは通り抜けられる（＝見通せる）ものとして扱う——見えると
    思って外すぶんには安全側に倒れる。 */
-function botLOSKnown(x0, z0, x1, z1){
+function botLOSKnown(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
   var K = BOT.known;
   var dx = x1-x0, dz = z1-z0;
   var dist = Math.sqrt(dx*dx+dz*dz);
@@ -927,14 +927,14 @@ function botLOSKnown(x0, z0, x1, z1){
   return true;
 }
 
-function botFleeStep(hpos){
+function botFleeStep(/** @type {any} */ hpos){
   var K = BOT.known;
   var hc = worldToCell(hpos.x, hpos.z);
   hc.x = clamp(hc.x,1,GW-2); hc.y = clamp(hc.y,1,GH-2);
   var s0 = worldToCell(player.x, player.z);
   s0.x = clamp(s0.x,1,GW-2); s0.y = clamp(s0.y,1,GH-2);
   var DX=[1,-1,0,0], DY=[0,0,1,-1];
-  function field(sx, sy){
+  function field(/** @type {any} */ sx, /** @type {any} */ sy){
     var d = new Int32Array(K.length).fill(-1);
     var q = [sy*GW+sx]; d[idx(sx,sy)] = 0;
     for(var h=0; h<q.length; h++){
@@ -1018,7 +1018,7 @@ function botFleeStep(hpos){
   return botPathNext(best.x, best.y);
 }
 
-function botPickEscape(awayRel, hpos){
+function botPickEscape(/** @type {any} */ awayRel, /** @type {any} */ hpos){
   var best = awayRel, bs = -1e9;
   for(var i=-6;i<=6;i++){
     var rel = awayRel + i*0.314;
@@ -1049,7 +1049,7 @@ function botPickEscape(awayRel, hpos){
    歩いているあいだも視線が水平で固まったりはしない。
    ゲーム側の判定（追跡者の視認・ランプの向き）は viewYaw しか見ていないので、
    上下は見た目と気配の演出にだけ効く。 */
-function botLookHeight(kind){
+function botLookHeight(/** @type {any} */ kind){
   if(kind === 'カルテ') return 0.90;
   if(kind === '電池')   return 0.62;
   if(kind === '鍵')     return 0.85;
@@ -1058,7 +1058,7 @@ function botLookHeight(kind){
   if(kind === '隠れ場所' || kind === '待機') return 1.25;
   return 1.55;
 }
-function botPitchTarget(fleeing){
+function botPitchTarget(/** @type {any} */ fleeing){
   // 隠れている間は、箱の隙間から外をうかがう程度に落ち着く
   if(player.hiding){
     // ベッドや机の下は目線が低い（camY 0.4 前後）。上を向いて外をうかがう
@@ -1079,7 +1079,7 @@ function botPitchTarget(fleeing){
   }
   return BOT.idlePitch;
 }
-function botSteer(wantRel, dt, vmax){
+function botSteer(/** @type {any} */ wantRel, /** @type {number} */ dt, /** @type {any} */ vmax){
   BOT.noiseT -= dt;
   if(BOT.noiseT <= 0){ BOT.noiseT = 0.25 + botRnd()*0.4; BOT.noise = (botRnd()-0.5)*0.045; }
   /* 人の首は一定速度では回らない。「速く振る → 止めて確かめる」の繰り返しで、
@@ -1137,7 +1137,7 @@ function botSteer(wantRel, dt, vmax){
 
    F（事実）… その瞬間に知覚できたこと。ここより後では作らない。
    A（方針）… どこへ向かい、走るか、前へ出るか。向きの補正はまだ掛けない。 */
-function botUpdate(dt){
+function botUpdate(/** @type {number} */ dt){
   if(!BOT.ready) return;
   BOT.noteT -= dt;
   botScan();
@@ -1185,7 +1185,7 @@ function botFacts(){
 }
 
 /* --- 箱の中にいるあいだ ---------------------------------------------------- */
-function botHidden(dt, F){
+function botHidden(/** @type {number} */ dt, /** @type {any} */ F){
   if(!player.hiding){ BOT.hideT = 0; BOT.quietT = 0; holdBtnDown = false; return false; }
   input.keys.KeyW = input.keys.KeyS = input.keys.KeyA = input.keys.KeyD = input.keys.ShiftLeft = false;
     /* カルテを全部集めたら隠れない。ゲームがそこで「何かが、こちらへ向かって
@@ -1243,7 +1243,7 @@ function botHidden(dt, F){
 }
 
 /* --- 気分：逃走・警戒・被弾への反応 ---------------------------------------- */
-function botMood(dt, F){
+function botMood(/** @type {number} */ dt, /** @type {any} */ F){
     if(F.danger){
     /* 逃げ始める瞬間に、前の逃走で使った行き先を捨てる。
        escGoalT は逃走中しか減らないので、切れた追跡の続きから
@@ -1269,7 +1269,7 @@ function botMood(dt, F){
 }
 
 /* --- 方針：逃げる ---------------------------------------------------------- */
-function botPlanFlee(dt, F){
+function botPlanFlee(/** @type {number} */ dt, /** @type {any} */ F){
   var A = { rel:0, fwd:true, run:false, hideMove:false };
   var th = F.th, sawHunter = F.saw;
       botSay('見つかった');
@@ -1386,7 +1386,7 @@ function botPlanFlee(dt, F){
 }
 
 /* --- 方針：探索する -------------------------------------------------------- */
-function botPlanExplore(dt, F){
+function botPlanExplore(/** @type {number} */ dt, /** @type {any} */ F){
   var A = { rel:0, fwd:true, run:false, hideMove:false, backing:false };
   var th = F.th, sawHunter = F.saw;
   BOT.repath -= dt;
@@ -1557,7 +1557,7 @@ function botPlanExplore(dt, F){
 }
 
 /* --- 体の向き。補正を掛ける場所はここ一箇所だけ ---------------------------- */
-function botAim(dt, F, A){
+function botAim(/** @type {number} */ dt, /** @type {any} */ F, /** @type {any} */ A){
     /* 壁に押しつけられたまま前へ入力し続けると、その場で殴られる。
      実測で被弾の 32% がこれだった。詰まったら少しのあいだ斜めへ逃がす */
   if(player.blockedT > 0.3 && BOT.unstickT <= 0){
@@ -1580,7 +1580,7 @@ function botAim(dt, F, A){
 }
 
 /* --- 足：出せる 5 方向から選ぶ --------------------------------------------- */
-function botFeet(A, F){
+function botFeet(/** @type {any} */ A, /** @type {any} */ F){
     /* 進む向きを選ぶ。キーで出せる向きは 5 つ（正面・斜め・真横）しかないので、
      その 5 つを体の幅で先に検査し、通るものの中から目標に一番近いものを採る。
      つまり塞がっている向きのキーは最初から押さない。
@@ -1686,7 +1686,7 @@ function botFeet(A, F){
 }
 
 /* --- ランプ ---------------------------------------------------------------- */
-function botLamp(dt, F){
+function botLamp(/** @type {number} */ dt, /** @type {any} */ F){
   var fleeing = F.flee, th = F.th;
     /* ランプの管理。ここがこのゲームの肝だった。
      消すと updatePlayer が速度を 0.86 倍にする。走行 5.755 に対し追跡者は
@@ -1749,7 +1749,7 @@ function botLamp(dt, F){
 }
 
 /* --- 手：拾う・使う -------------------------------------------------------- */
-function botHands(dt, F){
+function botHands(/** @type {number} */ dt, /** @type {any} */ F){
   var fleeing = F.flee;
     // 拾う・使う
   BOT.useCd -= dt;
@@ -1775,7 +1775,7 @@ function botHands(dt, F){
 }
 
 /* --- 詰まりの検出 ---------------------------------------------------------- */
-function botUnstick(dt, F, moving){
+function botUnstick(/** @type {number} */ dt, /** @type {any} */ F, /** @type {any} */ moving){
   var fleeing = F.flee;
     // 引っかかり
   var moved = Math.sqrt((player.x-BOT.lastX)*(player.x-BOT.lastX)+(player.z-BOT.lastZ)*(player.z-BOT.lastZ));
@@ -1808,10 +1808,10 @@ function botUnstick(dt, F, moving){
    表示だけが左右逆になっていた（実機で指摘された）。
    音の向きは目で確かめられないぶん間違いに気づきにくいので、
    自己診断から呼べる形にして押さえる。 */
-function panDir(v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
+function panDir(/** @type {any} */ v){ return v < -0.15 ? '左' : (v > 0.15 ? '右' : '前後どちらか'); }
 /* 聴覚が前後を持つようになったので、表示も 8 方位にする。
    rel は正面基準・左が＋（botBearing と同じ向き）。 */
-function dirName(rel){
+function dirName(/** @type {any} */ rel){
   var a = botNorm(rel), q = Math.abs(a);
   if(q < 0.393) return '前';
   if(q < 1.178) return a > 0 ? '左前' : '右前';

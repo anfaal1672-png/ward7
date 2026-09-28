@@ -2,17 +2,17 @@
    2. オーディオ（全て手続き生成・外部ファイル無し）
    ========================================================================= */
 var Audio2 = (function(){
-  var ctx = null, master = null, noiseBuf = null;
-  var drone = null, droneGain = null, droneFilt = null;
+  var ctx = /** @type {any} */ (null), master = /** @type {any} */ (null), noiseBuf = /** @type {any} */ (null);
+  var drone = /** @type {any} */ (null), droneGain = /** @type {any} */ (null), droneFilt = /** @type {any} */ (null);
   var vol = 0.7, ready = false;
-  var convolver = null, revSend = null, revWet = null;
+  var convolver = null, revSend = /** @type {any} */ (null), revWet = /** @type {any} */ (null);
 
   /* 残響のインパルス応答を書き込む。
      雑音に指数減衰を掛け、時間が経つほど高域を落とす（実際の部屋も
      高域から先に吸われる）。左右で別の雑音を引くので広がりが出る。
      NaN が 1 つでも混ざると畳み込みの出力が全部無音になり、
      しかも「静かなゲーム」なので気づけない。自己診断から呼べる形にしておく。 */
-  function makeIR(out, sampleRate){
+  function makeIR(/** @type {any} */ out, /** @type {any} */ sampleRate){
     var n = out.length, lp = 0;
     for(var i=0;i<n;i++){
       var t = i / n;
@@ -23,7 +23,7 @@ var Audio2 = (function(){
     }
     return out;
   }
-  makeIR.len = function(sampleRate){ return Math.floor(sampleRate * 1.9); };
+  makeIR.len = function(/** @type {any} */ sampleRate){ return Math.floor(sampleRate * 1.9); };
   var REV_OPEN = 0.34, REV_BOX = 0.06;   // 廊下 / 箱の中
 
   function init(){
@@ -82,14 +82,14 @@ var Audio2 = (function(){
       try{
         var bin = atob(window.W7_ASSETS[k].split(',')[1]), u8 = new Uint8Array(bin.length);
         for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
-        var pr = ctx.decodeAudioData(u8.buffer, function(buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
+        var pr = ctx.decodeAudioData(u8.buffer, function(/** @type {any} */ buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
         if(pr && pr.catch) pr.catch(function(){});
       }catch(e){}
     });
   }
-  function sfx(grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
+  function sfx(/** @type {any} */ grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
   /* 素材を 1 回鳴らす。rate は速さ（＝高さ）、to は繋ぐ先 */
-  function playSfx(buf, t, rate, gain, to){
+  function playSfx(/** @type {any} */ buf, /** @type {any} */ t, /** @type {any} */ rate, /** @type {any} */ gain, /** @type {any} */ to){
     var s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
     var g = ctx.createGain(); g.gain.value = gain;
     s.connect(g); g.connect(to); s.start(t);
@@ -103,13 +103,13 @@ var Audio2 = (function(){
   }
   function audioState(){ return ready ? ctx.state : 'none'; }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
-  function setVol(v){ vol = v; if(master) master.gain.value = v; }
+  function setVol(/** @type {any} */ v){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
      「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
   /* 部屋の広さで返りを変える（第 10.2 節）。箱の中はほぼ無し、廊下は並、
      大部屋・ホールは深く。space: 'box' | 'hall' | 'room' */
-  var REV_ROOM = 0.46, spaceNow = null;
-  function setSpace(space){
+  var REV_ROOM = 0.46, spaceNow = /** @type {any} */ (null);
+  function setSpace(/** @type {any} */ space){
     if(space === true) space = 'box'; else if(space === false || !space) space = 'hall';
     if(!revWet || !ready || space === spaceNow) return;
     spaceNow = space;
@@ -120,7 +120,7 @@ var Audio2 = (function(){
   function noiseSrc(){
     var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
   }
-  function env(g, t0, a, d, peak){
+  function env(/** @type {any} */ g, /** @type {any} */ t0, /** @type {any} */ a, /** @type {any} */ d, /** @type {any} */ peak){
     g.gain.cancelScheduledValues(t0);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t0+a);
@@ -134,14 +134,14 @@ var Audio2 = (function(){
      音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
      （距離による減衰は切る＝rolloffFactor 0）。スピーカーで遊ぶときは左右の振り分けに戻す。 */
   var hrtf = true;
-  function setHRTF(on){ hrtf = !!on; }
+  function setHRTF(/** @type {any} */ on){ hrtf = !!on; }
   function makePanner(){
     if(!hrtf || !ctx.createPanner) return null;
     var p = ctx.createPanner();
     p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.rolloffFactor = 0; p.refDistance = 1;
     return p;
   }
-  function setDir(p, pan, fwd, t, tc){
+  function setDir(/** @type {any} */ p, /** @type {any} */ pan, /** @type {any} */ fwd, /** @type {any} */ t, /** @type {any} */ tc){
     // 聞き手は原点で -Z を向いている。右が +X、前が -Z
     var x = clamp(pan, -1, 1), z = -(fwd === undefined ? Math.sqrt(Math.max(0, 1 - x*x)) : fwd);
     if(p.positionX){ p.positionX.setTargetAtTime(x, t, tc); p.positionY.setTargetAtTime(0, t, tc); p.positionZ.setTargetAtTime(z, t, tc); }
@@ -158,7 +158,7 @@ var Audio2 = (function(){
     else if(sp){ lp.connect(sp); sp.connect(master); } else { lp.connect(master); }
     return { in:g, gain:g, lp:lp, pan:sp, hrtf:hp, vol:0, panV:0, cut:800 };
   }
-  function setBus(bus, vol, panV, cut, fwd){
+  function setBus(/** @type {any} */ bus, /** @type {any} */ vol, /** @type {any} */ panV, /** @type {any} */ cut, /** @type {any} */ fwd){
     if(!bus || !ready) return;
     var t = ctx.currentTime;
     bus.vol = vol; bus.panV = panV; bus.cut = cut;
@@ -167,9 +167,9 @@ var Audio2 = (function(){
     if(bus.hrtf) setDir(bus.hrtf, panV / 0.85, fwd, t, 0.09);      // 左右の値は 0.85 倍して渡されている
     else if(bus.pan) bus.pan.pan.setTargetAtTime(clamp(panV, -1, 1), t, 0.09);
   }
-  function setHunterVoice(v,p,c,f){ setBus(buses.hunter, v, p, c, f); }
-  function setLampVoice(i,v,p,c,f){ setBus(buses.lamps[i], v, p, c, f); }
-  function setExitVoice(v,p,c,f){ setBus(buses.exit, v, p, c, f); }
+  function setHunterVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.hunter, v, p, c, f); }
+  function setLampVoice(/** @type {any} */ i,/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.lamps[i], v, p, c, f); }
+  function setExitVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.exit, v, p, c, f); }
   function busCount(){ return (buses.hunter?1:0) + buses.lamps.length + (buses.exit?1:0); }
   function busState(){
     return {
@@ -276,7 +276,7 @@ var Audio2 = (function(){
        追跡 … 速い打ち込みの脈と、上下に掻きむしる帯域雑音
      追跡が終わったら 8 秒だけ劇伴と環境音を落とし切る（REST）。
      安堵を一度作ってから次の緊張へ入るため。追跡者の音は落とさない。 */
-  var score = null, scoreLevel = 0, restUntil = 0;
+  var score = /** @type {any} */ (null), scoreLevel = 0, restUntil = 0;
   var SCORE_X = 0.55;            // 交差の時定数（setTargetAtTime。約 3 倍で落ち着く ≒ 1.5 秒）
   var REST_SEC = 8, REST_BACK = 2.5;
   function buildScore(){
@@ -332,7 +332,7 @@ var Audio2 = (function(){
   }
   var LAYER_VOL = [0.55, 0.60, 0.50];
   /* 劇伴の段を決める（0..3）。段 n では層 1..n を鳴らす */
-  function setScore(level){
+  function setScore(/** @type {any} */ level){
     if(!score) return;
     level = clamp(level|0, 0, 3);
     var t = ctx.currentTime;
@@ -366,13 +366,13 @@ var Audio2 = (function(){
   function resting(){ return !!ctx && ctx.currentTime < restUntil; }
   function stopAmbient(){
     if(!drone) return;
-    try{ drone.forEach(function(o){ try{o.stop();}catch(e){} }); }catch(e){}
+    try{ drone.forEach(function(/** @type {any} */ o){ try{o.stop();}catch(e){} }); }catch(e){}
     drone = null; droneGain = null; droneFilt = null;
     setWater(false);
     score = null; scoreLevel = 0; restUntil = 0;
     buses.hunter = null; buses.lamps = []; buses.exit = null;
   }
-  function setTension(t){ // 0..1
+  function setTension(/** @type {any} */ t){ // 0..1
     if(!droneFilt) return;
     droneFilt.frequency.setTargetAtTime(260 + t*1500, ctx.currentTime, 0.35);
     if(droneGain && !resting()) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
@@ -381,7 +381,7 @@ var Audio2 = (function(){
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
      同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
      その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
-  function step(hard, mat, vol){
+  function step(/** @type {any} */ hard, /** @type {any} */ mat, /** @type {any} */ vol){
     if(!ready) return;
     vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
@@ -411,10 +411,10 @@ var Audio2 = (function(){
       o.start(t); o.stop(t+0.08);
     }
   }
-  function heart(intensity){
+  function heart(/** @type {any} */ intensity){
     if(!ready) return;
     var t = ctx.currentTime;
-    function thump(off, amp){
+    function thump(/** @type {any} */ off, /** @type {any} */ amp){
       var o = ctx.createOscillator(); o.type='sine';
       o.frequency.setValueAtTime(78, t+off);
       o.frequency.exponentialRampToValueAtTime(38, t+off+0.16);
@@ -444,7 +444,7 @@ var Audio2 = (function(){
       o.start(t+i*0.09); o.stop(t+i*0.09+1.4);
     });
   }
-  function click(on){
+  function click(/** @type {any} */ on){
     if(!ready) return;
     var t = ctx.currentTime;
     var o = ctx.createOscillator(); o.type='square';
@@ -504,7 +504,7 @@ var Audio2 = (function(){
     { f0: 78, f1: 70, dur:1.20, fm:[300, 720,1900], air:0.18, amp:0.16, wob:3.4, wobA:0.04 }, // 3 呟き
     { f0: 96, f1: 54, dur:0.55, fm:[520,1050,2300], air:0.45, amp:0.36, wob:9.0, wobA:0.07 }  // 4 苛立ち
   ];
-  function hunterVocal(kind, dist, pan, blocked){
+  function hunterVocal(/** @type {any} */ kind, /** @type {number} */ dist, /** @type {any} */ pan, /** @type {boolean} */ blocked){
     if(!ready) return;
     var V = VOX[kind|0] || VOX[0];
     var t = ctx.currentTime;
@@ -570,12 +570,12 @@ var Audio2 = (function(){
   }
 
   var STEP_MAX = 40;          // ここから徐々に聞こえ始める
-  function stepAtten(dist){
+  function stepAtten(/** @type {number} */ dist){
     // 逆距離カーブ＋端の滑らかなフェード。急に鳴り出さず連続的に近づく
     var n = clamp(dist / STEP_MAX, 0, 1);
     return (6 / (6 + dist)) * (1 - n*n*n);
   }
-  function hunterStep(dist, chasing, pan, blocked, fwd){
+  function hunterStep(/** @type {number} */ dist, /** @type {boolean} */ chasing, /** @type {any} */ pan, /** @type {boolean} */ blocked, /** @type {any} */ fwd){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = stepAtten(dist) * (blocked ? 0.55 : 1);
@@ -650,7 +650,7 @@ var Audio2 = (function(){
      無人の病棟は静かなだけではなく、時々どこかで何かが鳴る。
      4 種類を手続きで作り、左右の位置と遠さも毎回変える。
      どれも短く小さい——大きな音は追跡者のための場所を取っておく。 */
-  function ambientOne(kind, pan, far){
+  function ambientOne(/** @type {any} */ kind, /** @type {any} */ pan, /** @type {any} */ far){
     if(!ready) return;
     var t = ctx.currentTime;
     var out = master;
@@ -719,7 +719,7 @@ var Audio2 = (function(){
   }
   /* 瓶が割れる音。高い帯域の雑音の粒を数発ばらまき、低い「ごつん」を下に敷く。
      距離で小さく、高域から先に削る */
-  function glass(dist, pan){
+  function glass(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = 6 / (6 + dist);
@@ -749,7 +749,7 @@ var Audio2 = (function(){
   }
   /* 患者の叫び（第 9 章 updatePatients）。女の声に寄せた鋸歯を 2 つの共鳴
      （900 / 2600 Hz）に通し、上ずってから崩れる。息の雑音を上に敷く */
-  function shriek(dist, pan){
+  function shriek(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime, dur = 1.5;
     var att = 7 / (7 + dist) * (settings.softScare ? 0.35 : 1);
@@ -778,7 +778,7 @@ var Audio2 = (function(){
   }
   /* 天井裏の金属音（第4章 通気口）。薄い鋼板を叩いた鈍い響きを、
      頭の上から聞こえるように高域を削って鳴らす。loud は 0..1.2 */
-  function clang(dist, pan, loud){
+  function clang(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ loud){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = (8 / (8 + dist)) * (loud || 1);
@@ -806,7 +806,7 @@ var Audio2 = (function(){
   }
   /* 囁き（第5章 映るもの）。子音だけの息の音を、話し声の帯域で短く刻む。
      近いほど大きく、残響を抜いて耳元で鳴らす */
-  function whisper(dist, pan){
+  function whisper(/** @type {number} */ dist, /** @type {any} */ pan){
     if(!ready) return;
     var t = ctx.currentTime, att = 4 / (4 + dist);
     var out = ctx.createGain(); out.gain.value = 0.35 * att;
@@ -826,7 +826,7 @@ var Audio2 = (function(){
   }
   /* 水しぶき（第6章）。自分の足（dist 0）にも、あれの足にも使う。
      低い「どぷ」と、高い帯域の飛沫を重ねる */
-  function splash(dist, pan, vol){
+  function splash(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ vol){
     if(!ready) return;
     var t = ctx.currentTime, att = (dist > 0 ? 6 / (6 + dist) : 1) * (vol === undefined ? 1 : vol);
     if(att < 0.004) return;
@@ -846,10 +846,10 @@ var Audio2 = (function(){
   }
   /* 地下の水音。低いせせらぎを常に鳴らし、ときどき滴を落とす。
      これがあれの足音を覆い隠す */
-  var waterNodes = null, dripT = null;
-  function setWater(on){
+  var waterNodes = /** @type {any} */ (null), dripT = /** @type {any} */ (null);
+  function setWater(/** @type {any} */ on){
     if(!ready) return;
-    if(waterNodes){ waterNodes.forEach(function(n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
+    if(waterNodes){ waterNodes.forEach(function(/** @type {any} */ n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
     if(dripT){ clearInterval(dripT); dripT = null; }
     if(!on) return;
     var n = noiseSrc();

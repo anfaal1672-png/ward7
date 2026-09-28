@@ -2,7 +2,7 @@
    13. 画面遷移
    ========================================================================= */
 var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal','credits'];
-function showPanel(name){
+function showPanel(/** @type {any} */ name){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
     if(radarEl) radarEl.hidden = true;
@@ -13,7 +13,7 @@ function showPanel(name){
   $('touch').classList.toggle('on', playing);
   $('bPause').style.display = playing ? 'flex' : 'none';
 }
-function blackout(on, instant){
+function blackout(/** @type {any} */ on, /** @type {any} */ instant){
   var b = $('blackout');
   b.style.transition = instant ? 'none' : 'opacity 1.1s';
   b.style.opacity = on ? '1' : '0';
@@ -40,12 +40,12 @@ function syncQualityHint(){
    「この明るさなら病棟でも見える」が設定画面の中で確かめられる。
    ここを目分量の説明文で済ませると、暗すぎる／明るすぎるの相談が
    永遠に終わらない。 */
-function acesApprox(x){
+function acesApprox(/** @type {any} */ x){
   // three の ACESFilmicToneMapping と同じ近似式
   var a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
   return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
 }
-function toSRGB(v){
+function toSRGB(/** @type {any} */ v){
   return v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055;
 }
 var CALIB_STEPS = [0.006, 0.011, 0.020, 0.036, 0.065, 0.118];
@@ -143,7 +143,7 @@ var cheatReturn = 'title';
 function updateCheatBadge(){ $('cheatBadge').hidden = !anyCheat(); }
 function buildCheatUI(){
   var list = $('cheatList'); list.innerHTML = '';
-  var lastG = null;
+  var lastG = /** @type {any} */ (null);
   CHEATS.forEach(function(c){
     if(c.g && c.g !== lastG){
       lastG = c.g;
@@ -177,7 +177,7 @@ function buildCheatUI(){
   });
   updateCheatBadge();
 }
-function doCheatAct(k){
+function doCheatAct(/** @type {any} */ k){
   if(state !== STATE.PLAY && state !== STATE.PAUSE){
     toast('プレイ中のみ使えます', 2); return;
   }
@@ -271,16 +271,16 @@ function doCheatAct(k){
     toast('追跡者を引き離した', 2);
   }
 }
-function openCheats(from){
+function openCheats(/** @type {any} */ from){
   cheatReturn = from;
   buildCheatUI();
   showPanel('cheat');
 }
 
-$('title').querySelectorAll('[data-diff]').forEach(function(b){
+$('title').querySelectorAll('[data-diff]').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.diff = +b.dataset.diff; saveSettings(); syncSettingsUI(); });
 });
-$('segQ').querySelectorAll('button').forEach(function(b){
+$('segQ').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){
     settings.quality = +b.dataset.q; saveSettings(); syncSettingsUI();
     BENCH.on = false; Store.set('ward7.bench', JSON.stringify({ done:1, manual:1 }));   // 人が選んだら自動で変えない
@@ -290,7 +290,7 @@ $('segQ').querySelectorAll('button').forEach(function(b){
     setTimeout(function(){ location.reload(); }, 300);
   });
 });
-$('segI').querySelectorAll('button').forEach(function(b){
+$('segI').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.invert = (+b.dataset.i === 1); saveSettings(); syncSettingsUI(); });
 });
 $('gam').addEventListener('input', /** @this {HTMLInputElement} */ function(){
@@ -332,7 +332,7 @@ Array.prototype.forEach.call($('segC').children, function(b){
 $('sens').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
 $('vol').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
-$('segD').querySelectorAll('button').forEach(function(b){
+$('segD').querySelectorAll('button').forEach(function(/** @type {any} */ b){
   b.addEventListener('click', function(){ settings.detect = +b.dataset.d; saveSettings(); syncSettingsUI(); });
 });
 $('btnCheat').addEventListener('click', function(){ openCheats('title'); });
@@ -440,7 +440,7 @@ function buildKeyUI(){
     bt.textContent = keyLabel(keyOf(k.a));
     bt.addEventListener('click', function(){
       bt.textContent = 'キーを押す…'; bt.classList.add('wait');
-      keyCapture = function(code){
+      keyCapture = function(/** @type {any} */ code){
         bt.classList.remove('wait');
         if(code !== 'Escape'){
           /* 他の操作が同じキーを主キーにしていたら、入れ替える（1 つのキーに 2 つの操作を載せず、
@@ -465,8 +465,8 @@ buildKeyUI();
    位置は画面に対する中心の割合で持つので、縦横や機種が変わっても同じ辺りに来る。
    置いていないボタンは CSS の既定（左手持ちならその配置）のまま */
 var LAYOUT_IDS = ['bUse', 'bLight', 'bBack', 'bHold', 'bThrow', 'bPeek'];
-var layoutEdit = null;
-function btnHalf(el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
+var layoutEdit = /** @type {any} */ (null);
+function btnHalf(/** @type {any} */ el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
 function applyBtnLayout(){
   LAYOUT_IDS.forEach(function(id){
     var el = $(id), p = settings.btnPos && settings.btnPos[id];
@@ -498,7 +498,7 @@ function closeLayoutEdit(){
   saveSettings();
 }
 // 編集中は捕獲の段で拾い、ボタン本来の働き（ランプを点けるなど）には渡さない
-$('touch').addEventListener('pointerdown', function(e){
+$('touch').addEventListener('pointerdown', function(/** @type {any} */ e){
   if(!layoutEdit) return;
   var el = e.target && e.target.closest ? e.target.closest('.tbtn') : null;
   e.preventDefault(); e.stopPropagation();

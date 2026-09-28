@@ -8,12 +8,12 @@ var world = {
   zones:[], exitField:null, nav:null
 };
 
-function disposeObject(obj){
-  obj.traverse(function(o){
+function disposeObject(/** @type {any} */ obj){
+  obj.traverse(function(/** @type {any} */ o){
     if(o.geometry) o.geometry.dispose();
     if(o.material){
       var mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach(function(m){ if(m.dispose) m.dispose(); });
+      mats.forEach(function(/** @type {any} */ m){ if(m.dispose) m.dispose(); });
     }
   });
 }
@@ -33,11 +33,11 @@ function clearWorld(){
   world.zones = []; world.exitField = null; world.nav = null;
 }
 
-var lightPool = [];   // 非常灯用の固定ポイントライト（付け外しせず位置だけ動かす＝シェーダ再コンパイル回避）
-var flashlight, flashTarget, playerLight, ambient, hemi, hunterMark, hunterEyeLight;
+var lightPool = /** @type {any[]} */ ([]);   // 非常灯用の固定ポイントライト（付け外しせず位置だけ動かす＝シェーダ再コンパイル回避）
+var flashlight = /** @type {any} */ (undefined), flashTarget = /** @type {any} */ (undefined), playerLight = /** @type {any} */ (undefined), ambient = /** @type {any} */ (undefined), hemi, hunterMark = /** @type {any} */ (undefined), hunterEyeLight = /** @type {any} */ (undefined);
 // 一人称の腕。壁にめり込まないよう専用のシーンで最後に描く
-var viewScene = null, viewCam = null, viewArm = null, viewRig = null, viewParts = null;
-var viewHandL = null, HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
+var viewScene = /** @type {any} */ (null), viewCam = /** @type {any} */ (null), viewArm = /** @type {any} */ (null), viewRig = /** @type {any} */ (null), viewParts = /** @type {any} */ (null);
+var viewHandL = /** @type {any} */ (null), HANDL = { k:0, door:0 };   // 口を押さえる左手（第 9.4 節）
 var viewSway = { x:0, y:0, tx:0, ty:0 };
 var viewBeam = { x:0, y:0 };        // 腕の傾きから作る、ランプの照射方向のずれ
 
@@ -128,7 +128,7 @@ function cullLights(){
   if(hunterEyeLight) applyLightCull(hunterEyeLight);
   if(world.exitLight) applyLightCull(world.exitLight);
 }
-function applyLightCull(L){
+function applyLightCull(/** @type {any} */ L){
   if(L.intensity <= 0.001){ L.visible = false; return; }
   _lightSphere.center.copy(L.position);
   _lightSphere.radius = L.distance > 0 ? L.distance : 1e6;   // 減衰なしなら常に効く
@@ -157,7 +157,7 @@ function prewarmLights(){
    粒はプレイヤーの周り 7m の箱に散らし、動いたら箱の外に出たぶんだけ
    反対側へ回り込ませる（無限に湧いているように見える）。
    ランプが消えているときは薄くする——照らされていない埃は見えない。 */
-var dustPts = null, dustPos = null;
+var dustPts = /** @type {any} */ (null), dustPos = /** @type {any} */ (null);
 var DUST_BOX = 7.0;
 
 function buildDust(){
@@ -182,7 +182,7 @@ function buildDust(){
   scene.add(dustPts);
 }
 
-function updateDust(dt){
+function updateDust(/** @type {number} */ dt){
   if(!dustPts) return;
   var arr = dustPos, n = arr.length/3;
   var t = performance.now()*0.001;
@@ -213,7 +213,7 @@ function updateDust(dt){
    扉が開いた瞬間、そこが目的地だと一目で分かってほしい。
    加算合成の円錐を扉から通路側へ寝かせて置く。体積光の代わりだが、
    暗い廊下ではこれで十分に「光が漏れている」に見える。 */
-var exitShaft = null;
+var exitShaft = /** @type {any} */ (null);
 function buildExitShaft(){
   if(exitShaft){ scene.remove(exitShaft); exitShaft.geometry.dispose(); exitShaft.material.dispose(); exitShaft = null; }
   if(!QC.shaft || !world.exit) return;
@@ -227,7 +227,7 @@ function buildExitShaft(){
   exitShaft.frustumCulled = false;
   scene.add(exitShaft);
 }
-function updateExitShaft(dt){
+function updateExitShaft(/** @type {number} */ dt){
   if(!exitShaft || !world.exit) return;
   var open = world.exit.open;
   var want = open ? 0.16 + 0.05*Math.sin(performance.now()*0.0031) : 0;
@@ -263,7 +263,7 @@ function updateExitShaft(dt){
    ——実際の散乱と同じ見え方になる。
 
    深度テストは有効にする。壁で切られてくれないと隣の部屋まで伸びる。 */
-var lampShafts = [];
+var lampShafts = /** @type {any[]} */ ([]);
 function buildLampShafts(){
   for(var i=0;i<lampShafts.length;i++){
     var o = lampShafts[i];
@@ -332,7 +332,7 @@ function buildLampShafts(){
 }
 /* 非常灯のカリング（lightPool）と同じ並びで駆動する。
    点いていない灯には光柱も出さない。 */
-function updateLampShafts(dt){
+function updateLampShafts(/** @type {number} */ dt){
   for(var i=0;i<lampShafts.length;i++){
     var m = lampShafts[i], pl = lightPool[i];
     var u = m.material.uniforms;
@@ -362,7 +362,7 @@ function updateLampShafts(dt){
 /* ---- ポストプロセス（色収差・ノイズ・走査線・歪み） ----
    EffectComposer は three r128 の配布ファイルに含まれないため、
    レンダーターゲット＋フルスクリーンシェーダで同等の処理を自前で行う */
-var postRT = null, postScene = null, postCam = null, postMat = null;
+var postRT = /** @type {any} */ (null), postScene = /** @type {any} */ (null), postCam = /** @type {any} */ (null), postMat = /** @type {any} */ (null);
 var postFX = { aberr:0, noise:0, scan:0, warp:0, target:{ aberr:0, noise:0, scan:0, warp:0 } };
 
 /* ブルーム（光の滲み）。
@@ -373,7 +373,7 @@ var postFX = { aberr:0, noise:0, scan:0, warp:0, target:{ aberr:0, noise:0, scan
    EffectComposer が使えないので、1/4 の大きさのバッファを 2 枚だけ使って
    明るい所を抜き出す → 横にぼかす → 縦にぼかす、を自前で回す。
    縮小してあるので 9 タップでも十分に広がる。最高品質でのみ通す。 */
-var bloomA = null, bloomB = null, brightMat = null, blurMat = null, bloomQuad = null;
+var bloomA = /** @type {any} */ (null), bloomB = /** @type {any} */ (null), brightMat = /** @type {any} */ (null), blurMat = /** @type {any} */ (null), bloomQuad = /** @type {any} */ (null);
 
 function buildPost(){
   var size = new THREE.Vector2();
@@ -570,7 +570,7 @@ function dropBloom(){
   if(bloomB){ bloomB.dispose(); bloomB = null; }
 }
 
-function buildBloom(size){
+function buildBloom(/** @type {any} */ size){
   var bw = Math.max(1, Math.floor(size.x/4)), bh = Math.max(1, Math.floor(size.y/4));
   var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
               format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false };
@@ -622,13 +622,13 @@ function buildBloom(size){
    接地の陰：深度だけで作る（法線は持たない）。深度をそのまま比べると、斜めに
    見ている床が一面に暗くなる。周りの深度から「平らならここはこの深さ」を
    1/z の平面で予想し、それより手前に在る分だけを陰にする。 */
-var fxRT = null, fxMat = null, fxScene = null;
+var fxRT = /** @type {any} */ (null), fxMat = /** @type {any} */ (null), fxScene = /** @type {any} */ (null);
 function fxWant(){
   var beam = QC.beam && settings.fxBeam && playAs !== 'hunter';
   var ao = QC.ssao && settings.fxAO;
   return { beam:!!beam, ao:!!ao, any:!!(beam || ao) };
 }
-function buildFx(size){
+function buildFx(/** @type {any} */ size){
   var w = Math.max(1, Math.floor(size.x/2)), h = Math.max(1, Math.floor(size.y/2));
   fxRT = new THREE.WebGLRenderTarget(w, h, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
     format:THREE.RGBAFormat, stencilBuffer:false, depthBuffer:false });
@@ -706,7 +706,7 @@ function buildFx(size){
 }
 function dropFx(){ if(fxRT){ fxRT.dispose(); fxRT = null; } }
 /* 本編を postRT に描いた直後（手を描く前）に呼ぶ。作ったら true */
-function renderFx(dt){
+function renderFx(/** @type {number} */ dt){
   var fw = fxWant();
   if(!postRT || !fw.any){ if(fxRT) dropFx(); return false; }
   if(!fxRT || !fxMat){ var sz = new THREE.Vector2(); renderer.getDrawingBufferSize(sz); buildFx(sz); }
@@ -738,11 +738,11 @@ function renderFx(dt){
    逆算して読む（カメラの動きはこれで吸収される）。動く物（あれ）の尾引きは、今の画素の
    周り 3×3 の明暗の幅に前の値を押し込めて抑える。速く振り向いた所は今の値を重くする。
    手は別の視点で描くので混ぜない（深度の型抜きで最終合成が生の値に戻す）。最高品質のみ。 */
-var taaA = null, taaB = null, taaMat = null, taaScene = null, taaPrevVP = null, taaN = 0, taaReset = true;
-var taaPrevPos = null, _taaM = null, _taaInv = null;
+var taaA = /** @type {any} */ (null), taaB = /** @type {any} */ (null), taaMat = /** @type {any} */ (null), taaScene = /** @type {any} */ (null), taaPrevVP = /** @type {any} */ (null), taaN = 0, taaReset = true;
+var taaPrevPos = /** @type {any} */ (null), _taaM = /** @type {any} */ (null), _taaInv = /** @type {any} */ (null);
 function taaWant(){ return !!(QC.bloom && settings.fxAA && postRT); }
-function halton(i, b){ var f = 1, r = 0; while(i > 0){ f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
-function buildTaa(size){
+function halton(/** @type {any} */ i, /** @type {any} */ b){ var f = 1, r = 0; while(i > 0){ f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
+function buildTaa(/** @type {any} */ size){
   var opt = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat,
               stencilBuffer:false, depthBuffer:false };
   taaA = new THREE.WebGLRenderTarget(Math.max(1,size.x), Math.max(1,size.y), opt);
@@ -844,7 +844,7 @@ function renderBloom(){
 
 function postEnabled(){ return !!(postRT && QC.post); }
 
-function updatePost(dt){
+function updatePost(/** @type {number} */ dt){
   if(!postMat) return;
   var panic = 1 - player.sanity/100;
   var hurt = clamp(player.hurtT / 0.5, 0, 1);
@@ -1035,7 +1035,7 @@ function buildViewModel(){
      最高品質だけ 26 に上げる（腕は一つに焼き固めるのでドローコールは
      増えない。増えるのは頂点だけ）。 */
   var LSEG = QC.detail ? 26 : 14;
-  function tube(rTop, rBot, len, mat, seg){
+  function tube(/** @type {any} */ rTop, /** @type {any} */ rBot, /** @type {any} */ len, /** @type {any} */ mat, /** @type {any} */ seg){
     var m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, seg || 10), mat || skin);
     m.rotation.x = Math.PI/2;                 // 軸を Z 方向へ
     return m;
@@ -1101,7 +1101,7 @@ function buildViewModel(){
 
   // 楕円断面の掃引。stations は ARM ローカル座標で直接指定する。
   // up は断面の縦軸を決めるベクトル（進行方向と直交化して使う）
-  function sweepGeo(st, radial, capA, capB){
+  function sweepGeo(/** @type {any} */ st, /** @type {any} */ radial, /** @type {any} */ capA, /** @type {any} */ capB){
     var n = st.length, R = radial;
     var pos = [], uvs = [], ind = [];
     var T = new THREE.Vector3(), U = new THREE.Vector3(), Rt = new THREE.Vector3();
@@ -1143,7 +1143,7 @@ function buildViewModel(){
        「平らに切り落とした多角形」に見えていた（画面の手前 40cm にある
        指先で、面が 5〜6 枚読める）。半球の断面に沿った輪を 1〜2 段
        挟んでから頂点へ閉じる。dome が 0 のとき（平らな蓋）は従来どおり。 */
-    function cap(si, dirSign, dome){
+    function cap(/** @type {any} */ si, /** @type {any} */ dirSign, /** @type {any} */ dome){
       var s0 = st[si];
       var a2 = st[Math.max(0,si-1)].p, b2 = st[Math.min(n-1,si+1)].p;
       T.set(b2[0]-a2[0], b2[1]-a2[1], b2[2]-a2[2]).normalize();
@@ -1201,14 +1201,14 @@ function buildViewModel(){
      手の頂点が胴の半径より内側へ入ったら、外へ押し出して表面に沿わせる。
      実際に物を握った指の腹も接触面で平らに潰れるので、形としても正しい。
      半径はランプ各部の実寸から引いている（胴 0.022 / 握り輪 0.0245 / 頭 0.021→0.033）。 */
-  function barrelRadiusAt(z){
+  function barrelRadiusAt(/** @type {any} */ z){
     var r = 0;
     if(z > -0.145 && z < 0.026) r = 0.022;
     if(z > -0.047 && z < 0.007) r = Math.max(r, 0.0245);
     if(z > -0.202 && z <= -0.145) r = Math.max(r, 0.021 + ((-0.145 - z)/0.057)*0.012);
     return r;
   }
-  function hugBarrel(geo, clearance){
+  function hugBarrel(/** @type {any} */ geo, /** @type {any} */ clearance){
     var pa = geo.attributes.position, changed = 0;
     for(var i=0;i<pa.count;i++){
       var x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
@@ -1229,15 +1229,15 @@ function buildViewModel(){
      握った指の輪郭が階段状に見えていた（画面の手前 40cm にあるので
      そのまま読める）。手のひらは 12 分割で 30 度ごと。最高品質だけ上げる。 */
   var DSEG = QC.detail ? 12 : 8, PSEG = QC.detail ? 16 : 10;
-  var skinParts = [], bandParts = [], nailParts = [], digitLens = [], digitSt = [];
-  function addSkin(geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
-  function addBand(geo){ bandParts.push(new THREE.Mesh(geo, band)); }
+  var skinParts = [], bandParts = [], nailParts = /** @type {any[]} */ ([]), digitLens = [], digitSt = [];
+  function addSkin(/** @type {any} */ geo){ skinParts.push(new THREE.Mesh(geo, skin)); }
+  function addBand(/** @type {any} */ geo){ bandParts.push(new THREE.Mesh(geo, band)); }
 
   /* 指：基節・中節・末節の3節。長さの比はおよそ 45% : 30% : 25% で、
      これは実際の指骨の比率に近い。関節では骨頭が張り出すので径を膨らませ、
      節の中ほどはやや細くする。ランプの胴を握るため、節ごとに進行方向を
      回して巻き付ける（MCP 50°・PIP 80°・DIP 45°、合計でほぼ半周）。 */
-  function digit(o){
+  function digit(/** @type {any} */ o){
     /* 指は自由な円弧では曲げない。曲げ角を積むだけだと、できあがる円弧の
        中心が胴の軸とずれ、指が宙に浮いて「握っている」ように見えない
        （実際そうなっていた。接触は一点だけで、指の中央は胴から 2〜3cm 離れていた）。
@@ -1290,7 +1290,7 @@ function buildViewModel(){
      掃引の断面は up=[0,0,1] のとき rx が半径方向＝厚み、ry が指の幅方向になる。
      ここを取り違えると、爪が指から半径方向へ飛び出した板になって
      指先に白い塊が乗っているように見える（実際そうなっていた）。 */
-  function nail(st, r){
+  function nail(/** @type {any} */ st, /** @type {any} */ r){
     var i0 = st.length-4, ns = [];
     for(var i=0;i<4;i++){
       var a = st[Math.min(st.length-1, i0+i)];
@@ -1535,7 +1535,7 @@ function buildViewModel(){
     viewHandL.visible = false;
     viewScene.add(viewHandL);
   })();
-  viewArm.traverse(function(o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
+  viewArm.traverse(function(/** @type {any} */ o){ if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
   viewParts = { lens:lensM, led:ledM, skin:skin, metal:metal, skinTex:skinTex, gauzeTex:gauzeTex,
                 base:{ x:0, y:0, z:0 }, root:ARM,
                 /* ランプから出た光（直接・跳ね返り）は、消灯したら消える。
@@ -1567,7 +1567,7 @@ function buildViewModel(){
    そのまま使われる。0x2a322e を「暗い緑」のつもりで置いても
    線形 16% ＝ かなり明るい灰になる。暗いつもりの物が軒並み暗くならず、
    髪も配管も羽根板も白っぽく出ていた原因。sRGB で書いて線形へ直す。 */
-function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
+function SRGB(/** @type {any} */ hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
 
 /* three r128 の computeVertexNormals は、最後に normalizeNormals で
    n = 1/sqrt(x²+y²+z²) を掛ける。ゼロ長を守っていないので、隣接面の法線が
@@ -1578,7 +1578,7 @@ function SRGB(hex){ return new THREE.Color(hex).convertSRGBToLinear(); }
    部品だけが消える。実測：追跡者の胴に 40 頂点、四肢の骨に各 6 頂点。
    実機（iPhone/Safari）で「頭と手と衣服と足だけ見える」と報告された症状の
    正体がこれ。壊れた法線を、原点から外向きの方向で置き換える。 */
-function fixNormals(g){
+function fixNormals(/** @type {any} */ g){
   var na = g.attributes.normal, pa = g.attributes.position;
   if(!na || !pa) return 0;
   var a = na.array, p = pa.array, n = na.count, bad = 0;
@@ -1596,14 +1596,14 @@ function fixNormals(g){
 }
 
 /* シーン全体の法線を検める。fixNormals をぶら下がっている形すべてに掛ける。 */
-function sanitizeNormals(root){
+function sanitizeNormals(/** @type {any} */ root){
   var bad = 0;
   if(!root) return 0;
-  root.traverse(function(o){ if(o.isMesh && o.geometry) bad += fixNormals(o.geometry); });
+  root.traverse(function(/** @type {any} */ o){ if(o.isMesh && o.geometry) bad += fixNormals(o.geometry); });
   return bad;
 }
 
-function loftGeo(rows, R, rad, opts){
+function loftGeo(/** @type {any} */ rows, /** @type {any} */ R, /** @type {any} */ rad, /** @type {any} */ opts){
   opts = opts || {};
   var n = rows.length, W = R + 1;          // 継ぎ目に列を 1 本増やして UV を通す
   var pos = new Float32Array(n*W*3), uvs = new Float32Array(n*W*2);
@@ -1617,7 +1617,7 @@ function loftGeo(rows, R, rad, opts){
      周長は行ごとに変わるが、行ごとに変えると texture が斜めに歪むので
      部品全体の平均で一定にする。テクスチャ側は鏡像で繰り返す
      （継ぎ目のある絵でも折り返せば必ず繋がる）。 */
-  var uvU = 1, uvV = null;
+  var uvU = 1, uvV = /** @type {any} */ (null);
   if(opts.uvPerM){
     var rsum = 0;
     for(i=0;i<n;i++) rsum += (rows[i].rx + rows[i].rz) * 0.5;
@@ -1684,8 +1684,8 @@ function loftGeo(rows, R, rad, opts){
      最初の行の下へ、capB は最後の行の上へ伸びる。 */
   if(opts.capA || opts.capB){
     var base = g.attributes.position.count;
-    var extraP = [], extraU = [], extraC = [];
-    function addCap(rowIdx, dir, dome){
+    var extraP = /** @type {any[]} */ ([]), extraU = /** @type {any[]} */ ([]), extraC = /** @type {any[]} */ ([]);
+    function addCap(/** @type {any} */ rowIdx, /** @type {any} */ dir, /** @type {any} */ dome){
       var rw2 = rows[rowIdx];
       extraP.push(rw2.cx||0, rw2.y + dir*dome, rw2.cz||0);
       /* 蓋の頂点の v も、実寸に比例させた範囲に合わせる。
@@ -1734,7 +1734,7 @@ function loftGeo(rows, R, rad, opts){
    ものを通すと色が消えて真っ黒になる（追跡者の足で一度やった）。
    髪の束のように「掃引で作った・頂点色を持つ・相対運動しない」部品を
    まとめるためのもの。全て同じ座標系に置いてから渡す。 */
-function mergeGeos(list){
+function mergeGeos(/** @type {any} */ list){
   var pos = [], nor = [], uvs = [], col = [], ind = [], base = 0;
   for(var i=0;i<list.length;i++){
     var g = list[i];
@@ -1775,7 +1775,7 @@ function mergeGeos(list){
    自己診断が「焼いた遮蔽」と区別できるよう、係数はここだけに置く。
    out に [r,g,b] の倍率を書き込む。 */
 var BODY_TOP = 1.95;
-function bodyDirt(y, out){
+function bodyDirt(/** @type {any} */ y, /** @type {any} */ out){
   var u = clamp(y / BODY_TOP, 0, 1);
   var f = 0.60 + 0.40*u;                     // 足元 0.60、頭 1.00
   out[0] = f;
@@ -1784,7 +1784,7 @@ function bodyDirt(y, out){
   return out;
 }
 
-function hairRibbon(len, wide, fall, ph){
+function hairRibbon(/** @type {any} */ len, /** @type {any} */ wide, /** @type {any} */ fall, /** @type {any} */ ph){
   /* 分割数。束は厚みが幅の 3 割しかない扁平な帯なので、断面を 8 分割
      しても丸みは見えない。6 で足りる（実測：頭の髪 3,408 → 2,556 三角形、
      見た目の差は分からなかった）。 */
@@ -1806,12 +1806,12 @@ function hairRibbon(len, wide, fall, ph){
      蓋の大きさはメートルで指定する（割合ではない）。ここを 0.5 と 0.7 で
      書いたら束の先から 70cm の棘が生え、頭の上に黒い線が何本も突き抜けた。
      細いので正面からは気づかず、見上げて初めて分かった。 */
-  return loftGeo(rows, QC.detail ? 6 : 5, function(th, v){
+  return loftGeo(rows, QC.detail ? 6 : 5, function(/** @type {any} */ th, /** @type {any} */ v){
     return 1 + 0.13*Math.sin(th*3.0 + ph*5) * (0.35 + 0.65*(1-v));
   }, { capA:0.010, capB:0.004 });
 }
 
-function mergeTinted(parts){
+function mergeTinted(/** @type {any} */ parts){
   var pos = [], nor = [], uvs = [], col = [];
   var m4 = new THREE.Matrix4(), eu = new THREE.Euler(), cv = new THREE.Color();
   for(var i=0;i<parts.length;i++){
@@ -1871,9 +1871,9 @@ function buildWorld(){
      格子ゲームなので光線を飛ばす必要はない。ある点の周りにどれだけ
      壁マスが詰まっているかを距離で重み付けして数えれば、それがそのまま
      「どれだけ囲まれているか」になる。実測 3ms。 */
-  function solidAt(cx, cy){ return !inBounds(cx,cy) || g[idx(cx,cy)] === 1; }
+  function solidAt(/** @type {any} */ cx, /** @type {any} */ cy){ return !inBounds(cx,cy) || g[idx(cx,cy)] === 1; }
   var AO_R = CELL * 1.55;
-  function gridOcc(wx, wz, skx, sky){
+  function gridOcc(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ skx, /** @type {any} */ sky){
     var c = worldToCell(wx, wz), occ = 0, wsum = 0;
     for(var oy=-2; oy<=2; oy++) for(var ox=-2; ox<=2; ox++){
       var gx = c.x+ox, gy = c.y+oy, wc = cellToWorld(gx, gy);
@@ -1892,7 +1892,7 @@ function buildWorld(){
   }
   /* 平らな面に遮蔽を焼くには頂点が要る。1 枚板（頂点 4 つ）のままでは
      どこも同じ明るさにしかならないので、マス目に合わせて割る。 */
-  function bakePlane(geo, k){
+  function bakePlane(/** @type {any} */ geo, /** @type {any} */ k){
     var pa = geo.attributes.position, n = pa.count, col = new Float32Array(n*3);
     for(var i=0;i<n;i++){
       var ao = 1 - k * gridOcc(pa.getX(i), pa.getZ(i));
@@ -2033,8 +2033,8 @@ function buildWorld(){
 
      どちらも壁と同じく 1 つのジオメトリに畳むので、ドローコールは
      2 回増えるだけ。当たり判定には一切関与しない（歩ける場所は変えない）。 */
-  var trimPos = [], trimNor = [], trimUv = [], trimIdx = [];
-  function quad(px, py, pz, ax, ay, az, bx, by, bz, nx, ny, nz, uu, vv){
+  var trimPos = /** @type {any[]} */ ([]), trimNor = /** @type {any[]} */ ([]), trimUv = /** @type {any[]} */ ([]), trimIdx = /** @type {any[]} */ ([]);
+  function quad(/** @type {number} */ px, /** @type {any} */ py, /** @type {number} */ pz, /** @type {any} */ ax, /** @type {any} */ ay, /** @type {any} */ az, /** @type {any} */ bx, /** @type {any} */ by, /** @type {any} */ bz, /** @type {number} */ nx, /** @type {any} */ ny, /** @type {number} */ nz, /** @type {any} */ uu, /** @type {any} */ vv){
     var base = trimPos.length/3;
     var pts = [[0,0],[1,0],[1,1],[0,1]];
     for(var q=0; q<4; q++){
@@ -2277,7 +2277,7 @@ function buildWorld(){
   for(var i=pool.length-1;i>0;i--){ var j=(rnd()*(i+1))|0; var t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
 
   var used = {};
-  function take(minSep){
+  function take(/** @type {any} */ minSep){
     for(var k=0;k<pool.length;k++){
       var c = pool[k];
       var key = c.x+','+c.y;
@@ -3080,7 +3080,7 @@ function buildWorld(){
    全部を1メッシュにまとめないのは、そうすると視錐台カリングが効かなくなり、
    壁の裏の什器まで毎フレーム描くことになるため。区画表示板と同じ 3x3 の
    区画で割り、区画ごとに固めることで、カリングの効きを保ったまま数を減らす。 */
-function mergeMeshes(list, parentInv){
+function mergeMeshes(/** @type {any} */ list, /** @type {any} */ parentInv){
   // 使っているのは Box / Plane / Cylinder だけで、いずれも
   // position・normal・uv の3属性を持つ。連結もこの3つに絞る
   var vtot = 0, itot = 0, i, gs;
@@ -3132,10 +3132,10 @@ function bakeStaticFurniture(){
   world.group.updateMatrixWorld(true);
   var parentInv = new THREE.Matrix4().copy(world.group.matrixWorld).invert();
   var buckets = {}, order = [];
-  var targets = [];
+  var targets = /** @type {any[]} */ ([]);
 
   // 印はグループ側に付ける。動くもの（誘導矢印など）だけ noBake で除外する
-  world.group.traverse(function(o){
+  world.group.traverse(function(/** @type {any} */ o){
     if(!o.isMesh || o.isInstancedMesh) return;
     if(o.userData && o.userData.noBake) return;
     var bakeable = false;
@@ -3182,13 +3182,13 @@ function bakeStaticFurniture(){
 // 机・ドラム缶・ロッカーで塞がったマスへ平気で突っ込み、
 // そこで押し戻され続けて動けなくなっていた。
 // 通り抜けられる幅が残っているかを実測して、塞がったマスを壁として扱う。
-function buildNavGrid(g, seedCell){
+function buildNavGrid(/** @type {any} */ g, /** @type {any} */ seedCell){
   var R = 0.40;                     // 追跡者の当たり半径 0.34 に余裕を持たせる
   var nav = new Uint8Array(g.length);
   nav.set(g);
   var half = CELL/2, blocked = [];
 
-  function standable(cx, cy){
+  function standable(/** @type {any} */ cx, /** @type {any} */ cy){
     var w = cellToWorld(cx, cy);
     // マス内を格子状に試し、体が収まる場所が一つでもあれば通れる
     for(var sy=-2; sy<=2; sy++){
@@ -3261,8 +3261,8 @@ function buildNavGrid(g, seedCell){
    間取りの後に続く全部（追跡者の徘徊など）がずれ、これまでの測定と
    比べられなくなる。間取りそのものから種を作って別の乱数で引く。 */
 var BOTTLES_PER_RUN = [4, 3, 3];
-var bottleGeo = null;
-function placeBottles(pool, used, startC){
+var bottleGeo = /** @type {any} */ (null);
+function placeBottles(/** @type {any} */ pool, /** @type {any} */ used, /** @type {any} */ startC){
   if(!bottleGeo){
     bottleGeo = mergeTinted([
       { type:'cyl', r:0.050, h:0.170, y:0,     c:0x2f4a3a },   // 胴（緑の硝子）
@@ -3273,7 +3273,7 @@ function placeBottles(pool, used, startC){
   }
   var h = (pool.length * 2654435761 ^ (startC.x * 7919) ^ (startC.y * 104729)) >>> 0;
   var br = mulberry32(h || 1);
-  var free = pool.filter(function(c){ return !used[c.x + ',' + c.y] &&
+  var free = pool.filter(function(/** @type {any} */ c){ return !used[c.x + ',' + c.y] &&
     (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
   var n = BOTTLES_PER_RUN[clamp(settings.diff|0, 0, 2)];
   for(var i=0; i<n && free.length; i++){
@@ -3297,8 +3297,8 @@ function placeBottles(pool, used, startC){
 
 /* --- 包帯（第 5.5 節）。拾うと振りほどける回数が 1 回戻る。
    瓶と同じく、ゲームの乱数を引かずに置く（間取りと展開を変えない） */
-var bandageGeo = null;
-function placeBandages(pool, used, startC){
+var bandageGeo = /** @type {any} */ (null);
+function placeBandages(/** @type {any} */ pool, /** @type {any} */ used, /** @type {any} */ startC){
   if(!bandageGeo){
     bandageGeo = mergeTinted([
       { type:'cyl', r:0.070, h:0.090, y:0,     c:0xd9d2bf },   // 巻いた包帯
@@ -3309,8 +3309,8 @@ function placeBandages(pool, used, startC){
   var h = (pool.length * 40503 ^ (startC.x * 65537) ^ (startC.y * 257)) >>> 0;
   var br = mulberry32(h || 7);
   var taken = {};
-  world.bottles.forEach(function(b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
-  var free = pool.filter(function(c){ var k = c.x + ',' + c.y;
+  world.bottles.forEach(function(/** @type {any} */ b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
+  var free = pool.filter(function(/** @type {any} */ c){ var k = c.x + ',' + c.y;
     return !used[k] && !taken[k] && (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
   var n = BANDAGES_PER_RUN[clamp(settings.diff|0, 0, 2)];
   for(var i=0; i<n && free.length; i++){
@@ -3334,7 +3334,7 @@ function placeBandages(pool, used, startC){
      あれ   … 足音が水音に紛れて聞こえにくくなる
    区画の選び方は間取りから作った乱数で決める（ゲームの rnd は引かない）。 */
 var WATER_Y = 0.16;
-var waterMesh = null;
+var waterMesh = /** @type {any} */ (null);
 function clearWater(){
   if(waterMesh){
     if(waterMesh.parent) waterMesh.parent.remove(waterMesh);
@@ -3343,7 +3343,7 @@ function clearWater(){
   }
   world.water = null;
 }
-function buildWater(info, on){
+function buildWater(/** @type {any} */ info, /** @type {any} */ on){
   clearWater();
   if(!on) return;
   var g = world.grid;
@@ -3381,14 +3381,14 @@ function buildWater(info, on){
   waterMesh.renderOrder = 3;
   world.group.add(waterMesh);
 }
-function inWater(x, z){
+function inWater(/** @type {any} */ x, /** @type {any} */ z){
   if(!world.water) return false;
   var c = worldToCell(x, z);
   return inBounds(c.x, c.y) && world.water[idx(c.x, c.y)] === 1;
 }
 
 /* さざ波の法線マップ。いくつかの波を重ねた高さから法線を起こす（画像ファイルは使わない） */
-var waterNTex = null;
+var waterNTex = /** @type {any} */ (null);
 function waterNormals(){
   if(waterNTex) return waterNTex;
   var S = 128, c = makeCanvas(S), x = c.getContext('2d'), im = x.createImageData(S, S), H = new Float32Array(S*S);
@@ -3409,7 +3409,7 @@ function waterNormals(){
   waterNTex.wrapS = waterNTex.wrapT = THREE.RepeatWrapping;
   return waterNTex;
 }
-function updateWater(dt){
+function updateWater(/** @type {number} */ dt){
   if(!waterMesh || !waterNTex) return;
   waterNTex.offset.x = (waterNTex.offset.x + dt*0.012) % 1;
   waterNTex.offset.y = (waterNTex.offset.y + dt*0.007) % 1;
@@ -3459,7 +3459,7 @@ var HERO_ROOMS = {
 };
 HERO_ROOMS[0] = HERO_ROOMS[1];
 HERO[0] = HERO[1];                                         // 夜勤はナースステーション
-function heroPiece(kind){
+function heroPiece(/** @type {any} */ kind){
   var P = [], r = 0.6, h = 1.0, len = 2.2;
   var C = { steel:0x6f756f, dark:0x33352f, paper:0xd6cfbb, cream:0xc9c1a8, green:0x55635c, wood:0x5c4632, rust:0x6b4a33 };
   if(kind === 'counter'){ len = 3.2; h = 1.05; r = 0.9;
@@ -3526,8 +3526,8 @@ function heroPiece(kind){
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
   return { parts:P, len:len, h:h, r:r };
 }
-var heroMat = null, heroSignTex = {};
-function heroSign(text){
+var heroMat = /** @type {any} */ (null), heroSignTex = {};
+function heroSign(/** @type {any} */ text){
   if(heroSignTex[text]) return heroSignTex[text];
   var c = makeCanvas(512); c.height = 128;
   var x = c.getContext('2d');
@@ -3541,7 +3541,7 @@ function heroSign(text){
 }
 /* 壁の落書き。赤錆色で、字の線を少しずつ揺らして手で書いたように見せる。
    地の色は透明（壁の汚れの上に字だけが乗る） */
-function graffitiMesh(text){
+function graffitiMesh(/** @type {any} */ text){
   var c = makeCanvas(512); c.height = 256;
   var x = c.getContext('2d'); x.clearRect(0, 0, 512, 256);
   var str = trText(text), fs = str.length > 10 ? 44 : 64;
@@ -3563,7 +3563,7 @@ function graffitiMesh(text){
   m.renderOrder = 3;
   return m;
 }
-function heroRoom(g, hall, def){
+function heroRoom(/** @type {any} */ g, /** @type {any} */ hall, /** @type {any} */ def){
   if(!def || !hall) return 0;
   if(!heroMat) heroMat = new THREE.MeshStandardMaterial({ color:0xffffff, vertexColors:true, roughness:0.8, metalness:0.1,
                                                          map:TEX.grunge || null });
@@ -3575,8 +3575,8 @@ function heroRoom(g, hall, def){
                 { ax:'x', from:x0+W, to:x0, fix:z0+D, n:[0,-1], cellFix:hall.y+hall.h-1, outside:[0,1] },
                 { ax:'z', from:z0+D, to:z0, fix:x0, n:[1,0], cellFix:hall.x, outside:[-1,0] } ];
   var kit = def.kit.slice(), si = 0, cursor = 0.8, placed = 0, guard = 60;
-  var occ0 = [];                       // 北の壁（名札の壁）で什器が占めている区間
-  function blockedAt(px, pz, rr){
+  var occ0 = /** @type {any[]} */ ([]);                       // 北の壁（名札の壁）で什器が占めている区間
+  function blockedAt(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ rr){
     for(var i=0; i<world.props.length; i++){ var o = world.props[i];
       if((o.x-px)*(o.x-px) + (o.z-pz)*(o.z-pz) < (o.r+rr+0.3)*(o.r+rr+0.3)) return true; }
     var items = world.records.concat(world.batteries, world.bottles || [], world.bandages || [], world.key ? [world.key] : []);
@@ -3584,7 +3584,7 @@ function heroRoom(g, hall, def){
       if((it.x-px)*(it.x-px) + (it.z-pz)*(it.z-pz) < (rr+1.0)*(rr+1.0)) return true; }
     return false;
   }
-  function openingAt(S, t){          // その位置の壁の向こうが通路なら、口なので塞がない
+  function openingAt(/** @type {any} */ S, /** @type {any} */ t){          // その位置の壁の向こうが通路なら、口なので塞がない
     var c = S.ax === 'x' ? worldToCell(t, S.fix + S.n[1]*0.5) : worldToCell(S.fix + S.n[0]*0.5, t);
     var ox = c.x + S.outside[0], oy = c.y + S.outside[1];
     return inBounds(ox, oy) && g[idx(ox, oy)] === 0;
@@ -3650,7 +3650,7 @@ function heroRoom(g, hall, def){
   return placed;
 }
 /* 大広間と、掘った部屋のうち大きい順に 3 つ。大広間のすぐ隣や出発点の部屋は避ける */
-function heroRooms(g, bigHall, startC){
+function heroRooms(/** @type {any} */ g, /** @type {any} */ bigHall, /** @type {any} */ startC){
   var n = runDef().n, def = HERO[n];
   world.graffiti = [];
   var placed = heroRoom(g, bigHall, def);
@@ -3674,12 +3674,12 @@ function heroRooms(g, bigHall, startC){
    光の筋（加算の面で作る四角い錐）、床に落ちた光の溜まり、の 3 つで「月が出ている」を作る。
    選ぶのは間取りの乱数（rnd）ではなくマスの座標のハッシュ。rnd を引くと、窓を足しただけで
    同じ種の病棟の置き物が全部ずれる */
-var MOON_TEX = null;
-function moonWindows(g){
+var MOON_TEX = /** @type {any} */ (null);
+function moonWindows(/** @type {any} */ g){
   world.moon = [];
   var want = [2, 5, 6, 7][clamp(settings.quality|0, 0, 3)];
   var cand = [];
-  function h(x, y){ var v = (x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995; v = Math.imul(v ^ (v >>> 13), 0x5bd1e995); return ((v ^ (v >>> 15)) >>> 0) / 4294967296; }
+  function h(/** @type {any} */ x, /** @type {any} */ y){ var v = (x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995; v = Math.imul(v ^ (v >>> 13), 0x5bd1e995); return ((v ^ (v >>> 15)) >>> 0) / 4294967296; }
   var ex = world.exit ? worldToCell(world.exit.x, world.exit.z) : null;
   for(var y=1; y<GH-1; y++) for(var x=1; x<GW-1; x++){
     if(g[idx(x, y)] !== 0) continue;
@@ -3725,7 +3725,7 @@ function moonWindows(g){
       var tl = [-W/2, Y + H/2, 0], tr = [W/2, Y + H/2, 0], br = [W/2, Y - H/2, 0], bl = [-W/2, Y - H/2, 0];
       var fl = [-0.75, 0.02, 2.9], fr = [0.75, 0.02, 2.9], nr = [0.75, 0.02, 0.9], nl = [-0.75, 0.02, 0.9];
       var quads = [[tl, tr, fr, fl], [bl, br, nr, nl], [tl, bl, nl, fl], [tr, br, nr, fr]];
-      var pos = [], col = [];
+      var pos = /** @type {any[]} */ ([]), col = /** @type {any[]} */ ([]);
       quads.forEach(function(q){
         [[0,1,2],[0,2,3]].forEach(function(t){ t.forEach(function(k){ var p = q[k]; pos.push(p[0], p[1], p[2]);
           var top = p[1] > 1 ? 1 : 0; col.push(0.030*top + 0.002, 0.042*top + 0.003, 0.062*top + 0.005); }); });
@@ -3748,7 +3748,7 @@ function moonWindows(g){
    控えてある（見た目だけ。当たり・視線・乱数には関わらないので遊びは変わらない）。
    hide を持つ場所は手続きの物（時計）の代わりなので、そちらを隠す */
 var MODELS = { cache:{}, mats:{} };
-function modelGeo(name){
+function modelGeo(/** @type {any} */ name){
   if(MODELS.cache[name] !== undefined) return MODELS.cache[name];
   var A = window.W7_ASSETS; if(!A || !A['models/' + name + '/meta']){ MODELS.cache[name] = null; return null; }
   var meta = JSON.parse(A['models/' + name + '/meta']);
@@ -3757,7 +3757,7 @@ function modelGeo(name){
   var buf = u8.buffer, mn = meta.box[0], mx = meta.box[1], umn = meta.uv[0], umx = meta.uv[1];
   var cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2, by = mn[1];
   var L = new THREE.TextureLoader();
-  var parts = meta.groups.map(function(g){
+  var parts = meta.groups.map(function(/** @type {any} */ g){
     var P = new Int16Array(buf, g.off[0], g.v*3), N = new Int8Array(buf, g.off[1], g.v*3),
         U = new Int16Array(buf, g.off[2], g.v*2), I = g.big ? new Uint32Array(buf, g.off[3], g.i) : new Uint16Array(buf, g.off[3], g.i);
     var pos = new Float32Array(g.v*3), nor = new Float32Array(g.v*3), uv = new Float32Array(g.v*2);
@@ -3787,10 +3787,10 @@ function modelGeo(name){
 function applyModels(){
   if(!photoWanted() || !world.modelSlots || world.modelsPlaced) return;
   var placed = 0;
-  world.modelSlots.forEach(function(sl){
+  world.modelSlots.forEach(function(/** @type {any} */ sl){
     var parts = modelGeo(sl.kind); if(!parts) return;
     var g = new THREE.Group();
-    parts.forEach(function(p){
+    parts.forEach(function(/** @type {any} */ p){
       var mt = p.mat;
       if(sl.tint){ mt = p.mat.clone(); mt.color.setHex(sl.tint); }
       var m = new THREE.Mesh(p.geo, mt); m.castShadow = false; m.receiveShadow = true; g.add(m); });

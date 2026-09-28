@@ -78,7 +78,7 @@ function lettersRead(){
 
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
-function buildNoteOrder(need){
+function buildNoteOrder(/** @type {any} */ need){
   var pool = [];
   for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
   for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
@@ -89,7 +89,7 @@ function buildNoteOrder(need){
   out.push(NOTE_LAST);
   return out;
 }
-function showNote(i){
+function showNote(/** @type {any} */ i){
   var order = world.noteOrder || buildNoteOrder(player.need || 5);
   var ni = order[i % order.length] % NOTES.length;
   var n = NOTES[ni];
@@ -106,17 +106,17 @@ function showNote(i){
   noteT = 7.5;
 }
 
-function toast(msg, dur){
+function toast(/** @type {any} */ msg, /** @type {any} */ dur){
   var t = $('toast');
   t.textContent = msg;
   t.classList.add('on');
   toastT = dur || 2;
 }
-function updateBar(id, v){
+function updateBar(/** @type {any} */ id, /** @type {any} */ v){
   var el = $(id).firstElementChild;
   el.style.transform = 'scaleX(' + clamp(v,0,1).toFixed(3) + ')';
 }
-function drawECG(dt, bpm){
+function drawECG(/** @type {number} */ dt, /** @type {any} */ bpm){
   ecgT += dt;
   var interval = 60/bpm;
   var w = ecg.width, h = ecg.height;
@@ -158,7 +158,7 @@ function positionRadar(){
 }
 window.addEventListener('resize', function(){ if(!radarEl.hidden) positionRadar(); });
 
-function drawRadar(dt){
+function drawRadar(/** @type {number} */ dt){
   var mode = detectMode();
   if(mode === 0 || state !== STATE.PLAY){
     if(!radarEl.hidden) radarEl.hidden = true;
@@ -189,14 +189,14 @@ function drawRadar(dt){
 
   var sy = Math.sin(player.viewYaw), cyw = Math.cos(player.viewYaw);
   var fx = -sy, fz = -cyw, rx = cyw, rz = -sy;
-  function project(wx, wz){
+  function project(/** @type {any} */ wx, /** @type {any} */ wz){
     var dx = wx - player.x, dz = wz - player.z;
     var px = dx*rx + dz*rz, pu = dx*fx + dz*fz;
     var d = Math.sqrt(px*px + pu*pu);
     var k = (d > range && d > 0) ? range/d : 1;
     return { x: cx + px*k/range*R, y: cy - pu*k/range*R, d:d, edge:(d > range) };
   }
-  function dot(p, color, r, ring){
+  function dot(/** @type {any} */ p, /** @type {any} */ color, /** @type {any} */ r, /** @type {any} */ ring){
     g.fillStyle = color;
     g.beginPath(); g.arc(p.x, p.y, r, 0, TAU); g.fill();
     if(ring){
@@ -248,7 +248,7 @@ function drawRadar(dt){
    聞こえたかを画面の縁の弧と短い字幕で出す。距離は言葉で粗くだけ伝える
    （正確な距離を出すと音より強い手掛かりになってしまう）。 */
 var CUE = { t:0 };
-function soundCue(label, dist, hot){
+function soundCue(/** @type {any} */ label, /** @type {number} */ dist, /** @type {any} */ hot){
   if(!settings.cues || state !== STATE.PLAY) return;
   var dx = hunter.x - player.x, dz = hunter.z - player.z;
   var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
@@ -264,7 +264,7 @@ function soundCue(label, dist, hot){
   el.classList.add('on');
   CUE.t = 1.2;
 }
-function updateCue(dt){
+function updateCue(/** @type {number} */ dt){
   if(CUE.t <= 0) return;
   CUE.t -= dt;
   if(CUE.t <= 0 || state !== STATE.PLAY) $('cue').classList.remove('on');
@@ -275,12 +275,12 @@ function updateCue(dt){
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
 var journalReturn = 'title', jSel = {};
-function noteVoice(head){
+function noteVoice(/** @type {any} */ head){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
   return 2;                                   // 通達・配線記録
 }
-function openJournal(from){
+function openJournal(/** @type {any} */ from){
   journalReturn = from || 'title';
   jSel = {};
   renderJournal();
@@ -329,7 +329,7 @@ function renderJournal(){
   $('jLinkHint').textContent = hint;
 }
 function tryLink(){
-  var picked = [];
+  var picked = /** @type {any[]} */ ([]);
   for(var k in jSel) if(jSel[k]) picked.push(+k);
   if(picked.length < 3) return;
   var ok = picked.length === 3 && LETTER_SISTER.every(function(x){ return picked.indexOf(x) >= 0; });
@@ -352,7 +352,7 @@ var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
 function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
 function hintTarget(){
   var best = null, bd = 1e9;
-  function consider(o, what){
+  function consider(/** @type {any} */ o, /** @type {any} */ what){
     var dx = o.x - player.x, dz = o.z - player.z, dd = dx*dx + dz*dz;
     if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
   }
@@ -365,7 +365,7 @@ function hintTarget(){
   }
   return best;
 }
-function updateHint(dt){
+function updateHint(/** @type {number} */ dt){
   if(BOT.on || playAs === 'hunter') return;
   if(player.got !== HINT.lastGot || player.hasKey !== HINT.lastKey){
     HINT.lastGot = player.got; HINT.lastKey = player.hasKey;
@@ -449,7 +449,7 @@ function drawMap(){
     if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
   }
   // 非常口（見たことがあれば）
-  function w2m(wx, wz){
+  function w2m(/** @type {any} */ wx, /** @type {any} */ wz){
     var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
     return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
   if(MAPV.exitSeen && world.exit){
@@ -481,7 +481,7 @@ function teleLoad(){
   try{ TELE.ev = JSON.parse(Store.get('ward7.tele') || '[]'); }catch(e){ TELE.ev = []; }
   if(!Array.isArray(TELE.ev)) TELE.ev = [];
 }
-function tele(kind, data){
+function tele(/** @type {any} */ kind, /** @type {any} */ data){
   if(!settings.tele || BOT.on) return;
   teleLoad();
   var e = { k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 };
@@ -490,7 +490,7 @@ function tele(kind, data){
   if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
   Store.set('ward7.tele', JSON.stringify(TELE.ev));
 }
-function teleFrame(dt){
+function teleFrame(/** @type {number} */ dt){
   if(!settings.tele || BOT.on || state !== STATE.PLAY) return;
   TELE.ft.push(dt); TELE.ftT += dt;
   if(TELE.ftT < 60) return;
@@ -521,7 +521,7 @@ function teleExport(){
 var TIPS = { seen:{}, cool:0, still:0 };
 try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
 var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
-function tipKey(a){
+function tipKey(/** @type {any} */ a){
   var ja = LANG !== 'en';
   if(lastInputKind === 'pad') return PAD_NAME[a];
   if(lastInputKind === 'touch'){
@@ -532,14 +532,14 @@ function tipKey(a){
   }
   return keyLabel(keyOf(a === 'hold' ? 'run' : a));
 }
-function tipShow(id, ja, en){
+function tipShow(/** @type {any} */ id, /** @type {any} */ ja, /** @type {any} */ en){
   if(TIPS.seen[id] || BOT.on || playAs === 'hunter' || TIPS.cool > 0) return false;
   TIPS.seen[id] = 1; TIPS.cool = 7;
   try{ Store.set('ward7.tips', JSON.stringify(TIPS.seen)); }catch(e){}
   toast(LANG === 'en' ? en : ja, 4.8);
   return true;
 }
-function updateTips(dt){
+function updateTips(/** @type {number} */ dt){
   if(state !== STATE.PLAY || BOT.on || playAs === 'hunter') return;
   TIPS.cool = Math.max(0, TIPS.cool - dt);
   var k = tipKey, touch = lastInputKind === 'touch', chase = hunter.mode === 'chase';

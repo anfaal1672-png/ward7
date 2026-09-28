@@ -228,14 +228,14 @@ function doWin(){
 }
 /* 結果は表で出す。カルテの表と同じ作法にして、
    ゲームの中の書類とつながって見えるようにする。 */
-function endTable(rows){
+function endTable(/** @type {any} */ rows){
   var h = '<div class="endrows">';
   for(var i=0;i<rows.length;i++)
     h += '<div class="row"><span>' + rows[i][0] + '</span><b>' + rows[i][1] + '</b></div>';
   return h + '</div>';
 }
 
-function fmtTime(s){
+function fmtTime(/** @type {any} */ s){
   var m = Math.floor(s/60), r = Math.floor(s%60);
   return m + ':' + (r<10?'0':'') + r;
 }

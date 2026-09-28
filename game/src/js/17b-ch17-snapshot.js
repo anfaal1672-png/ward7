@@ -13,30 +13,30 @@
    ?debug=1 のとき F8 で取り、F9 で戻す（開発用。製品の画面には出さない）。 */
 var SNAP_REG = ['hides', 'records', 'batteries', 'bottles', 'bandages', 'props', 'rooms', 'lamps', 'reach'];
 /* reach（歩けるマスの一覧）は world ではなく buildInfo にある。巡回先はこの要素そのものを指す */
-function snapArr(name){ return name === 'reach' ? (buildInfo ? buildInfo.reach : null) : world[name]; }
+function snapArr(/** @type {any} */ name){ return name === 'reach' ? (buildInfo ? buildInfo.reach : null) : world[name]; }
 function snapRoots(){
   return { player:player, hunter:hunter, world:world, DIRECTOR:DIRECTOR, shade:shade, PATHF:PATHF,
            BOT:BOT, HINT:HINT, TIPS:TIPS, MAPV:MAPV, CUE:CUE, PEEK:PEEK, HANDL:HANDL, input:input,
            patients:patients, vents:vents, throws:throws, BEAM:BEAM, HUDW:HUDW, RUN:RUN };
 }
-function snapSkip(v){
+function snapSkip(/** @type {any} */ v){
   return !!(v && (v.isObject3D || v.isMaterial || v.isTexture || v.isBufferGeometry || v.isRenderTarget ||
                (typeof AudioNode !== 'undefined' && v instanceof AudioNode) ||
                (typeof v.nodeType === 'number' && typeof v.nodeName === 'string')));
 }
 function snapRefIndex(){
   var m = new Map();
-  SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(o, i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
+  SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(/** @type {any} */ o, /** @type {any} */ i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
   return m;
 }
-function snapVal(v, refs, depth, home){
+function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} */ depth, /** @type {any} */ home){
   if(v === null || typeof v !== 'object') return (typeof v === 'function') ? { $skip:1 } : v;
   if(snapSkip(v)) return { $skip:1 };
   if(depth > 10) return { $skip:1 };
   if(!home && refs.has(v)) return { $ref:refs.get(v) };
   if(ArrayBuffer.isView(v)) return { $ta:Array.prototype.slice.call(v), $k:v.constructor.name };
   if(v instanceof Map || v instanceof Set) return { $skip:1 };
-  if(Array.isArray(v)) return v.map(function(e){ return snapVal(e, refs, depth + 1, false); });
+  if(Array.isArray(v)) return v.map(function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
   var o = {};
   for(var k in v){ if(Object.prototype.hasOwnProperty.call(v, k)) o[k] = snapVal(v[k], refs, depth + 1, false); }
   return o;
@@ -45,14 +45,14 @@ function snapTake(){
   var refs = snapRefIndex(), R = snapRoots(), out = { roots:{}, reg:{}, n:{} };
   Object.keys(R).forEach(function(k){ out.roots[k] = snapVal(R[k], refs, 0, true); });
   // world の配列の要素そのもの（ここだけは参照にせず中身を持つ）
-  SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(o){ return snapVal(o, refs, 1, true); }); });
+  SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(/** @type {any} */ o){ return snapVal(o, refs, 1, true); }); });
   out.n = { toastT:toastT, noteT:noteT, lampFlick:lampFlick, ambientCreakT:ambientCreakT, heartT:heartT,
             voxPrevMode:voxPrevMode, voxT:voxT, voxIdleT:voxIdleT, botRndState:botRndState, botLookState:botLookState,
             simAcc:simAcc, state:state, cheatUsed:cheatUsed,
             rnd:rnd.getState(), rndAI:rndAI.getState(), rndFx:rndFx.getState() };
   return JSON.stringify(out);
 }
-function snapResolve(s, refs){
+function snapResolve(/** @type {any} */ s, /** @type {any} */ refs){
   if(s && typeof s === 'object' && s.$ref){ var a = snapArr(s.$ref[0]); return a ? a[s.$ref[1]] : null; }
   if(s && typeof s === 'object' && s.$ta){ var C = /** @type {any} */ (window[s.$k] || Float32Array); return new C(s.$ta); }
   if(Array.isArray(s)) return s.map(function(e){ return snapResolve(e, refs); });
@@ -61,7 +61,7 @@ function snapResolve(s, refs){
 }
 /* 今ある物 t へ写しの値 s を書き戻す。飛ばした物（$skip）は触らない。写しに無い鍵は消す
    （取った後に増えた印が残ると、戻した先で展開が変わる） */
-function snapInto(t, s){
+function snapInto(/** @type {any} */ t, /** @type {any} */ s){
   if(Array.isArray(s)){
     if(!Array.isArray(t)) return snapResolve(s);
     for(var i=0; i<s.length; i++){
@@ -88,7 +88,7 @@ function snapInto(t, s){
   }
   return t;
 }
-function snapRestore(json){
+function snapRestore(/** @type {any} */ json){
   var S = typeof json === 'string' ? JSON.parse(json) : json;
   SNAP_REG.forEach(function(name){ var a = snapArr(name); if(a && S.reg[name]) snapInto(a, S.reg[name]); });
   var R = snapRoots();
@@ -100,12 +100,12 @@ function snapRestore(json){
   rnd.setState(n.rnd); rndAI.setState(n.rndAI); rndFx.setState(n.rndFx);
   // 見た目を値に合わせる（拾った物は消し、扉は開けたなら消す）
   ['records', 'batteries', 'bottles', 'bandages'].forEach(function(name){
-    (world[name] || []).forEach(function(o){ var vis = !o.taken; if(o.grp) o.grp.visible = vis; if(o.mesh) o.mesh.visible = vis; if(o.spr) o.spr.visible = vis; });
+    (world[name] || []).forEach(function(/** @type {any} */ o){ var vis = !o.taken; if(o.grp) o.grp.visible = vis; if(o.mesh) o.mesh.visible = vis; if(o.spr) o.spr.visible = vis; });
   });
   if(world.key && world.key.grp){ world.key.grp.visible = !world.key.taken; if(world.key.spr) world.key.spr.visible = !world.key.taken; }
   if(world.lockDoor && world.lockDoor.group) world.lockDoor.group.visible = !world.lockDoor.open;
 }
-var SNAP_SLOT = null;
+var SNAP_SLOT = /** @type {any} */ (null);
 if(DEBUG){
   document.addEventListener('keydown', function(e){
     if(state !== STATE.PLAY && state !== STATE.PAUSE) return;
