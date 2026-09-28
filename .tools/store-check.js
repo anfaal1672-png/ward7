@@ -9,6 +9,11 @@ const fs=require('fs'), path=require('path'), http=require('http');
   const srv=http.createServer((q,r)=>{
     if(q.url.includes('three.min.js')){ r.writeHead(200,{'content-type':'application/javascript'});
       return r.end(fs.readFileSync(path.join(__dirname,'..','three.min.js'))); }
+    // ほかの物（assets.js・sw.js）は置いてあるとおりに返す。全部に HTML を返していて、
+    // スクリプトとして読まれて「Unexpected token '<'」が 3 件出ていた
+    const f = path.join(path.dirname(file), q.url.split('?')[0]);
+    if(!/ward7\.html$/.test(q.url.split('?')[0]) && fs.existsSync(f) && fs.statSync(f).isFile()){
+      r.writeHead(200,{'content-type': /\.js$/.test(f) ? 'application/javascript' : 'application/octet-stream'}); return r.end(fs.readFileSync(f)); }
     r.writeHead(200,{'content-type':'text/html'}); r.end(fs.readFileSync(file));
   }).listen(0);
   const url='http://127.0.0.1:'+srv.address().port+'/ward7.html';
@@ -32,7 +37,7 @@ const fs=require('fs'), path=require('path'), http=require('http');
   const after=await p.evaluate(()=>({ls:localStorage.getItem('ward7.settings'), sens:window.__WARD7.settings.sens}));
   console.log('保存時', before);
   console.log('戻した後', JSON.stringify(after));
-  const ok = before && after.ls === before && Math.abs(after.sens-2.2) < 1e-6;
+  const ok = before && after.ls === before && Math.abs(after.sens-2.2) < 1e-6 && errs.length === 0;
   console.log(ok ? 'OK 写しから戻った' : 'FAIL 戻らなかった', 'エラー', errs.length, errs.slice(0,3));
   await b.close(); srv.close(); process.exit(ok?0:1);
 })();
