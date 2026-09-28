@@ -2,17 +2,17 @@
    2. オーディオ（全て手続き生成・外部ファイル無し）
    ========================================================================= */
 var Audio2 = (function(){
-  var ctx = /** @type {any} */ (null), master = /** @type {any} */ (null), noiseBuf = /** @type {any} */ (null);
-  var drone = /** @type {any} */ (null), droneGain = /** @type {any} */ (null), droneFilt = /** @type {any} */ (null);
+  var ctx = (null as any), master = (null as any), noiseBuf = (null as any);
+  var drone = (null as any), droneGain = (null as any), droneFilt = (null as any);
   var vol = 0.7, ready = false;
-  var convolver = null, revSend = /** @type {any} */ (null), revWet = /** @type {any} */ (null);
+  var convolver = null, revSend = (null as any), revWet = (null as any);
 
   /* 残響のインパルス応答を書き込む。
      雑音に指数減衰を掛け、時間が経つほど高域を落とす（実際の部屋も
      高域から先に吸われる）。左右で別の雑音を引くので広がりが出る。
      NaN が 1 つでも混ざると畳み込みの出力が全部無音になり、
      しかも「静かなゲーム」なので気づけない。自己診断から呼べる形にしておく。 */
-  function makeIR(/** @type {any} */ out, /** @type {any} */ sampleRate){
+  function makeIR(out: any, sampleRate: any){
     var n = out.length, lp = 0;
     for(var i=0;i<n;i++){
       var t = i / n;
@@ -23,7 +23,7 @@ var Audio2 = (function(){
     }
     return out;
   }
-  makeIR.len = function(/** @type {any} */ sampleRate){ return Math.floor(sampleRate * 1.9); };
+  makeIR.len = function(sampleRate: any){ return Math.floor(sampleRate * 1.9); };
   var REV_OPEN = 0.34, REV_BOX = 0.06;   // 廊下 / 箱の中
 
   function init(){
@@ -72,7 +72,7 @@ var Audio2 = (function(){
   /* 収録素材の音（設計指示書 第 10.1 節）。assets.js の sfx/<群>_<番号> を解いて群ごとに持つ。
      assets.js は後から読まれる（defer）ので、鳴らす前にも取りに行く。
      解けなかった群は合成の音のまま鳴る（素材が無くても遊べる） */
-  var SFX = /** @type {Object<string, any>} */ ({}), sfxLoading = false;
+  var SFX = ({} as Record<string, any>), sfxLoading = false;
   function loadSfx(){
     if(sfxLoading || !ctx || !window.W7_ASSETS) return;
     sfxLoading = true;
@@ -82,15 +82,15 @@ var Audio2 = (function(){
       try{
         var bin = atob(window.W7_ASSETS[k].split(',')[1]), u8 = new Uint8Array(bin.length);
         for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
-        var pr = ctx.decodeAudioData(u8.buffer, function(/** @type {any} */ buf){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
+        var pr = ctx.decodeAudioData(u8.buffer, function(buf: any){ buf.w7sfx = grp; (SFX[grp] = SFX[grp] || []).push(buf); }, function(){});
         if(pr && pr.catch) pr.catch(function(){});
       }catch(e){}
     });
   }
-  function sfx(/** @type {any} */ grp){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
+  function sfx(grp: any){ if(!sfxLoading) loadSfx(); var a = SFX[grp]; return (a && a.length) ? a[(Math.random()*a.length)|0] : null; }
   /* 素材を 1 回鳴らす。rate は速さ（＝高さ）、to は繋ぐ先 */
-  function playSfx(/** @type {any} */ buf, /** @type {any} */ t, /** @type {any} */ rate, /** @type {any} */ gain, /** @type {any} */ to){
-    var s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+  function playSfx(buf: any, t: any, rate: any, gain: any, to: any){
+    var s: any = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
     var g = ctx.createGain(); g.gain.value = gain;
     s.connect(g); g.connect(to); s.start(t);
     return s;
@@ -103,13 +103,13 @@ var Audio2 = (function(){
   }
   function audioState(){ return ready ? ctx.state : 'none'; }
   function suspend(){ if(ready && ctx.state === 'running'){ ctx.suspend().catch(function(){}); } }
-  function setVol(/** @type {any} */ v){ vol = v; if(master) master.gain.value = v; }
+  function setVol(v: any){ vol = v; if(master) master.gain.value = v; }
   /* 箱の中に入ると、耳のすぐ横に板がある。廊下と同じ返りが鳴っていると
      「隠れた」感じが出ない。入っている間だけ残響を絞る。 */
   /* 部屋の広さで返りを変える（第 10.2 節）。箱の中はほぼ無し、廊下は並、
      大部屋・ホールは深く。space: 'box' | 'hall' | 'room' */
-  var REV_ROOM = 0.46, spaceNow = /** @type {any} */ (null);
-  function setSpace(/** @type {any} */ space){
+  var REV_ROOM = 0.46, spaceNow = (null as any);
+  function setSpace(space: any){
     if(space === true) space = 'box'; else if(space === false || !space) space = 'hall';
     if(!revWet || !ready || space === spaceNow) return;
     spaceNow = space;
@@ -118,9 +118,9 @@ var Audio2 = (function(){
   }
 
   function noiseSrc(){
-    var s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
+    var s: any = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
   }
-  function env(/** @type {any} */ g, /** @type {any} */ t0, /** @type {any} */ a, /** @type {any} */ d, /** @type {any} */ peak){
+  function env(g: any, t0: any, a: any, d: any, peak: any){
     g.gain.cancelScheduledValues(t0);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t0+a);
@@ -128,20 +128,20 @@ var Audio2 = (function(){
   }
 
   // 位置を持つ持続音のための共通バス（音量・左右・こもり具合を毎フレーム更新する）
-  var buses = { hunter:/** @type {any} */ (null), lamps:/** @type {any[]} */ ([]), exit:/** @type {any} */ (null) };
+  var buses = { hunter:(null as any), lamps:([] as any[]), exit:(null as any) };
   /* 頭部伝達関数（HRTF、設計指示書 第 10.2 節）。ヘッドホンなら前後と上下まで
      分かる。左右の振り分け（StereoPanner）では「真後ろ」と「真正面」が同じに鳴る。
      音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
      （距離による減衰は切る＝rolloffFactor 0）。スピーカーで遊ぶときは左右の振り分けに戻す。 */
   var hrtf = true;
-  function setHRTF(/** @type {any} */ on){ hrtf = !!on; }
+  function setHRTF(on: any){ hrtf = !!on; }
   function makePanner(){
     if(!hrtf || !ctx.createPanner) return null;
     var p = ctx.createPanner();
     p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.rolloffFactor = 0; p.refDistance = 1;
     return p;
   }
-  function setDir(/** @type {any} */ p, /** @type {any} */ pan, /** @type {any} */ fwd, /** @type {any} */ t, /** @type {any} */ tc){
+  function setDir(p: any, pan: any, fwd: any, t: any, tc: any){
     // 聞き手は原点で -Z を向いている。右が +X、前が -Z
     var x = clamp(pan, -1, 1), z = -(fwd === undefined ? Math.sqrt(Math.max(0, 1 - x*x)) : fwd);
     if(p.positionX){ p.positionX.setTargetAtTime(x, t, tc); p.positionY.setTargetAtTime(0, t, tc); p.positionZ.setTargetAtTime(z, t, tc); }
@@ -158,7 +158,7 @@ var Audio2 = (function(){
     else if(sp){ lp.connect(sp); sp.connect(master); } else { lp.connect(master); }
     return { in:g, gain:g, lp:lp, pan:sp, hrtf:hp, vol:0, panV:0, cut:800 };
   }
-  function setBus(/** @type {any} */ bus, /** @type {any} */ vol, /** @type {any} */ panV, /** @type {any} */ cut, /** @type {any} */ fwd){
+  function setBus(bus: any, vol: any, panV: any, cut: any, fwd: any){
     if(!bus || !ready) return;
     var t = ctx.currentTime;
     bus.vol = vol; bus.panV = panV; bus.cut = cut;
@@ -167,9 +167,9 @@ var Audio2 = (function(){
     if(bus.hrtf) setDir(bus.hrtf, panV / 0.85, fwd, t, 0.09);      // 左右の値は 0.85 倍して渡されている
     else if(bus.pan) bus.pan.pan.setTargetAtTime(clamp(panV, -1, 1), t, 0.09);
   }
-  function setHunterVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.hunter, v, p, c, f); }
-  function setLampVoice(/** @type {any} */ i,/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.lamps[i], v, p, c, f); }
-  function setExitVoice(/** @type {any} */ v,/** @type {any} */ p,/** @type {any} */ c,/** @type {any} */ f){ setBus(buses.exit, v, p, c, f); }
+  function setHunterVoice(v: any, p: any, c: any, f?: any){ setBus(buses.hunter, v, p, c, f); }
+  function setLampVoice(i: any, v: any, p: any, c: any, f?: any){ setBus(buses.lamps[i], v, p, c, f); }
+  function setExitVoice(v: any, p: any, c: any, f?: any){ setBus(buses.exit, v, p, c, f); }
   function busCount(){ return (buses.hunter?1:0) + buses.lamps.length + (buses.exit?1:0); }
   function busState(){
     return {
@@ -211,7 +211,7 @@ var Audio2 = (function(){
       ng.gain.setTargetAtTime(0.0001, ctx.currentTime, 1.5);            // 合成の雑音は下げる
       [[hv, 0.22, 0], [ar, 0.07, 1]].forEach(function(e){
         if(!e[0]) return;
-        var s = ctx.createBufferSource(); s.buffer = e[0]; s.loop = true;
+        var s: any = ctx.createBufferSource(); s.buffer = e[0]; s.loop = true;
         var g = ctx.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(e[1], ctx.currentTime, 2.0);
         var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = e[2] ? 2600 : 1400;
         s.connect(lp); lp.connect(g); g.connect(droneGain ? droneGain : master);
@@ -276,7 +276,7 @@ var Audio2 = (function(){
        追跡 … 速い打ち込みの脈と、上下に掻きむしる帯域雑音
      追跡が終わったら 8 秒だけ劇伴と環境音を落とし切る（REST）。
      安堵を一度作ってから次の緊張へ入るため。追跡者の音は落とさない。 */
-  var score = /** @type {any} */ (null), scoreLevel = 0, restUntil = 0;
+  var score = (null as any), scoreLevel = 0, restUntil = 0;
   var SCORE_X = 0.55;            // 交差の時定数（setTargetAtTime。約 3 倍で落ち着く ≒ 1.5 秒）
   var REST_SEC = 8, REST_BACK = 2.5;
   function buildScore(){
@@ -332,7 +332,7 @@ var Audio2 = (function(){
   }
   var LAYER_VOL = [0.55, 0.60, 0.50];
   /* 劇伴の段を決める（0..3）。段 n では層 1..n を鳴らす */
-  function setScore(/** @type {any} */ level){
+  function setScore(level: any){
     if(!score) return;
     level = clamp(level|0, 0, 3);
     var t = ctx.currentTime;
@@ -366,13 +366,13 @@ var Audio2 = (function(){
   function resting(){ return !!ctx && ctx.currentTime < restUntil; }
   function stopAmbient(){
     if(!drone) return;
-    try{ drone.forEach(function(/** @type {any} */ o){ try{o.stop();}catch(e){} }); }catch(e){}
+    try{ drone.forEach(function(o: any){ try{o.stop();}catch(e){} }); }catch(e){}
     drone = null; droneGain = null; droneFilt = null;
     setWater(false);
     score = null; scoreLevel = 0; restUntil = 0;
     buses.hunter = null; buses.lamps = []; buses.exit = null;
   }
-  function setTension(/** @type {any} */ t){ // 0..1
+  function setTension(t: any){ // 0..1
     if(!droneFilt) return;
     droneFilt.frequency.setTargetAtTime(260 + t*1500, ctx.currentTime, 0.35);
     if(droneGain && !resting()) droneGain.gain.setTargetAtTime(0.5 + t*0.55, ctx.currentTime, 0.4);
@@ -381,7 +381,7 @@ var Audio2 = (function(){
   /* 足音。mat は 0=柔らかい（埃・布）〜 1=硬い（タイル）。
      同じ音が延々と鳴っていると床がどこも同じに感じる。呼び出し側が
      その場所から決まる値を渡すので、同じ場所は毎回同じ音になる。 */
-  function step(/** @type {any} */ hard, /** @type {any} */ mat, /** @type {any} */ vol){
+  function step(hard: any, mat: any, vol?: any){
     if(!ready) return;
     vol = (vol === undefined) ? 1 : vol;
     mat = (mat === undefined) ? 0.5 : clamp(mat, 0, 1);
@@ -411,10 +411,10 @@ var Audio2 = (function(){
       o.start(t); o.stop(t+0.08);
     }
   }
-  function heart(/** @type {any} */ intensity){
+  function heart(intensity: any){
     if(!ready) return;
     var t = ctx.currentTime;
-    function thump(/** @type {any} */ off, /** @type {any} */ amp){
+    function thump(off: any, amp: any){
       var o = ctx.createOscillator(); o.type='sine';
       o.frequency.setValueAtTime(78, t+off);
       o.frequency.exponentialRampToValueAtTime(38, t+off+0.16);
@@ -444,7 +444,7 @@ var Audio2 = (function(){
       o.start(t+i*0.09); o.stop(t+i*0.09+1.4);
     });
   }
-  function click(/** @type {any} */ on){
+  function click(on: any){
     if(!ready) return;
     var t = ctx.currentTime;
     var o = ctx.createOscillator(); o.type='square';
@@ -504,7 +504,7 @@ var Audio2 = (function(){
     { f0: 78, f1: 70, dur:1.20, fm:[300, 720,1900], air:0.18, amp:0.16, wob:3.4, wobA:0.04 }, // 3 呟き
     { f0: 96, f1: 54, dur:0.55, fm:[520,1050,2300], air:0.45, amp:0.36, wob:9.0, wobA:0.07 }  // 4 苛立ち
   ];
-  function hunterVocal(/** @type {any} */ kind, /** @type {number} */ dist, /** @type {any} */ pan, /** @type {boolean} */ blocked){
+  function hunterVocal(kind: any, dist: number, pan: any, blocked: boolean){
     if(!ready) return;
     var V = VOX[kind|0] || VOX[0];
     var t = ctx.currentTime;
@@ -570,12 +570,12 @@ var Audio2 = (function(){
   }
 
   var STEP_MAX = 40;          // ここから徐々に聞こえ始める
-  function stepAtten(/** @type {number} */ dist){
+  function stepAtten(dist: number){
     // 逆距離カーブ＋端の滑らかなフェード。急に鳴り出さず連続的に近づく
     var n = clamp(dist / STEP_MAX, 0, 1);
     return (6 / (6 + dist)) * (1 - n*n*n);
   }
-  function hunterStep(/** @type {number} */ dist, /** @type {boolean} */ chasing, /** @type {any} */ pan, /** @type {boolean} */ blocked, /** @type {any} */ fwd){
+  function hunterStep(dist: number, chasing: boolean, pan: any, blocked: boolean, fwd: any){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = stepAtten(dist) * (blocked ? 0.55 : 1);
@@ -650,7 +650,7 @@ var Audio2 = (function(){
      無人の病棟は静かなだけではなく、時々どこかで何かが鳴る。
      4 種類を手続きで作り、左右の位置と遠さも毎回変える。
      どれも短く小さい——大きな音は追跡者のための場所を取っておく。 */
-  function ambientOne(/** @type {any} */ kind, /** @type {any} */ pan, /** @type {any} */ far){
+  function ambientOne(kind: any, pan: any, far: any){
     if(!ready) return;
     var t = ctx.currentTime;
     var out = master;
@@ -719,7 +719,7 @@ var Audio2 = (function(){
   }
   /* 瓶が割れる音。高い帯域の雑音の粒を数発ばらまき、低い「ごつん」を下に敷く。
      距離で小さく、高域から先に削る */
-  function glass(/** @type {number} */ dist, /** @type {any} */ pan){
+  function glass(dist: number, pan: any){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = 6 / (6 + dist);
@@ -749,7 +749,7 @@ var Audio2 = (function(){
   }
   /* 患者の叫び（第 9 章 updatePatients）。女の声に寄せた鋸歯を 2 つの共鳴
      （900 / 2600 Hz）に通し、上ずってから崩れる。息の雑音を上に敷く */
-  function shriek(/** @type {number} */ dist, /** @type {any} */ pan){
+  function shriek(dist: number, pan: any){
     if(!ready) return;
     var t = ctx.currentTime, dur = 1.5;
     var att = 7 / (7 + dist) * (settings.softScare ? 0.35 : 1);
@@ -778,7 +778,7 @@ var Audio2 = (function(){
   }
   /* 天井裏の金属音（第4章 通気口）。薄い鋼板を叩いた鈍い響きを、
      頭の上から聞こえるように高域を削って鳴らす。loud は 0..1.2 */
-  function clang(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ loud){
+  function clang(dist: number, pan: any, loud: any){
     if(!ready) return;
     var t = ctx.currentTime;
     var att = (8 / (8 + dist)) * (loud || 1);
@@ -806,7 +806,7 @@ var Audio2 = (function(){
   }
   /* 囁き（第5章 映るもの）。子音だけの息の音を、話し声の帯域で短く刻む。
      近いほど大きく、残響を抜いて耳元で鳴らす */
-  function whisper(/** @type {number} */ dist, /** @type {any} */ pan){
+  function whisper(dist: number, pan: any){
     if(!ready) return;
     var t = ctx.currentTime, att = 4 / (4 + dist);
     var out = ctx.createGain(); out.gain.value = 0.35 * att;
@@ -826,7 +826,7 @@ var Audio2 = (function(){
   }
   /* 水しぶき（第6章）。自分の足（dist 0）にも、あれの足にも使う。
      低い「どぷ」と、高い帯域の飛沫を重ねる */
-  function splash(/** @type {number} */ dist, /** @type {any} */ pan, /** @type {any} */ vol){
+  function splash(dist: number, pan: any, vol: any){
     if(!ready) return;
     var t = ctx.currentTime, att = (dist > 0 ? 6 / (6 + dist) : 1) * (vol === undefined ? 1 : vol);
     if(att < 0.004) return;
@@ -846,10 +846,10 @@ var Audio2 = (function(){
   }
   /* 地下の水音。低いせせらぎを常に鳴らし、ときどき滴を落とす。
      これがあれの足音を覆い隠す */
-  var waterNodes = /** @type {any} */ (null), dripT = /** @type {any} */ (null);
-  function setWater(/** @type {any} */ on){
+  var waterNodes = (null as any), dripT = (null as any);
+  function setWater(on: any){
     if(!ready) return;
-    if(waterNodes){ waterNodes.forEach(function(/** @type {any} */ n){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
+    if(waterNodes){ waterNodes.forEach(function(n: any){ try{ n.stop(); }catch(e){} }); waterNodes = null; }
     if(dripT){ clearInterval(dripT); dripT = null; }
     if(!on) return;
     var n = noiseSrc();
@@ -863,7 +863,7 @@ var Audio2 = (function(){
     // 収録の水音と遠くのポンプ（地下。第 6 章）
     [['amb_water', 0.16, 3200], ['amb_pump', 0.08, 700]].forEach(function(e){
       var buf = sfx(e[0]); if(!buf) return;
-      var s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
+      var s: any = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
       var f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = e[2];
       var gg = ctx.createGain(); gg.gain.value = e[1];
       s.connect(f); f.connect(gg); gg.connect(master); if(revSend) gg.connect(revSend);
@@ -884,7 +884,7 @@ var Audio2 = (function(){
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, state:audioState,
-           sfxGroups:function(){ var o = /** @type {Object<string, any>} */ ({}); Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           sfxGroups:function(){ var o = ({} as Record<string, any>); Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,

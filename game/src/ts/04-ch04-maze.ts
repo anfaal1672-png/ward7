@@ -25,21 +25,21 @@ var ZONE_TINT = [
   [0.95, 1.00, 1.00],   // 7 検査区画：青緑
   [1.00, 0.96, 0.92]    // 8 焼却炉側：煤けて赤い
 ];
-function zoneTint(/** @type {any} */ cx, /** @type {any} */ cy){ return ZONE_TINT[zoneOf(cx, cy)]; }
+function zoneTint(cx: any, cy: any){ return ZONE_TINT[zoneOf(cx, cy)]; }
 
-function zoneOf(/** @type {any} */ cx, /** @type {any} */ cy){
+function zoneOf(cx: any, cy: any){
   var zx = clamp(Math.floor(cx * 3 / GW), 0, 2);
   var zy = clamp(Math.floor(cy * 3 / GH), 0, 2);
   return zy*3 + zx;
 }
 
-function idx(/** @type {any} */ x,/** @type {any} */ y){ return y*GW + x; }
-function inBounds(/** @type {any} */ x,/** @type {any} */ y){ return x>=0 && y>=0 && x<GW && y<GH; }
+function idx(x: any,y: any){ return y*GW + x; }
+function inBounds(x: any,y: any){ return x>=0 && y>=0 && x<GW && y<GH; }
 
-function genMaze(/** @type {any} */ loopChance){
+function genMaze(loopChance: any){
   var g = new Uint8Array(GW*GH);
   g.fill(1);
-  var stack = /** @type {number[]} */ ([]);
+  var stack = ([] as number[]);
   var sx = 1, sy = 1;
   g[idx(sx,sy)] = 0;
   stack.push(sx, sy);
@@ -72,14 +72,14 @@ function genMaze(/** @type {any} */ loopChance){
 }
 
 // 通路だけだと全部同じ景色になるので、開けた部屋をいくつか掘る（＝目印になる）
-function carveRooms(/** @type {any} */ g, /** @type {any} */ count){
+function carveRooms(g: any, count: any){
   var rooms = [];
   for(var i=0; i<count*4 && rooms.length<count; i++){
     var rw = 3 + ((rnd()*2)|0)*2, rh = 3 + ((rnd()*2)|0)*2;
     var rx = 2 + ((rnd()*(GW-rw-3))|0), ry = 2 + ((rnd()*(GH-rh-3))|0);
     var clash = false;
     for(var j=0;j<rooms.length;j++){
-      var r = rooms[j];
+      var r: any = rooms[j];
       if(rx < r.x+r.w+2 && rx+rw+2 > r.x && ry < r.y+r.h+2 && ry+rh+2 > r.y){ clash = true; break; }
     }
     if(clash) continue;
@@ -94,7 +94,7 @@ function carveRooms(/** @type {any} */ g, /** @type {any} */ count){
 }
 
 // まっすぐな長い廊下。見通しがきくぶん、遠くの気配に気づける
-function carveHalls(/** @type {any} */ g, /** @type {any} */ count){
+function carveHalls(g: any, count: any){
   for(var i=0;i<count;i++){
     var horiz = rnd() < 0.5;
     var len = 8 + ((rnd()*9)|0);
@@ -117,7 +117,7 @@ function carveHalls(/** @type {any} */ g, /** @type {any} */ count){
 }
 
 // 通路から突き出た行き止まりの窪み。隠れ場所や物置になる
-function carveAlcoves(/** @type {any} */ g, /** @type {any} */ count){
+function carveAlcoves(g: any, count: any){
   var D = [[1,0],[-1,0],[0,1],[0,-1]];
   var made = 0;
   for(var i=0;i<count*6 && made<count;i++){
@@ -135,7 +135,7 @@ function carveAlcoves(/** @type {any} */ g, /** @type {any} */ count){
 }
 
 // 中央の大広間
-function carveHall(/** @type {any} */ g){
+function carveHall(g: any){
   var hw = 7, hh = 5;
   var x0 = ((GW - hw) >> 1), y0 = ((GH - hh) >> 1);
   for(var y=y0; y<y0+hh; y++) for(var x=x0; x<x0+hw; x++){
@@ -146,7 +146,7 @@ function carveHall(/** @type {any} */ g){
 }
 
 // BFS 距離場（-1 = 到達不可）
-function bfsField(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any} */ sy){
+function bfsField(g: any, sx: any, sy: any){
   var dist = new Int32Array(GW*GH); dist.fill(-1);
   var q = new Int32Array(GW*GH*2), head=0, tail=0;
   dist[idx(sx,sy)] = 0;
@@ -168,7 +168,7 @@ function bfsField(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any} *
 }
 
 // 経路探索：start から goal への次の一歩を返す（goal 側から BFS）
-function bfsNextStep(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any} */ sy, /** @type {any} */ gx, /** @type {any} */ gy){
+function bfsNextStep(g: any, sx: any, sy: any, gx: any, gy: any){
   if(sx===gx && sy===gy) return null;
   var field = bfsField(g, gx, gy);
   var here = field[idx(sx,sy)];
@@ -183,15 +183,15 @@ function bfsNextStep(/** @type {any} */ g, /** @type {any} */ sx, /** @type {any
   return null;
 }
 
-function cellToWorld(/** @type {any} */ cx, /** @type {any} */ cy){
+function cellToWorld(cx: any, cy: any){
   return { x:(cx - (GW-1)/2)*CELL, z:(cy - (GH-1)/2)*CELL };
 }
-function worldToCell(/** @type {any} */ x, /** @type {any} */ z){
+function worldToCell(x: any, z: any){
   return { x: Math.round(x/CELL + (GW-1)/2), y: Math.round(z/CELL + (GH-1)/2) };
 }
 
 // グリッド上の視線判定（DDA）
-function hasLOS(/** @type {any} */ g, /** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
+function hasLOS(g: any, x0: any, z0: any, x1: any, z1: any){
   var dx = x1-x0, dz = z1-z0;
   var dist = Math.sqrt(dx*dx+dz*dz);
   if(dist < 0.001) return true;
@@ -211,7 +211,7 @@ var SIGHT_H = 1.5;
 
 // 什器による遮蔽（線分と円の最近接距離）。
 // hasLOS は壁しか見ないので、背の高い什器はここで別に判定する。
-function propBlocksSight(/** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
+function propBlocksSight(x0: any, z0: any, x1: any, z1: any){
   var props = world.props;
   if(!props || !props.length) return false;
   var dx = x1-x0, dz = z1-z0;
@@ -230,7 +230,7 @@ function propBlocksSight(/** @type {any} */ x0, /** @type {any} */ z0, /** @type
 
 // 「見えるか」の判定。壁と背の高い什器の両方を見る。
 // 音の減衰や聴覚距離には使わない（ロッカーは壁ではないので音は回り込む）
-function hasSight(/** @type {any} */ g, /** @type {any} */ x0, /** @type {any} */ z0, /** @type {any} */ x1, /** @type {any} */ z1){
+function hasSight(g: any, x0: any, z0: any, x1: any, z1: any){
   return hasLOS(g, x0, z0, x1, z1) && !propBlocksSight(x0, z0, x1, z1);
 }
 

@@ -56,7 +56,7 @@ var LETTER_SLOT = 1;                    // 何枚目のカルテ（0 始まり�
 /* 手帳。読んだものは周回をまたいで残る（Store へ）。
    notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
    endings は見た結末。 */
-var JOURNAL = { notes:/** @type {Object<string, any>} */ ({}), letters:/** @type {Object<string, any>} */ ({}), linked:false, endings:/** @type {Object<string, any>} */ ({}) };
+var JOURNAL = { notes:({} as Record<string, any>), letters:({} as Record<string, any>), linked:false, endings:({} as Record<string, any>) };
 try{
   var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
   if(j0 && typeof j0 === 'object'){
@@ -78,8 +78,8 @@ function lettersRead(){
 
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
-function buildNoteOrder(/** @type {any} */ need){
-  var pool = /** @type {number[]} */ ([]);
+function buildNoteOrder(need: any){
+  var pool = ([] as number[]);
   for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
   for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
     var k = (rnd() * (j+1)) | 0;
@@ -89,7 +89,7 @@ function buildNoteOrder(/** @type {any} */ need){
   out.push(NOTE_LAST);
   return out;
 }
-function showNote(/** @type {any} */ i){
+function showNote(i: any){
   var order = world.noteOrder || buildNoteOrder(player.need || 5);
   var ni = order[i % order.length] % NOTES.length;
   var n = NOTES[ni];
@@ -106,17 +106,17 @@ function showNote(/** @type {any} */ i){
   noteT = 7.5;
 }
 
-function toast(/** @type {any} */ msg, /** @type {any} */ dur){
+function toast(msg: any, dur: any){
   var t = $('toast');
   t.textContent = msg;
   t.classList.add('on');
   toastT = dur || 2;
 }
-function updateBar(/** @type {any} */ id, /** @type {any} */ v){
+function updateBar(id: any, v: any){
   var el = $(id).firstElementChild;
   el.style.transform = 'scaleX(' + clamp(v,0,1).toFixed(3) + ')';
 }
-function drawECG(/** @type {number} */ dt, /** @type {any} */ bpm){
+function drawECG(dt: number, bpm: any){
   ecgT += dt;
   var interval = 60/bpm;
   var w = ecg.width, h = ecg.height;
@@ -158,7 +158,7 @@ function positionRadar(){
 }
 window.addEventListener('resize', function(){ if(!radarEl.hidden) positionRadar(); });
 
-function drawRadar(/** @type {number} */ dt){
+function drawRadar(dt: number){
   var mode = detectMode();
   if(mode === 0 || state !== STATE.PLAY){
     if(!radarEl.hidden) radarEl.hidden = true;
@@ -189,14 +189,14 @@ function drawRadar(/** @type {number} */ dt){
 
   var sy = Math.sin(player.viewYaw), cyw = Math.cos(player.viewYaw);
   var fx = -sy, fz = -cyw, rx = cyw, rz = -sy;
-  function project(/** @type {any} */ wx, /** @type {any} */ wz){
+  function project(wx: any, wz: any){
     var dx = wx - player.x, dz = wz - player.z;
     var px = dx*rx + dz*rz, pu = dx*fx + dz*fz;
     var d = Math.sqrt(px*px + pu*pu);
     var k = (d > range && d > 0) ? range/d : 1;
     return { x: cx + px*k/range*R, y: cy - pu*k/range*R, d:d, edge:(d > range) };
   }
-  function dot(/** @type {any} */ p, /** @type {any} */ color, /** @type {any} */ r, /** @type {any} */ ring){
+  function dot(p: any, color: any, r: any, ring: any){
     g.fillStyle = color;
     g.beginPath(); g.arc(p.x, p.y, r, 0, TAU); g.fill();
     if(ring){
@@ -248,7 +248,7 @@ function drawRadar(/** @type {number} */ dt){
    聞こえたかを画面の縁の弧と短い字幕で出す。距離は言葉で粗くだけ伝える
    （正確な距離を出すと音より強い手掛かりになってしまう）。 */
 var CUE = { t:0 };
-function soundCue(/** @type {any} */ label, /** @type {number} */ dist, /** @type {any} */ hot){
+function soundCue(label: any, dist: number, hot: any){
   if(!settings.cues || state !== STATE.PLAY) return;
   var dx = hunter.x - player.x, dz = hunter.z - player.z;
   var fx = -Math.sin(player.viewYaw), fz = -Math.cos(player.viewYaw);
@@ -264,7 +264,7 @@ function soundCue(/** @type {any} */ label, /** @type {number} */ dist, /** @typ
   el.classList.add('on');
   CUE.t = 1.2;
 }
-function updateCue(/** @type {number} */ dt){
+function updateCue(dt: number){
   if(CUE.t <= 0) return;
   CUE.t -= dt;
   if(CUE.t <= 0 || state !== STATE.PLAY) $('cue').classList.remove('on');
@@ -274,13 +274,13 @@ function updateCue(/** @type {number} */ dt){
    所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
-var journalReturn = 'title', jSel = /** @type {Object<string, any>} */ ({});
-function noteVoice(/** @type {any} */ head){
+var journalReturn = 'title', jSel = ({} as Record<string, any>);
+function noteVoice(head: any){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
   return 2;                                   // 通達・配線記録
 }
-function openJournal(/** @type {any} */ from){
+function openJournal(from: any){
   journalReturn = from || 'title';
   jSel = {};
   renderJournal();
@@ -329,7 +329,7 @@ function renderJournal(){
   $('jLinkHint').textContent = hint;
 }
 function tryLink(){
-  var picked = /** @type {any[]} */ ([]);
+  var picked = ([] as any[]);
   for(var k in jSel) if(jSel[k]) picked.push(+k);
   if(picked.length < 3) return;
   var ok = picked.length === 3 && LETTER_SISTER.every(function(x){ return picked.indexOf(x) >= 0; });
@@ -350,15 +350,14 @@ function tryLink(){
 var HINT_T1 = 180, HINT_T2 = 300;
 var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
 function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
-/** @return {any} */
-function hintTarget(){
+function hintTarget(): any{
   var best = null, bd = 1e9;
-  function consider(/** @type {any} */ o, /** @type {any} */ what){
+  function consider(o: any, what: any){
     var dx = o.x - player.x, dz = o.z - player.z, dd = dx*dx + dz*dz;
     if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
   }
   if(player.got < player.need){
-    world.records.forEach(function(/** @type {any} */ r){ if(!r.taken) consider(r, 'カルテ'); });
+    world.records.forEach(function(r: any){ if(!r.taken) consider(r, 'カルテ'); });
   }else if(world.key && !world.key.taken && !player.hasKey){
     consider(world.key, '鍵');
   }else if(world.exit){
@@ -366,7 +365,7 @@ function hintTarget(){
   }
   return best;
 }
-function updateHint(/** @type {number} */ dt){
+function updateHint(dt: number){
   if(BOT.on || playAs === 'hunter') return;
   if(player.got !== HINT.lastGot || player.hasKey !== HINT.lastKey){
     HINT.lastGot = player.got; HINT.lastKey = player.hasKey;
@@ -450,7 +449,7 @@ function drawMap(){
     if(seen) x.fillText(ZONE_LETTERS[zy*3 + zx], o + (x0+x1)/2*cs, o + (y0+y1)/2*cs);
   }
   // 非常口（見たことがあれば）
-  function w2m(/** @type {any} */ wx, /** @type {any} */ wz){
+  function w2m(wx: any, wz: any){
     var fx = (wx / CELL + (GW-1)/2), fz = (wz / CELL + (GH-1)/2);
     return { x:o + (fx + 0.5)*cs, y:o + (fz + 0.5)*cs }; }
   if(MAPV.exitSeen && world.exit){
@@ -475,23 +474,23 @@ function drawMap(){
    目的は二つ：捕まる場所が偏っていないか（理不尽の検出）と、どこでやめてしまうか。
    記録するもの：章の開始と終わり（結果・時間）、捕まった場所と相手、隠れ場所に入った場所、
    1 分ごとのフレーム時間の分布（中央値・95%）と温度の段階。 */
-var TELE = { ev:/** @type {any} */ (null), ft:/** @type {any[]} */ ([]), ftT:0 };
+var TELE = { ev:(null as any), ft:([] as any[]), ftT:0 };
 var TELE_MAX = 3000;
 function teleLoad(){
   if(TELE.ev) return;
   try{ TELE.ev = JSON.parse(Store.get('ward7.tele') || '[]'); }catch(e){ TELE.ev = []; }
   if(!Array.isArray(TELE.ev)) TELE.ev = [];
 }
-function tele(/** @type {any} */ kind, /** @type {any} */ data){
+function tele(kind: any, data: any){
   if(!settings.tele || BOT.on) return;
   teleLoad();
-  var e = /** @type {Object<string, any>} */ ({ k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 });
+  var e = ({ k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 } as Record<string, any>);
   for(var key in data) e[key] = data[key];
   TELE.ev.push(e);
   if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
   Store.set('ward7.tele', JSON.stringify(TELE.ev));
 }
-function teleFrame(/** @type {number} */ dt){
+function teleFrame(dt: number){
   if(!settings.tele || BOT.on || state !== STATE.PLAY) return;
   TELE.ft.push(dt); TELE.ftT += dt;
   if(TELE.ftT < 60) return;
@@ -519,28 +518,28 @@ function teleExport(){
    最初から一覧を見せず、その操作が要る場面に初めて来たときに 1 度だけ出す。
    出した物は端末に控え、周回しても繰り返さない。表示は使っている入力機器に合わせる
    （キーは割り当てを引く）。追われている間は「走れ」以外を出さない。 */
-var TIPS = { seen:/** @type {Object<string, any>} */ ({}), cool:0, still:0 };
+var TIPS = { seen:({} as Record<string, any>), cool:0, still:0 };
 try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
-var PAD_NAME = /** @type {Object<string, any>} */ ({ use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' });
-function tipKey(/** @type {any} */ a){
+var PAD_NAME = ({ use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' } as Record<string, any>);
+function tipKey(a: any){
   var ja = LANG !== 'en';
   if(lastInputKind === 'pad') return PAD_NAME[a];
   if(lastInputKind === 'touch'){
-    return (/** @type {Object<string, any>} */ ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
+    return (({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
               throw: ja ? '「投げる」' : '“Throw”', peek: ja ? '「覗く」' : '“Peek”',
               run: ja ? 'スティックを大きく倒して' : 'Push the stick all the way',
-              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' }))[a];
+              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' } as Record<string, any>))[a];
   }
   return keyLabel(keyOf(a === 'hold' ? 'run' : a));
 }
-function tipShow(/** @type {any} */ id, /** @type {any} */ ja, /** @type {any} */ en){
+function tipShow(id: any, ja: any, en: any){
   if(TIPS.seen[id] || BOT.on || playAs === 'hunter' || TIPS.cool > 0) return false;
   TIPS.seen[id] = 1; TIPS.cool = 7;
   try{ Store.set('ward7.tips', JSON.stringify(TIPS.seen)); }catch(e){}
   toast(LANG === 'en' ? en : ja, 4.8);
   return true;
 }
-function updateTips(/** @type {number} */ dt){
+function updateTips(dt: number){
   if(state !== STATE.PLAY || BOT.on || playAs === 'hunter') return;
   TIPS.cool = Math.max(0, TIPS.cool - dt);
   var k = tipKey, touch = lastInputKind === 'touch', chase = hunter.mode === 'chase';

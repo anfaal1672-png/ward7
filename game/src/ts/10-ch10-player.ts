@@ -1,18 +1,18 @@
 /* =========================================================================
    10. プレイヤー
    ========================================================================= */
-var player = {
+var player: any = {
   x:0, z:0, y:1.62, yaw:0, pitch:0,
   vx:0, vz:0, hp:100, battery:100, stamina:100, sanity:100,
   lamp:true, running:false, exhausted:false, bob:0, stepAcc:0, breath:0,
-  hiding:/** @type {any} */ (null), hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
+  hiding:(null as any), hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
   got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
   sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0, wet:false
 };
 
 // 家具（円で近似）から押し出す。プレイヤーと追跡者の両方で使う
-function pushOutOfSolids(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ R){
+function pushOutOfSolids(px: number, pz: number, R: any){
   var list = world.props;
   for(var i=0;i<list.length;i++){
     var o = list[i];
@@ -30,7 +30,7 @@ function pushOutOfSolids(/** @type {number} */ px, /** @type {number} */ pz, /**
 }
 
 // 壁への食い込みを最小距離で押し戻す（瞬間移動させないための共通処理）
-function pushOutOfWalls(/** @type {number} */ px, /** @type {number} */ pz, /** @type {any} */ R){
+function pushOutOfWalls(px: number, pz: number, R: any){
   var g = world.grid;
   var c0 = worldToCell(px - R, pz - R), c1 = worldToCell(px + R, pz + R);
   for(var yy=c0.y; yy<=c1.y; yy++){
@@ -50,9 +50,9 @@ function pushOutOfWalls(/** @type {number} */ px, /** @type {number} */ pz, /** 
   return { x:px, z:pz };
 }
 
-function collideMove(/** @type {number} */ nx, /** @type {number} */ nz){
+function collideMove(nx: number, nz: number){
   var g = world.grid, R = player.radius;
-  function blocked(/** @type {number} */ px, /** @type {number} */ pz){
+  function blocked(px: number, pz: number){
     // グリッド壁
     var c0 = worldToCell(px - R, pz - R);
     var c1 = worldToCell(px + R, pz + R);
@@ -94,7 +94,7 @@ var SNEAK_V = 1.75;          // これ未満の速さなら忍び足（歩きは
 var SNEAK_LEN = 0.45;        // PC の忍び足キーで抑える入力の大きさ
 var BOTTLE_MAX = 2;          // 同時に持てる瓶の数
 var THROW_V = 9.5;           // 投げ出す速さ（m/s）
-var throws = /** @type {any[]} */ ([]);
+var throws = ([] as any[]);
 function clearThrows(){
   throws.forEach(function(t){ if(t.mesh && t.mesh.parent) t.mesh.parent.remove(t.mesh); });
   throws = [];
@@ -113,7 +113,7 @@ function throwBottle(){
   Audio2.click(false);
   return true;
 }
-function updateThrows(/** @type {number} */ dt){
+function updateThrows(dt: number){
   for(var i=throws.length-1; i>=0; i--){
     var t = throws[i];
     t.vy -= 9.8 * dt;
@@ -132,7 +132,7 @@ function updateThrows(/** @type {number} */ dt){
     t.mesh.rotation.set(t.spin, t.spin*0.6, 0);
   }
 }
-function shatter(/** @type {any} */ x, /** @type {any} */ z){
+function shatter(x: any, z: any){
   var dx = x - player.x, dz = z - player.z;
   var dist = Math.sqrt(dx*dx + dz*dz);
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
@@ -174,26 +174,26 @@ var BANDAGES_PER_RUN = [2, 2, 1];
    覗く：立ち止まっている間だけ、開けている側へ頭を 0.42m 出す。体はその場に残るので、
    角の向こうを、姿を見せずに（あれの目はこちらの体の位置で見る）確かめられる。 */
 var DOOR_SLOW = 1.4;
-function updateDoor(/** @type {number} */ dt){
+function updateDoor(dt: number){
   var L = world.lockDoor;
   if(!L || !L.opening) return;
   L.opening = Math.max(0, L.opening - dt);
   var k = 1 - L.opening / DOOR_SLOW;
-  L.group.children.forEach(function(/** @type {any} */ leaf){ leaf.scale.x = Math.max(0.04, 1 - k); });
+  L.group.children.forEach(function(leaf: any){ leaf.scale.x = Math.max(0.04, 1 - k); });
   if(L.opening <= 0){ L.open = true; L.group.visible = false; L.opening = 0; toast('扉が開いた', 1.6); }
 }
-var PEEK = { k:0, side:0, want:false };
+var PEEK: any = { k:0, side:0, want:false };
 var PEEK_OUT = 0.42;
 function peekSide(){
   // 右と左、どちらに頭を出せるか。壁のすぐ手前なら出せない
   var rx = Math.cos(player.viewYaw), rz = -Math.sin(player.viewYaw);
-  function open(/** @type {any} */ s){
+  function open(s: any){
     var x = player.x + rx*s*0.9, z = player.z + rz*s*0.9, c = worldToCell(x, z);
     return inBounds(c.x, c.y) && world.grid[idx(c.x, c.y)] === 0;
   }
   return open(1) ? 1 : (open(-1) ? -1 : 0);
 }
-function updatePeek(/** @type {number} */ dt){
+function updatePeek(dt: number){
   var moving = Math.sqrt(player.vx*player.vx + player.vz*player.vz) > 0.3;
   var want = PEEK.want && !moving && !player.hiding && player.grabT <= 0;
   if(want && PEEK.k < 0.05) PEEK.side = peekSide();

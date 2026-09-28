@@ -1,8 +1,8 @@
 /* =========================================================================
    1. ユーティリティ
    ========================================================================= */
-var clamp = function(/** @type {any} */ v,/** @type {any} */ a,/** @type {any} */ b){ return v<a?a:(v>b?b:v); };
-var lerp  = function(/** @type {any} */ a,/** @type {any} */ b,/** @type {any} */ t){ return a+(b-a)*t; };
+var clamp = function(v: any,a: any,b: any){ return v<a?a:(v>b?b:v); };
+var lerp  = function(a: any,b: any,t: any){ return a+(b-a)*t; };
 var TAU = Math.PI*2;
 var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が読める
 
@@ -22,7 +22,7 @@ var DEG = Math.PI/180;   // 人体の角度は度で書いたほうが意図が�
 THREE.ColorManagement.enabled = false;
 var THREE_LEGACY_LIGHTS = (function(){
   var src = THREE.ShaderChunk.lights_pars_begin, n = 0;
-  function sub(/** @type {any} */ a, /** @type {any} */ b){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
+  function sub(a: any, b: any){ if(src.indexOf(a) >= 0){ src = src.split(a).join(b); n++; } }
   sub('vec3 irradiance = ambientLightColor;', 'vec3 irradiance = ambientLightColor * PI;');
   sub('light.color = directionalLight.color;', 'light.color = directionalLight.color * PI;');
   sub('vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );',
@@ -44,7 +44,7 @@ var THREE_LEGACY_LIGHTS = (function(){
    一度も震えていなかった。iOS アプリの中では WKWebView からネイティブへ
    渡し、Taptic Engine で鳴らす（ios/Sources/AppDelegate.swift の ward7haptic）。
    pat は ms の数、または [鳴る, 休む, 鳴る, ...] の配列（vibrate と同じ形）。 */
-function haptic(/** @type {any} */ pat){
+function haptic(pat: any){
   if(typeof settings !== 'undefined' && settings.haptics === false) return;   // 設定「振動」
   if(typeof BOT !== 'undefined' && BOT.on) return;
   try{
@@ -66,7 +66,7 @@ function haptic(/** @type {any} */ pat){
    あわせて navigator.storage.persist() で消されにくくしてもらう。
    IndexedDB も使えない環境（プライベートモード等）では黙って諦める。 */
 var Store = (function(){
-  var DB = 'ward7', OS = 'kv', dbp = /** @type {any} */ (null);
+  var DB = 'ward7', OS = 'kv', dbp = (null as any);
   function db(){
     if(dbp) return dbp;
     dbp = new Promise(function(res, rej){
@@ -79,21 +79,21 @@ var Store = (function(){
     dbp.catch(function(){});
     return dbp;
   }
-  function mirror(/** @type {any} */ k, /** @type {any} */ v){
-    db().then(function(/** @type {any} */ d){
+  function mirror(k: any, v: any){
+    db().then(function(d: any){
       var tx = d.transaction(OS, 'readwrite');
       if(v === null) tx.objectStore(OS).delete(k); else tx.objectStore(OS).put(v, k);
     }).catch(function(){});
   }
-  function get(/** @type {any} */ k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-  function set(/** @type {any} */ k, /** @type {any} */ v){
+  function get(k: any){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function set(k: any, v: any){
     try{ localStorage.setItem(k, v); }catch(e){}
     mirror(k, v);
   }
   /* 起動時に一度。戻したものがあれば true で done を呼ぶ */
-  function recover(/** @type {any} */ done){
+  function recover(done: any){
     try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){}); }catch(e){}
-    db().then(function(/** @type {any} */ d){
+    db().then(function(d: any){
       var tx = d.transaction(OS, 'readonly'), os = tx.objectStore(OS);
       var rq = os.getAllKeys ? os.getAllKeys() : null;
       if(!rq){ done(false); return; }
@@ -107,7 +107,7 @@ var Store = (function(){
           }
         }catch(e){}
         if(!left){ done(false); return; }
-        keys.forEach(function(/** @type {any} */ k){
+        keys.forEach(function(k: any){
           var g = os.get(k);
           g.onsuccess = function(){
             var have = get(k);
@@ -127,8 +127,8 @@ var Store = (function(){
   return { get:get, set:set, recover:recover };
 })();
 
-var wakeLock = /** @type {any} */ (null), wakeWant = false;
-function keepAwake(/** @type {any} */ on){
+var wakeLock = (null as any), wakeWant = false;
+function keepAwake(on: any){
   wakeWant = !!on;
   try{
     if(!on){ if(wakeLock){ wakeLock.release(); wakeLock = null; } return; }
@@ -141,8 +141,8 @@ function keepAwake(/** @type {any} */ on){
   }catch(e){}
 }
 
-function mulberry32(/** @type {any} */ a){
-  var f = function(){
+function mulberry32(a: any){
+  var f: any = function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
     var t = Math.imul(a ^ a >>> 15, 1 | a);
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
@@ -150,10 +150,10 @@ function mulberry32(/** @type {any} */ a){
   };
   // 状態の保存と巻き戻し（第 15.3 節 SNAP）のために、内側の数を読み書きできるようにする
   f.getState = function(){ return a | 0; };
-  f.setState = function(/** @type {any} */ v){ a = v | 0; };
+  f.setState = function(v: any){ a = v | 0; };
   return f;
 }
-var rnd = mulberry32(Date.now() & 0x7fffffff);
+var rnd: any = mulberry32(Date.now() & 0x7fffffff);
 /* 乱数の流れを用途で分ける（設計指示書 第 15.3 節）。
    rnd   … 生成（テクスチャ・間取り・置き物・カルテの順）
    rndAI … 遊びの判断（追跡者の巡回先・回り込みの向き）
@@ -161,8 +161,8 @@ var rnd = mulberry32(Date.now() & 0x7fffffff);
    ひとつの流れを皆で引いていると、見た目の揺れを 1 回足しただけで追跡者の巡回先が
    変わり、ボットの測定が「同じ種・同じ遊び」で比べられなくなる。
    3 本とも病棟に入るときに種から作り直す（startGame） */
-var rndAI = mulberry32(0x5eed ^ 0xA1), rndFx = mulberry32(0x5eed ^ 0xF3);
-function seedStreams(/** @type {any} */ seed){
+var rndAI: any = mulberry32(0x5eed ^ 0xA1), rndFx: any = mulberry32(0x5eed ^ 0xF3);
+function seedStreams(seed: any){
   rndAI = mulberry32(((seed ^ 0x2545F491) >>> 0) || 1);
   rndFx = mulberry32(((seed ^ 0x9E3779B9) >>> 0) || 1);
 }

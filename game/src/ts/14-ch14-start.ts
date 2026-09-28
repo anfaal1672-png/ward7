@@ -1,9 +1,9 @@
 /* =========================================================================
    14. ゲーム開始
    ========================================================================= */
-var buildInfo = /** @type {any} */ (null);
+var buildInfo = (null as any);
 
-var forcedSeed = /** @type {any} */ (null);
+var forcedSeed = (null as any);
 var skipUI = false;
 function startGame(){
   if(CTX_LOST){ toast('描画の復帰を待っています', 2); return; }
@@ -31,7 +31,7 @@ function startGame(){
      被弾ペースが 1.15 と 2.21 のように倍近く食い違って判断に使えない。 */
   /* 物語の章は種を固定する（第 6.1 節）。検証用の forcedSeed はそれより優先。
      夜勤は毎回違う種 */
-  var rdef = runDef();
+  var rdef: any = runDef();
   var seedNow = (forcedSeed !== null ? forcedSeed : (rdef.seed !== null ? rdef.seed : nightSeed())) & 0x7fffffff;
   rnd = mulberry32(seedNow);
   seedStreams(seedNow);

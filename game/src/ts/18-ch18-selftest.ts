@@ -2,8 +2,8 @@
    18. セルフテスト（?debug=1 でコンソール出力）
    ========================================================================= */
 function runSelfTest(){
-  var out = /** @type {any[]} */ ([]), ok = true;
-  function t(/** @type {any} */ name, /** @type {any} */ cond){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
+  var out = ([] as any[]), ok = true;
+  function t(name: any, cond: any){ out.push((cond?'PASS':'FAIL')+' : '+name); if(!cond) ok = false; }
 
   // three.js を上げたときに光の計算が旧来へ戻せているか（第 1 章）
   t('three.js の光を旧来の計算へ戻せた', THREE_LEGACY_LIGHTS === true);
@@ -37,7 +37,7 @@ function runSelfTest(){
      ただのバンドパスノイズになる。数字の打ち間違いは耳では気づけない
      （どれも「唸り」に聞こえてしまう）ので、ここで押さえる。 */
   (function(){
-    var vs = Audio2.voxSpec(), specOK = true, distinct = /** @type {Object<string, any>} */ ({});
+    var vs = Audio2.voxSpec(), specOK = true, distinct = ({} as Record<string, any>);
     vs.forEach(function(v){
       if(!(v.fm[0] < v.fm[1] && v.fm[1] < v.fm[2])) specOK = false;
       if(!(v.dur > 0 && v.amp > 0 && v.f0 > 0 && v.f1 > 0)) specOK = false;
@@ -65,7 +65,7 @@ function runSelfTest(){
   t('出口に到達可能', field[idx(world.exit.cell.x, world.exit.cell.y)] >= 0);
 
   var allReach = true;
-  world.records.forEach(function(/** @type {any} */ r){
+  world.records.forEach(function(r: any){
     var c = worldToCell(r.x, r.z);
     if(field[idx(c.x,c.y)] < 0) allReach = false;
   });
@@ -73,7 +73,7 @@ function runSelfTest(){
   t('カルテ数が難易度どおり', world.records.length === DIFF[settings.diff].records);
 
   var batReach = true;
-  world.batteries.forEach(function(/** @type {any} */ b){
+  world.batteries.forEach(function(b: any){
     var c = worldToCell(b.x, b.z);
     if(field[idx(c.x,c.y)] < 0) batReach = false;
   });
@@ -86,7 +86,7 @@ function runSelfTest(){
   t('施錠扉は出口セルを守っている',
     !world.lockDoor || (world.lockDoor.cell.x === world.exit.cell.x && world.lockDoor.cell.y === world.exit.cell.y));
   var hidesOK = true;
-  world.hides.forEach(function(/** @type {any} */ h){
+  world.hides.forEach(function(h: any){
     var hcell = worldToCell(h.exitX, h.exitZ);
     if(!inBounds(hcell.x,hcell.y) || field[idx(hcell.x,hcell.y)] < 0) hidesOK = false;
   });
@@ -100,9 +100,9 @@ function runSelfTest(){
      いるだけでは気づけない。数で押さえる。 */
   (function(){
     var bad = 0, meshes = 0;
-    function scan(/** @type {any} */ root){
+    function scan(root: any){
       if(!root) return;
-      root.traverse(function(/** @type {any} */ o){
+      root.traverse(function(o: any){
         if(!o.isMesh || !o.geometry) return;
         meshes++;
         var at = o.geometry.attributes;
@@ -124,8 +124,8 @@ function runSelfTest(){
   // --- 区画表示板 ---
   var DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];   // EDIRS は buildWorld のローカルなのでここで持つ
   t('区画表示板が設置されている', world.zones.length >= 9);
-  var zseen = /** @type {Object<string, any>} */ ({}), zwall = true;
-  world.zones.forEach(function(/** @type {any} */ z){
+  var zseen = ({} as Record<string, any>), zwall = true;
+  world.zones.forEach(function(z: any){
     var zc = worldToCell(z.x, z.z);
     zseen[zoneOf(zc.x, zc.y)] = true;
     // 板は壁面に貼られているので、板の位置のマスは壁か、隣が壁のはず
@@ -145,7 +145,7 @@ function runSelfTest(){
   var exf = world.exitField, leadOK = true;
   if(exf){
     var cur = { x:world.exit.cell.x, y:world.exit.cell.y };
-    world.zones.forEach(function(/** @type {any} */ z){
+    world.zones.forEach(function(z: any){
       var zc2 = worldToCell(z.x, z.z);
       if(!inBounds(zc2.x, zc2.y)) return;
       var walk = { x:zc2.x, y:zc2.y }, guard = 0;
@@ -164,7 +164,7 @@ function runSelfTest(){
     });
   }
   t('誘導矢印をたどると非常口に着く', leadOK);
-  t('誘導矢印は初期状態で消灯', world.zones.every(function(/** @type {any} */ z){ return !z.arrow.visible; }) || world.exit.open);
+  t('誘導矢印は初期状態で消灯', world.zones.every(function(z: any){ return !z.arrow.visible; }) || world.exit.open);
 
   /* --- 壁と床の形 ---
      壁を InstancedMesh から結合ジオメトリに変えた。三角形を自前で
@@ -211,7 +211,7 @@ function runSelfTest(){
      暗い部屋なので目視では「影かな」で済んでしまい、気づけない。 */
   (function(){
     var noCol = 0, meshes = 0, aoMin = 1, aoMax = 0, aoN = 0, aoSum = 0, nan = 0;
-    hunter.group.traverse(function(/** @type {any} */ o){
+    hunter.group.traverse(function(o: any){
       if(!o.isMesh) return;
       meshes++;
       var ca = o.geometry.attributes.color;
@@ -243,7 +243,7 @@ function runSelfTest(){
        体が一様な明るさに戻り、暗がりで石膏の人形に見える。 */
     (function(){
       var worstR = 9, seen = 0;
-      hunter.group.traverse(function(/** @type {any} */ o){
+      hunter.group.traverse(function(o: any){
         if(!o.isMesh || !o.userData || !o.userData.ao) return;
         var ca2 = o.geometry.attributes.color, sm = 0;
         for(var i2=0;i2<ca2.count;i2++) sm += ca2.getX(i2);
@@ -262,7 +262,7 @@ function runSelfTest(){
        高さ方向の密度（UV の縦幅 ÷ 実寸の高さ）を部位間で比べる。 */
     (function(){
       var lo4 = 1e9, hi4 = 0, cnt4 = 0;
-      hunter.group.traverse(function(/** @type {any} */ o){
+      hunter.group.traverse(function(o: any){
         if(!o.isMesh || !o.userData || !o.userData.loft) return;
         if(o.material !== hunter.parts.skin) return;   // skin は buildHunter の中の名前
         var ua = o.geometry.attributes.uv, pa4 = o.geometry.attributes.position;
@@ -307,7 +307,7 @@ function runSelfTest(){
      実測：正常な追跡者で 2.4〜2.7 倍、棘を戻すと 10.3 倍。6 で切る。 */
   (function(){
     var worst = 0, worstN = '';
-    hunter.group.traverse(function(/** @type {any} */ o){
+    hunter.group.traverse(function(o: any){
       if(!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) return;
       var pa = o.geometry.attributes.position, ix = o.geometry.index;
       if(pa.count < 120) return;
@@ -339,18 +339,18 @@ function runSelfTest(){
 
   // --- 什器による視線遮蔽 ---
   t('什器に高さが設定されている',
-    world.props.every(function(/** @type {any} */ op){ return typeof op.h === 'number' && op.h > 0; }));
+    world.props.every(function(op: any){ return typeof op.h === 'number' && op.h > 0; }));
   // 遮るのはロッカーだけ。隠れ場所のロッカー数と一致するはず
-  var tall = world.props.filter(function(/** @type {any} */ op){ return op.h > SIGHT_H; });
-  var lockers = world.hides.filter(function(/** @type {any} */ hd){ return hd.type === 'locker'; });
+  var tall = world.props.filter(function(op: any){ return op.h > SIGHT_H; });
+  var lockers = world.hides.filter(function(hd: any){ return hd.type === 'locker'; });
   t('視線を遮る什器はロッカーのみ', tall.length === lockers.length);
   // 壁を挟まない純粋な幾何として、什器の真上を通る線分で確かめる
   var tallBlocks = true, lowPasses = true;
-  world.props.forEach(function(/** @type {any} */ op){
+  world.props.forEach(function(op: any){
     var blocked = propBlocksSight(op.x - 1.2, op.z, op.x + 1.2, op.z);
     if(op.h > SIGHT_H){ if(!blocked) tallBlocks = false; return; }
     // 低い什器でも、真横に高い什器があれば当然遮られる。その組は判定から外す
-    var near = tall.some(function(/** @type {any} */ tp){
+    var near = tall.some(function(tp: any){
       return Math.abs(tp.z - op.z) < tp.r && Math.abs(tp.x - op.x) < 1.2 + tp.r;
     });
     if(!near && blocked) lowPasses = false;
@@ -362,14 +362,14 @@ function runSelfTest(){
   t('静的什器を焼き固めている', !!world.bakeInfo && world.bakeInfo.baked > 0);
   // 変換行列を間違えると什器が別の場所へ飛ぶ。空になったグループの座標に
   // 焼いたジオメトリの頂点があるかを、いくつか抜き取って確かめる
-  var bakedPts = /** @type {any[]} */ ([]);
-  world.group.children.forEach(function(/** @type {any} */ o){
+  var bakedPts = ([] as any[]);
+  world.group.children.forEach(function(o: any){
     if(!o.isMesh || o.isInstancedMesh || o.geometry.parameters) return;
     var pa = o.geometry.attributes.position;
     for(var vi=0; vi<pa.count; vi+=3) bakedPts.push(pa.getX(vi), pa.getZ(vi));
   });
   var placeOK = true, sampled = 0;
-  world.group.children.forEach(function(/** @type {any} */ o){
+  world.group.children.forEach(function(o: any){
     if(sampled >= 4 || !o.isGroup || !o.userData.bake) return;
     sampled++;
     var near = 1e9;
@@ -385,7 +385,7 @@ function runSelfTest(){
      頂点色を使っていると、焼いた瞬間に色属性が消えて真っ黒になる
      （追跡者の足で一度これをやった）。暗い場面では影と見分けが付かない。 */
   var bakedVC = 0;
-  world.group.traverse(function(/** @type {any} */ o){
+  world.group.traverse(function(o: any){
     if(o.isMesh && o.material && o.material.vertexColors && !o.geometry.attributes.color) bakedVC++;
   });
   t('頂点色を使う什器を焼き固めていない', bakedVC === 0);
@@ -418,7 +418,7 @@ function runSelfTest(){
     // 食い込みが 0 でも、離れて浮いていたら握りに見えない。
     // 中節から先は胴に触れているはず（自由な円弧で曲げると必ずここが浮く）
     var gripOK = true, gapMax = 0;
-    viewParts.digitSt.forEach(function(/** @type {any} */ dst){
+    viewParts.digitSt.forEach(function(dst: any){
       for(var si=4; si<dst.length-1; si++){
         var pw = dst[si].p;
         var gap = Math.sqrt(pw[0]*pw[0] + pw[1]*pw[1]) - viewParts.barrelAt(pw[2]) - dst[si].rx;
@@ -434,7 +434,7 @@ function runSelfTest(){
        実際、爪・包帯・リストバンドの 3 つが外れていて、暗い廊下で
        指先と手首だけが紙のように光っていた。 */
     var rawTone = 0;
-    viewScene.traverse(function(/** @type {any} */ o){
+    viewScene.traverse(function(o: any){
       if(!o.isMesh || !o.material) return;
       var ml = Array.isArray(o.material) ? o.material : [o.material];
       for(var mi3=0; mi3<ml.length; mi3++)
@@ -449,8 +449,8 @@ function runSelfTest(){
        この場面に出るのは汚れた布・肌・ゴムだけ。実測で今いちばん
        明るい面が 0.313、飛んでいた包帯を戻すと 0.381。0.35 で切る
        （両側におよそ 1 割の余裕を取った位置）。 */
-    var tooBright = /** @type {any} */ (null);
-    viewScene.traverse(function(/** @type {any} */ o){
+    var tooBright = (null as any);
+    viewScene.traverse(function(o: any){
       if(tooBright || !o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
       var m3 = o.material;
       if(m3.metalness > 0.5) return;              // 金属は拡散反射が無いので別勘定
@@ -566,7 +566,7 @@ function runSelfTest(){
      途中で出る、のどれもゲームの筋が壊れるが、遊んで気づくには周回が要る。 */
   (function(){
     var ord = world.noteOrder || [];
-    var uniq = /** @type {Object<string, any>} */ ({}), dup = false, range = true;
+    var uniq = ({} as Record<string, any>), dup = false, range = true;
     for(var i=0;i<ord.length;i++){
       if(uniq[ord[i]]) dup = true;
       uniq[ord[i]] = 1;
@@ -641,7 +641,7 @@ function runSelfTest(){
      鳴らす側（Audio2 の stepAtten）と戻す側で式が食い違わないよう、
      鳴らす側と同じ減衰を作って往復させる。 */
   (function(){
-    var att = function(/** @type {any} */ d){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
+    var att = function(d: any){ return (6/(6+d)) * (1 - Math.pow(clamp(d/40,0,1),3)); };
     var worst = 0, ok = true;
     [2, 5, 9, 14, 20, 26, 33].forEach(function(d){
       var e = botStepDist(att(d), true);                  // 見通せる足音
@@ -669,7 +669,7 @@ function runSelfTest(){
   (function(){
     if(!hunter.parts || !hunter.group) return;
     var bad = [], seen = 0;
-    hunter.group.traverse(function(/** @type {any} */ o){
+    hunter.group.traverse(function(o: any){
       seen++;
       var v = [o.position.x,o.position.y,o.position.z,
                o.rotation.x,o.rotation.y,o.rotation.z,
@@ -681,7 +681,7 @@ function runSelfTest(){
 
   // 消えているライトを visible のままにするとシェーダの負荷だけが残る
   var lightsOK = true;
-  scene.traverse(function(/** @type {any} */ o){
+  scene.traverse(function(o: any){
     if(o.isPointLight && o.intensity <= 0.001 && o.visible) lightsOK = false;
   });
   t('消灯中のポイントライトを無効化している', lightsOK);

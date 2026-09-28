@@ -2,7 +2,7 @@
    13. 画面遷移
    ========================================================================= */
 var panels = ['boot','title','opt','cheat','pause','dead','win','err','journal','credits'];
-function showPanel(/** @type {any} */ name){
+function showPanel(name: any){
   panels.forEach(function(p){ $(p).hidden = (p !== name); });
   if(name !== null){
     if(radarEl) radarEl.hidden = true;
@@ -13,7 +13,7 @@ function showPanel(/** @type {any} */ name){
   $('touch').classList.toggle('on', playing);
   $('bPause').style.display = playing ? 'flex' : 'none';
 }
-function blackout(/** @type {any} */ on, /** @type {any} */ instant){
+function blackout(on: any, instant?: any){
   var b = $('blackout');
   b.style.transition = instant ? 'none' : 'opacity 1.1s';
   b.style.opacity = on ? '1' : '0';
@@ -40,12 +40,12 @@ function syncQualityHint(){
    「この明るさなら病棟でも見える」が設定画面の中で確かめられる。
    ここを目分量の説明文で済ませると、暗すぎる／明るすぎるの相談が
    永遠に終わらない。 */
-function acesApprox(/** @type {any} */ x){
+function acesApprox(x: any){
   // three の ACESFilmicToneMapping と同じ近似式
   var a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
   return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
 }
-function toSRGB(/** @type {any} */ v){
+function toSRGB(v: any){
   return v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055;
 }
 var CALIB_STEPS = [0.006, 0.011, 0.020, 0.036, 0.065, 0.118];
@@ -143,7 +143,7 @@ var cheatReturn = 'title';
 function updateCheatBadge(){ $('cheatBadge').hidden = !anyCheat(); }
 function buildCheatUI(){
   var list = $('cheatList'); list.innerHTML = '';
-  var lastG = /** @type {any} */ (null);
+  var lastG = (null as any);
   CHEATS.forEach(function(c){
     if(c.g && c.g !== lastG){
       lastG = c.g;
@@ -177,13 +177,13 @@ function buildCheatUI(){
   });
   updateCheatBadge();
 }
-function doCheatAct(/** @type {any} */ k){
+function doCheatAct(k: any){
   if(state !== STATE.PLAY && state !== STATE.PAUSE){
     toast('プレイ中のみ使えます', 2); return;
   }
   cheatUsed = true; updateCheatBadge();
   if(k === 'records'){
-    world.records.forEach(function(/** @type {any} */ r){
+    world.records.forEach(function(r: any){
       if(r.taken) return;
       r.taken = true; r.mesh.visible = false; r.spr.visible = false; player.got++;
     });
@@ -231,7 +231,7 @@ function doCheatAct(/** @type {any} */ k){
       toast('追跡者を飛ばした（' + Math.round(Math.sqrt(fd)) + 'm 先）', 2);
     }
   }else if(k === 'battery'){
-    world.batteries.forEach(function(/** @type {any} */ q){
+    world.batteries.forEach(function(q: any){
       if(q.taken) return;
       q.taken = true; q.mesh.visible = false; q.spr.visible = false;
     });
@@ -271,16 +271,16 @@ function doCheatAct(/** @type {any} */ k){
     toast('追跡者を引き離した', 2);
   }
 }
-function openCheats(/** @type {any} */ from){
+function openCheats(from: any){
   cheatReturn = from;
   buildCheatUI();
   showPanel('cheat');
 }
 
-$('title').querySelectorAll('[data-diff]').forEach(function(/** @type {any} */ b){
+$('title').querySelectorAll('[data-diff]').forEach(function(b: any){
   b.addEventListener('click', function(){ settings.diff = +b.dataset.diff; saveSettings(); syncSettingsUI(); });
 });
-$('segQ').querySelectorAll('button').forEach(function(/** @type {any} */ b){
+$('segQ').querySelectorAll('button').forEach(function(b: any){
   b.addEventListener('click', function(){
     settings.quality = +b.dataset.q; saveSettings(); syncSettingsUI();
     BENCH.on = false; Store.set('ward7.bench', JSON.stringify({ done:1, manual:1 }));   // 人が選んだら自動で変えない
@@ -290,10 +290,10 @@ $('segQ').querySelectorAll('button').forEach(function(/** @type {any} */ b){
     setTimeout(function(){ location.reload(); }, 300);
   });
 });
-$('segI').querySelectorAll('button').forEach(function(/** @type {any} */ b){
+$('segI').querySelectorAll('button').forEach(function(b: any){
   b.addEventListener('click', function(){ settings.invert = (+b.dataset.i === 1); saveSettings(); syncSettingsUI(); });
 });
-$('gam').addEventListener('input', /** @this {HTMLInputElement} */ function(){
+$('gam').addEventListener('input', function(this: HTMLInputElement){
   settings.gamma = +this.value;
   $('valG').textContent = settings.gamma.toFixed(2);
   paintCalib();
@@ -323,16 +323,16 @@ Array.prototype.forEach.call($('segL').children, function(b){
     setTimeout(function(){ location.reload(); }, 80);
   });
 });
-$('fovA').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
-$('motion').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
-$('flash').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
+$('fovA').addEventListener('input', function(this: HTMLInputElement){ settings.fov = +this.value|0; syncSettingsUI(); saveSettings(); });
+$('motion').addEventListener('input', function(this: HTMLInputElement){ settings.motion = +this.value; syncSettingsUI(); saveSettings(); });
+$('flash').addEventListener('input', function(this: HTMLInputElement){ settings.flash = +this.value; syncSettingsUI(); saveSettings(); });
 Array.prototype.forEach.call($('segC').children, function(b){
   b.addEventListener('click', function(){ settings.cues = (+b.dataset.c === 1); syncSettingsUI(); saveSettings(); });
 });
-$('sens').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
-$('vol').addEventListener('input', /** @this {HTMLInputElement} */ function(){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
+$('sens').addEventListener('input', function(this: HTMLInputElement){ settings.sens = +this.value; $('valS').textContent = settings.sens.toFixed(2); saveSettings(); });
+$('vol').addEventListener('input', function(this: HTMLInputElement){ settings.vol = +this.value; $('valV').textContent = Math.round(settings.vol*100); Audio2.setVol(settings.vol); saveSettings(); });
 
-$('segD').querySelectorAll('button').forEach(function(/** @type {any} */ b){
+$('segD').querySelectorAll('button').forEach(function(b: any){
   b.addEventListener('click', function(){ settings.detect = +b.dataset.d; saveSettings(); syncSettingsUI(); });
 });
 $('btnCheat').addEventListener('click', function(){ openCheats('title'); });
@@ -440,7 +440,7 @@ function buildKeyUI(){
     bt.textContent = keyLabel(keyOf(k.a));
     bt.addEventListener('click', function(){
       bt.textContent = 'キーを押す…'; bt.classList.add('wait');
-      keyCapture = function(/** @type {any} */ code){
+      keyCapture = function(code: any){
         bt.classList.remove('wait');
         if(code !== 'Escape'){
           /* 他の操作が同じキーを主キーにしていたら、入れ替える（1 つのキーに 2 つの操作を載せず、
@@ -465,8 +465,8 @@ buildKeyUI();
    位置は画面に対する中心の割合で持つので、縦横や機種が変わっても同じ辺りに来る。
    置いていないボタンは CSS の既定（左手持ちならその配置）のまま */
 var LAYOUT_IDS = ['bUse', 'bLight', 'bBack', 'bHold', 'bThrow', 'bPeek'];
-var layoutEdit = /** @type {any} */ (null);
-function btnHalf(/** @type {any} */ el){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
+var layoutEdit = (null as any);
+function btnHalf(el: any){ var cs = getComputedStyle(el); return { w:(parseFloat(cs.width) || 64)/2, h:(parseFloat(cs.height) || 64)/2 }; }
 function applyBtnLayout(){
   LAYOUT_IDS.forEach(function(id){
     var el = $(id), p = settings.btnPos && settings.btnPos[id];
@@ -498,7 +498,7 @@ function closeLayoutEdit(){
   saveSettings();
 }
 // 編集中は捕獲の段で拾い、ボタン本来の働き（ランプを点けるなど）には渡さない
-$('touch').addEventListener('pointerdown', function(/** @type {any} */ e){
+$('touch').addEventListener('pointerdown', function(e: any){
   if(!layoutEdit) return;
   var el = e.target && e.target.closest ? e.target.closest('.tbtn') : null;
   e.preventDefault(); e.stopPropagation();

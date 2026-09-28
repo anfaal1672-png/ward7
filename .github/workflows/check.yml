@@ -21,8 +21,8 @@ jobs:
         run: npm run check
       - name: 静的な検め（未定義の名前など。設計指示書 第 15.2 節）
         run: mkdir -p .check && npm run lint
-      - name: 型の検め（TypeScript。any から始めて章ごとに締める。設計指示書 第 15.2 節 手順 2）
-        run: mkdir -p .check && npm run typecheck
+      - name: 型の検め（源の TypeScript。設計指示書 第 15.2 節 手順 2）
+        run: npm run typecheck
       - name: 型の締め具合の歯止め（章ごとの型の無い数が控えより増えたら落とす。第 15.2 節）
         run: node .tools/any-ratchet.js
       - name: 状態の保存と巻き戻し（取って進めた跡と、戻して進めた跡が一致する。第 15.3 節）

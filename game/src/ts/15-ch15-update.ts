@@ -4,7 +4,7 @@
 var _v3 = new THREE.Vector3(), _hv1 = new THREE.Vector3(), _hv2 = new THREE.Vector3();
 
 // ワールド座標をプレイヤー基準の「音量・左右・こもり具合」に変換する
-function spatial(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ maxD, /** @type {boolean} */ blocked, /** @type {any} */ refD){
+function spatial(wx: any, wz: any, maxD: any, blocked: boolean, refD?: any){
   var dx = wx - player.x, dz = wz - player.z;
   var d = Math.sqrt(dx*dx + dz*dz);
   var n = clamp(d / maxD, 0, 1);
@@ -29,15 +29,15 @@ function spatial(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} *
    持ち、壁越しの音はその道のりの長さで小さくし、回り道が長いほどこもらせる。
    向き（左右）は、音が入ってくる開口（こちらのマスの隣の、道の最後の 1 マス）
    から鳴らす。角の向こうの足音は、角の方から聞こえる。 */
-var PATHF = { t:0, cx:-1, cy:-1, field:/** @type {any} */ (null) };
-function updatePathField(/** @type {number} */ dt){
+var PATHF = { t:0, cx:-1, cy:-1, field:(null as any) };
+function updatePathField(dt: number){
   PATHF.t -= dt;
   var c = worldToCell(player.x, player.z);
   if(PATHF.field && PATHF.t > 0 && c.x === PATHF.cx && c.y === PATHF.cy) return;
   PATHF.t = 0.25; PATHF.cx = c.x; PATHF.cy = c.y;
   var g = world.grid, n = GW*GH;
   if(!PATHF.field || PATHF.field.length !== n) PATHF.field = new Int16Array(n);
-  var F = PATHF.field; F.fill(-1);
+  var F: any = PATHF.field; F.fill(-1);
   if(!inBounds(c.x, c.y) || g[idx(c.x, c.y)] !== 0) return;
   var q = [idx(c.x, c.y)], head = 0; F[q[0]] = 0;
   while(head < q.length){
@@ -48,9 +48,9 @@ function updatePathField(/** @type {number} */ dt){
     if(y < GH-1   && F[i+GW] < 0 && g[i+GW] === 0){ F[i+GW] = dv; q.push(i+GW); }
   }
 }
-function spatialPath(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} */ maxD, /** @type {boolean} */ blocked, /** @type {any} */ refD){
+function spatialPath(wx: any, wz: any, maxD: any, blocked: boolean, refD?: any){
   if(!blocked || !PATHF.field) return spatial(wx, wz, maxD, blocked, refD);
-  var F = PATHF.field, c = worldToCell(wx, wz);
+  var F: any = PATHF.field, c = worldToCell(wx, wz);
   if(!inBounds(c.x, c.y) || F[idx(c.x, c.y)] < 1) return spatial(wx, wz, maxD, blocked, refD);
   // 道を逆にたどって、こちらのマスの隣（道のり 1）まで降りる。そこが開口
   var x = c.x, y = c.y, guard = 200;
@@ -68,7 +68,7 @@ function spatialPath(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {an
   var Lp = Math.max(d, F[idx(c.x, c.y)] * CELL);
   var px = pw.x - player.x, pz = pw.z - player.z, pl = Math.sqrt(px*px + pz*pz) || 1;
   // 開口の向きに、道のりの長さだけ離れた場所で鳴っているものとして計算する
-  var r = spatial(player.x + px/pl*Lp, player.z + pz/pl*Lp, maxD, false, refD);
+  var r: any = spatial(player.x + px/pl*Lp, player.z + pz/pl*Lp, maxD, false, refD);
   var ex = clamp((Lp - d) / 14, 0, 1);             // 回り道の長さ（14m で頭打ち）
   r.vol *= lerp(0.8, 0.45, ex);
   r.cut = Math.min(r.cut, lerp(1900, 380, ex));
@@ -79,7 +79,7 @@ function spatialPath(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {an
 /* 床の硬さ。マスの座標から決まる固定値なので、同じ場所は毎回同じ音になる。
    「ここは剥がれたリノリウム、ここはタイル」が歩いているうちに分かる。
    地形の意味は見ていない（部屋か廊下かは音の担当ではない）。 */
-function floorMat(/** @type {any} */ x, /** @type {any} */ z){
+function floorMat(x: any, z: any){
   var c = worldToCell(x, z);
   var h = Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5453;
   return (h - Math.floor(h));
@@ -149,12 +149,12 @@ function nearestInteractable(){
    キーボードでしか出ず、モバイル前提のゲームでタッチだけが不利だった。
    追跡者は最速 4.473（絶望でも 5.72）で、5.8 m/s を前提に調整されている。
    自己診断から呼べるように関数に出してある。 */
-function moveScale(/** @type {any} */ f, /** @type {any} */ s){
+function moveScale(f: any, s: any){
   var len = Math.sqrt(f*f + s*s);
   return len > 1 ? 1 : len;
 }
 
-function updatePlayer(/** @type {number} */ dt){
+function updatePlayer(dt: number){
   readKeys(dt);
 
   // 視点（移動量は腕のスウェイにも使う）
@@ -664,7 +664,7 @@ function beamHitDist(){
      照らされていないので、寄られても露出を変えてはいけない。
      こちらを向いた物なので入射は正面（1）とみなす。 */
   var COSB = Math.cos(LAMP_ANG);
-  function consider(/** @type {number} */ px, /** @type {any} */ py, /** @type {number} */ pz, /** @type {any} */ rad){
+  function consider(px: number, py: any, pz: number, rad: any){
     var vx = px - player.x, vy = py - eyeY, vz = pz - player.z;
     var L = Math.sqrt(vx*vx + vy*vy + vz*vz);
     if(L < 0.2 || L >= d) return;
@@ -677,7 +677,7 @@ function beamHitDist(){
   BEAM.d = d; BEAM.ndl = clamp(ndl, 0.05, 1);
   return d;
 }
-function updateExposure(/** @type {number} */ dt, /** @type {any} */ lampOn){
+function updateExposure(dt: number, lampOn: any){
   var d = Math.max(0.55, beamHitDist());
   // 環境光ぶんの下駄。電源が入っている区画は天井灯があるので底上げする
   var ret = 0.10 * (world.power ? 1.7 : 1) +
@@ -695,7 +695,7 @@ function updateExposure(/** @type {number} */ dt, /** @type {any} */ lampOn){
   renderer.toneMappingExposure = exposureNow();
 }
 
-function avoidProps(/** @type {any} */ x, /** @type {any} */ z, /** @type {number} */ dx, /** @type {number} */ dz, /** @type {any} */ look, /** @type {any} */ rad){
+function avoidProps(x: any, z: any, dx: number, dz: number, look: any, rad: any){
   var pr = world.props, bestT = 1e9, hit = null;
   for(var i=0; i<pr.length; i++){
     var o = pr[i], ox = o.x - x, oz = o.z - z;
@@ -716,7 +716,7 @@ function avoidProps(/** @type {any} */ x, /** @type {any} */ z, /** @type {numbe
   return { x:Math.cos(base), z:Math.sin(base) };
 }
 
-function updateHunter(/** @type {number} */ dt, /** @type {any} */ info){
+function updateHunter(dt: number, info: any){
   var g = world.grid;
   var hd = info.hd;
   // 通気口（第 9 章）。天井裏にいる間は、見ることも襲うこともない
@@ -1550,7 +1550,7 @@ function resetHunterVox(){
    歩行周期の節目を表に書き、位相で引く。表は [位相, 角度] の昇順で、
    端は巻き戻して繋ぐ。位相 0 が接地（踵接地）で、足音もそこで鳴る
    （bob は 1 歩ぶんで π 進み、stepAcc も同じ moved で駆動しているため）。 */
-function gaitKey(/** @type {any} */ tbl, /** @type {any} */ ph){
+function gaitKey(tbl: any, ph: any){
   ph -= Math.floor(ph);
   var n = tbl.length, i;
   for(i=0;i<n;i++) if(tbl[i][0] > ph) break;
@@ -1580,13 +1580,13 @@ var GAIT_ANK_R   = [[0.00, 0.10],[0.08,-0.10],[0.30,-0.22],[0.44,-0.55],[0.58, 0
 /* 歩きと走りの表を混ぜる。mode が chase に入った瞬間に表を差し替えると、
    その 1 フレームで腿が 0.2 rad 飛ぶ（歩きの立脚中期と走りの蹴り出しが
    同じ位相に並んでいるため）。混ぜる比を時定数 0.25 秒で送る。 */
-function gaitMix(/** @type {any} */ tw, /** @type {any} */ tr, /** @type {any} */ ph, /** @type {any} */ rk){
+function gaitMix(tw: any, tr: any, ph: any, rk: any){
   return rk <= 0.001 ? gaitKey(tw, ph)
        : rk >= 0.999 ? gaitKey(tr, ph)
        : gaitKey(tw, ph)*(1-rk) + gaitKey(tr, ph)*rk;
 }
 
-function updateHunterVox(/** @type {number} */ dt, /** @type {any} */ info, /** @type {any} */ hs){
+function updateHunterVox(dt: number, info: any, hs: any){
   // 追跡者がまだ出ていない間は、状態だけ追って声は出さない
   if(!hs){ voxPrevMode = hunter.mode; return; }
   voxT = Math.max(0, voxT - dt);
@@ -1614,10 +1614,10 @@ function updateHunterVox(/** @type {number} */ dt, /** @type {any} */ info, /** 
   voxIdleT = (m === 'chase') ? (1.9 + rndFx()*1.8) : (7 + rndFx()*9);
 }
 
-function updateEnv(/** @type {number} */ dt, /** @type {any} */ info){
+function updateEnv(dt: number, info: any){
   // 非常灯：最寄り n 個だけをライトプールに割り当てる
   var lamps = world.lamps.slice();
-  lamps.sort(function(/** @type {any} */ a,/** @type {any} */ b){
+  lamps.sort(function(a: any,b: any){
     var da = (a.x-player.x)*(a.x-player.x)+(a.z-player.z)*(a.z-player.z);
     var db = (b.x-player.x)*(b.x-player.x)+(b.z-player.z)*(b.z-player.z);
     return da-db;
@@ -1769,13 +1769,13 @@ function updateEnv(/** @type {number} */ dt, /** @type {any} */ info){
    何も起きていない間は沈ませて、暗がりの方を見させる。
    情報を隠すためではなく、変化に注意を向けるための切り替え。 */
 var HUDW = { t:0, bat:100, sta:100, hp:100, got:-1 };
-function hudWake(/** @type {number} */ sec){ HUDW.t = Math.max(HUDW.t, sec); }
+function hudWake(sec: number){ HUDW.t = Math.max(HUDW.t, sec); }
 
 /* 見え方に関わるチートの面倒をまとめて見る。
    毎フレーム状態を合わせにいく（切り替えた瞬間に効いてほしいし、
    切ったときに元へ戻らないと「直らないバグ」に見える）。 */
-var CV = { fov:0, marked:false };
-function updateCheatView(/** @type {number} */ dt){
+var CV: any = { fov:0, marked:false };
+function updateCheatView(dt: number){
   // 視野
   var wantFov = ((window.innerHeight > window.innerWidth) ? 78 : 70) + (cheats.wideView ? 22 : 0) + settings.fov;
   if(state === STATE.PLAY && Math.abs(camera.fov - wantFov) > 0.01){
@@ -1786,18 +1786,18 @@ function updateCheatView(/** @type {number} */ dt){
   var wantItems = !!cheats.markItems, wantHides = !!cheats.markHides;
   if(CV.items !== wantItems){
     CV.items = wantItems;
-    var mark = function(/** @type {any} */ sp){ if(!sp) return;
+    var mark = function(sp: any){ if(!sp) return;
       sp.material.depthTest = !wantItems; sp.renderOrder = wantItems ? 12 : 0;
       sp.material.opacity = wantItems ? 0.9 : 0.55; sp.material.needsUpdate = true; };
-    world.records.forEach(function(/** @type {any} */ r){ mark(r.spr); });
-    world.batteries.forEach(function(/** @type {any} */ b){ mark(b.spr); });
+    world.records.forEach(function(r: any){ mark(r.spr); });
+    world.batteries.forEach(function(b: any){ mark(b.spr); });
     if(world.key) mark(world.key.spr);
   }
   if(CV.hides !== wantHides){
     CV.hides = wantHides;
-    world.hides.forEach(function(/** @type {any} */ h){
+    world.hides.forEach(function(h: any){
       if(!h.group) return;
-      h.group.traverse(function(/** @type {any} */ o){
+      h.group.traverse(function(o: any){
         if(!o.isMesh || !o.material || !o.material.emissive) return;
         if(wantHides){
           if(o.userData.emSave === undefined) o.userData.emSave = o.material.emissiveIntensity || 0;
@@ -1826,7 +1826,7 @@ function updateCheatView(/** @type {number} */ dt){
   }
 }
 
-function updateHUD(/** @type {number} */ dt, /** @type {any} */ bpm, /** @type {any} */ info){
+function updateHUD(dt: number, bpm: any, info: any){
   if(skipUI) return;
   // 変化の検出。しきい値はどれも「人が気づく程度」に置く
   if(Math.abs(player.battery - HUDW.bat) > 0.8 ||

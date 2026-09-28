@@ -6,7 +6,7 @@ var SIM_DT = 1/60, simAcc = 0;
 var fpsAcc = 0, fpsN = 0, fpsShown = 0;
 var autoDropChecked = false, lowFpsTime = 0;
 
-function loop(/** @type {number} */ now){
+function loop(now: number){
   requestAnimationFrame(loop);
   var dt = (now - lastT)/1000;
   lastT = now;
@@ -109,7 +109,7 @@ function loop(/** @type {number} */ now){
         if(!QC.shadows && renderer.shadowMap.enabled){
           renderer.shadowMap.enabled = false;
           if(flashlight) flashlight.castShadow = false;
-          scene.traverse(function(/** @type {any} */ o){
+          scene.traverse(function(o: any){
             if(!o.material) return;
             var ms = Array.isArray(o.material) ? o.material : [o.material];
             for(var mi=0; mi<ms.length; mi++) ms[mi].needsUpdate = true;
@@ -137,7 +137,7 @@ function updateDbg(){
 /* 初回起動の実測（第 8.4 節）。タイトルの情景が出てから 1 秒の暖気を捨て、5 秒のフレーム時間の
    中央値で決める。タイトルは本編より軽いので、下げる閾値は 20ms（本編では 30ms 前後になる）、
    上げるのは 10ms を切るときだけ（上げた先で重ければ戻して終わる） */
-function updateBench(/** @type {number} */ dt){
+function updateBench(dt: number){
   if(!BENCH.on || state !== STATE.TITLE || !titleCam.ready) return;
   BENCH.t += dt;
   if(BENCH.t < 1) return;
@@ -162,7 +162,7 @@ function updateBench(/** @type {number} */ dt){
 }
 
 /* 遊びの 1 刻み（固定 1/60 秒）。loop から呼ばれる */
-function simStep(/** @type {number} */ dt){
+function simStep(dt: number){
   player.time += dt;
   // 追う側で遊ぶときは、人間の操作をボットに上書きされる前に写し取る
   if(playAs === 'hunter') captureHunterInput();

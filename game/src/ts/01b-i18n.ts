@@ -21,8 +21,7 @@ var LANG = 'ja';
 })();
 var JP_RE = /[぀-ヿ一-鿿　-〿！-～]/;
 
-/** @type {Object<string, any>} */
-var EN = {
+var EN: Record<string, any> = {
   // --- タイトル・パネル ---
   'WARD 7 — 第七病棟':'WARD 7', '第七病棟':'Ward Seven',
   '患者':'Patient', 'あなた':'You', '所持品':'Carrying', '手回し式ランプ 1':'1 hand-crank lamp',
@@ -248,26 +247,25 @@ var EN = {
   'WASD＝移動　マウス＝視点　Shift＝突進':'WASD = move · Mouse = look · Shift = charge'
 };
 /* 数字の入る決まった形 */
-/** @type {Array<any>} */
-var EN_PATTERNS = [
+var EN_PATTERNS: any[] = [
   [/^カルテ (\d+) \/ (\d+)$/, 'Records $1 / $2'],
   [/^カルテ(\d+)枚 → 非常口$/, '$1 records → exit'],
-  [/^第(\d+)章　(.+)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name){ return 'Chapter ' + n + ' — ' + trText(name); }],
-  [/^第(\d+)章 (.+?)　(.*)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name, /** @type {any} */ rest){ return 'Chapter ' + n + ' ' + trText(name) + ' — ' + trText(rest); }],
+  [/^第(\d+)章　(.+)$/, function(m: any, n: any, name: any){ return 'Chapter ' + n + ' — ' + trText(name); }],
+  [/^第(\d+)章 (.+?)　(.*)$/, function(m: any, n: any, name: any, rest: any){ return 'Chapter ' + n + ' ' + trText(name) + ' — ' + trText(rest); }],
   [/^第(\d+)章 完$/, 'Chapter $1 complete'],
-  [/^次の章へ　第(\d+)章 (.+)$/, function(/** @type {any} */ m, /** @type {any} */ n, /** @type {any} */ name){ return 'Next: Chapter ' + n + ' ' + trText(name); }],
+  [/^次の章へ　第(\d+)章 (.+)$/, function(m: any, n: any, name: any){ return 'Next: Chapter ' + n + ' ' + trText(name); }],
   [/^あと (\d+) 回$/, '$1 left'],
   [/^掴まれた — 振りほどいた（あと (\d+) 回）$/, 'Grabbed — broke free ($1 left)'],
   [/^冷たい指が触れた（あと (\d+) 回）$/, 'Cold fingers touched you ($1 left)'],
   [/^包帯を巻いた — あと (\d+) 回振りほどける$/, 'Bandaged — you can break free $1 more times'],
   [/^瓶を拾った（(\d+)）— 投げると音で気を引ける$/, 'Picked up a bottle ($1) — throw it to draw it away'],
-  [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ z, /** @type {any} */ dir){
-      return 'The ' + (/** @type {Object<string, any>} */ ({'カルテ':'records','鍵':'key','非常口':'exit'}))[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
-  [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ dir, /** @type {any} */ far){
-      return '[' + trText(what) + ' · ' + (/** @type {Object<string, any>} */ ({'前':'ahead','右':'right','後ろ':'behind','左':'left'}))[dir] +
+  [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(m: any, what: any, z: any, dir: any){
+      return 'The ' + (({'カルテ':'records','鍵':'key','非常口':'exit'} as Record<string, any>))[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
+  [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(m: any, what: any, dir: any, far: any){
+      return '[' + trText(what) + ' · ' + (({'前':'ahead','右':'right','後ろ':'behind','左':'left'} as Record<string, any>))[dir] +
              (far ? ' · ' + (far === '近い' ? 'near' : 'far') : '') + ']'; }],
   [/^カルテを (\d+) 枚 集めろ$/, 'Collect $1 records'],
-  [/^挑戦 (\d+)/, function(/** @type {any} */ m){ return trFragments(m); }],
+  [/^挑戦 (\d+)/, function(m: any){ return trFragments(m); }],
   [/^（いま (\d+) 件）$/, '($1 entries)'],
   [/^(\d+) 回$/, '$1']
 ];
@@ -282,12 +280,11 @@ var EN_FRAG = [
   ['最速', 'best'], ['無傷', 'unhurt'], [' 回', ''], ['区画', 'zone'], ['章', 'ch.'],
   ['所見', 'Observation'], ['私信', 'Letter'], ['カルテ', 'records'], ['非常口', 'exit']
 ];
-function trFragments(/** @type {any} */ s){
+function trFragments(s: any){
   for(var i=0; i<EN_FRAG.length; i++) if(s.indexOf(EN_FRAG[i][0]) >= 0) s = s.split(EN_FRAG[i][0]).join(EN_FRAG[i][1]);
   return s;
 }
-/** @return {any} */
-function trText(/** @type {any} */ s){
+function trText(s: any): any{
   if(LANG !== 'en' || !s || !JP_RE.test(s)) return s;
   var lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], core = s.trim();
   if(EN.hasOwnProperty(core)) return lead + EN[core] + tail;
@@ -298,10 +295,10 @@ function trText(/** @type {any} */ s){
     if(P[0].test(core)) return lead + core.replace(P[0], P[1]) + tail;
   }
   // 改行を含む文（結末）は行ごとに
-  if(core.indexOf('\n') >= 0) return lead + core.split('\n').map(function(/** @type {any} */ l){ return trText(l); }).join('\n') + tail;
+  if(core.indexOf('\n') >= 0) return lead + core.split('\n').map(function(l: any){ return trText(l); }).join('\n') + tail;
   return lead + trFragments(core) + tail;
 }
-function trNode(/** @type {any} */ root){
+function trNode(root: any){
   if(LANG !== 'en' || !root) return;
   if(root.nodeType === 3){ var t = trText(root.data); if(t !== root.data) root.data = t; return; }
   if(root.nodeType !== 1 || root.tagName === 'SCRIPT' || root.tagName === 'STYLE') return;

@@ -1,8 +1,8 @@
 /* =========================================================================
    7. マテリアル／テクスチャの準備
    ========================================================================= */
-var TEX = /** @type {Object<string, any>} */ ({});
-var envRT = /** @type {any} */ (null);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
+var TEX = ({} as Record<string, any>);
+var envRT = (null as any);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
 /* 環境マップ（映り込み）。
    金属を metalness 0.75 で置いても、映すものが無ければ真っ黒にしかならない。
    ランプの筒も、ドラム缶の胴も、扉の把手も、これまで全部「暗い灰色の板」
@@ -66,7 +66,7 @@ function buildEnvMap(){
   applyEnvMap();
 }
 /* 映り込みを付ける材質を 1 か所にまとめる。作り直したときは呼び直す。 */
-var ENV_MATS = /** @type {any[]} */ ([]);
+var ENV_MATS = ([] as any[]);
 function applyEnvMap(){
   var t = envRT ? envRT.texture : null;
   for(var i=0;i<ENV_MATS.length;i++){
@@ -75,7 +75,7 @@ function applyEnvMap(){
     if(m.envMap !== t){ m.envMap = t; m.needsUpdate = true; }
   }
 }
-function regEnvMat(/** @type {any} */ m){
+function regEnvMat(m: any){
   if(ENV_MATS.indexOf(m) < 0) ENV_MATS.push(m);
   if(envRT){ m.envMap = envRT.texture; m.needsUpdate = true; }
   return m;
@@ -115,7 +115,7 @@ function ensureTextures(){
 
 function buildTextures(){
   var s = QC.tex;
-  function mk(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
+  function mk(canvasEl: any, rx: any, ry: any){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -180,7 +180,7 @@ function buildTextures(){
 
   /* 壁と床の艶。地の絵と同じタイル割りで作る（壁 4x4・床 6x6）。
      繰り返しは地の絵に合わせないと目地とずれる。 */
-  function mkR(/** @type {any} */ canvasEl, /** @type {any} */ rx, /** @type {any} */ ry){
+  function mkR(canvasEl: any, rx: any, ry: any){
     var t = new THREE.CanvasTexture(canvasEl);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rx, ry);
@@ -213,12 +213,12 @@ function buildTextures(){
    そのまま効く。軽量・標準では読まない（端末のメモリと読み込みを優先）。
    1 マスの広さ 4.2m に対して、壁のボーダータイル 1 枚の絵が約 1.1m、床の
    長尺シートの絵が 1 マスぶん、天井板が約 2m。 */
-var PHOTO = { tex:/** @type {any} */ (null), loading:false, wait:/** @type {any[]} */ ([]) };
+var PHOTO = { tex:(null as any), loading:false, wait:([] as any[]) };
 /* 最初の案（壁 3.8×3.3・床 1 マス 1 枚）は、壁の目地が細かすぎて白い面に溶け、
    床の八角形が大きすぎて手前が柄に見えた。撮って合わせた値 */
-var PHOTO_REPEAT = /** @type {Object<string, any>} */ ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] });
+var PHOTO_REPEAT = ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] } as Record<string, any>);
 /* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
-var PHOTO_TINT = /** @type {Object<string, any>} */ ({ wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 });
+var PHOTO_TINT = ({ wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 } as Record<string, any>);
 /* 起動の時点では assets.js はまだ届いていない（defer）。置いてあるかどうかで見込む */
 function photoExpected(){
   return (settings.quality|0) >= 2 && !!(renderer.capabilities && renderer.capabilities.isWebGL2) &&
@@ -228,13 +228,13 @@ function photoWanted(){
   return (settings.quality|0) >= 2 && !!window.W7_ASSETS &&
          !!(renderer.capabilities && renderer.capabilities.isWebGL2);
 }
-function loadPhoto(/** @type {any} */ cb){
+function loadPhoto(cb: any){
   if(PHOTO.tex){ cb(PHOTO.tex); return; }
   PHOTO.wait.push(cb);
   if(PHOTO.loading) return;
   PHOTO.loading = true;
-  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = /** @type {Object<string, any>} */ ({}), left = 0;
-  var sets = /** @type {Object<string, any>} */ ({ wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' });
+  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = ({} as Record<string, any>), left = 0;
+  var sets = ({ wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' } as Record<string, any>);
   Object.keys(sets).forEach(function(k){
     T[k] = {};
     ['diff', 'nor', 'rough'].forEach(function(m){
@@ -257,7 +257,7 @@ function loadPhoto(/** @type {any} */ cb){
 function applyPhoto(){
   if(!photoWanted() || !world.mats) return;
   var mats = world.mats;
-  loadPhoto(function(/** @type {any} */ T){
+  loadPhoto(function(T: any){
     if(world.mats !== mats) return;                 // 読み込み中に作り直された
     [['wall', mats.wall, 1.6], ['floor', mats.floor, 0.8], ['ceil', mats.ceil, 0.5]].forEach(function(e){
       var t = T[e[0]], m = e[1];

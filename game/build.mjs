@@ -6,6 +6,7 @@
    使い方:
      node game/build.mjs           ward7.html を書き出す
      node game/build.mjs --check   書き出さずに、ward7.html が源と一致するかだけ見る（CI 用） */
+import ts from 'typescript';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildSync } from 'esbuild';
@@ -65,9 +66,14 @@ const three = buildSync({
   target: ['safari15'], legalComments: 'inline'
 }).outputFiles[0].text;
 
-const order = JSON.parse(fs.readFileSync(path.join(src, 'js', 'order.json'), 'utf8'));
+/* 源は TypeScript（設計指示書 第 15.1 節）。game/src/ts/*.ts は import/export を持たない台本で、
+   1 つの即時関数の中で範囲を分け合う。つないでから型だけを剥がす（注釈は残す）。型の検めは
+   tsconfig.json（npm run typecheck）が受け持つ */
+const order = JSON.parse(fs.readFileSync(path.join(src, 'ts', 'order.json'), 'utf8'));
 const strip = s => s.endsWith('\n') ? s.slice(0, -1) : s;
-const js = order.map(f => strip(fs.readFileSync(path.join(src, 'js', f), 'utf8'))).join('\n');
+const tsSrc = order.map(f => strip(fs.readFileSync(path.join(src, 'ts', f), 'utf8'))).join('\n');
+const js = strip(ts.transpileModule(tsSrc, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None,
+  removeComments: false, isolatedModules: false }, reportDiagnostics: false }).outputText);
 const css = strip(fs.readFileSync(path.join(src, 'style.css'), 'utf8'));
 const shell = fs.readFileSync(path.join(src, 'shell.html'), 'utf8');
 
