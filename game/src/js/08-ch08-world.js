@@ -3235,9 +3235,13 @@ function heroRoom(g, hall){
     m.position.set(px, 0, pz);
     m.rotation.y = Math.atan2(S.n[0], S.n[1]);                     // 部屋の内側を向く
     if(kind === 'bed') m.rotation.y += Math.PI;                    // 枕を壁側に
-    m.userData.bake = true;
+    /* 焼き固め（bakeStaticFurniture）には入れない。あちらは頂点色を運ばないので、
+       頂点色で塗ったこの家具は真っ黒になる（自己診断が一度落とした）。1 品 1 描画のまま */
     world.group.add(m);
-    if(pc.r > 0.2) world.props.push({ x:px, z:pz, r:Math.min(pc.r, 0.95), h:pc.h });
+    /* 当たり判定には入れるが、視線は遮らせない（高さを低く登録する）。
+       視線を遮る什器はロッカーだけ、という決まりで追跡者の目もボットの判断も組んであり、
+       棚や配電盤で急に見えなくなると両方の前提が崩れる（自己診断が見ている） */
+    if(pc.r > 0.2) world.props.push({ x:px, z:pz, r:Math.min(pc.r, 0.95), h:Math.min(pc.h, 1.2) });
     kit.shift(); cursor += pc.len + 0.5; placed++;
   }
   // 名札。北の壁の、口ではない所の目の高さより少し上に
