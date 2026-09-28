@@ -15,7 +15,10 @@ async function run(b, file, lang, noVoice){
   await p.waitForTimeout(500);
   await p.evaluate(()=>window.__WARD7.showNote(0));
   const t0 = await p.evaluate(()=>window.__WARD7.tape());
-  await p.waitForTimeout(noVoice ? 300 : 7000);
+  /* 字幕はゲームの時間で送るので、壁時計で待つと遅い機械（CI）では 2 行目に届かない
+     （7 秒待ってゲームの時間が 4.7 秒で落ちた）。2 行目に進むまでを条件で待つ */
+  if(noVoice) await p.waitForTimeout(300);
+  else await p.waitForFunction(()=>window.__WARD7.tape().line >= 1, null, {timeout:60000}).catch(()=>{});
   const t1 = await p.evaluate(()=>window.__WARD7.tape());
   const heard = await p.evaluate(()=>!!window.__WARD7.journal().tapes[0]);
   await p.evaluate(()=>window.__WARD7.showNote(0));
