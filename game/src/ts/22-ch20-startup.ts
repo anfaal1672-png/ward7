@@ -85,7 +85,10 @@ try{
       return null;
     },
     texGen: { wall:texWall, floor:texFloor },
-    noteOrder: function(){ return world.noteOrder; }, noteCount: function(){ return NOTES.length; },
+    noteOrder: function(){ return world.noteOrder; },
+    showNote: function(i: number){ showNote(i); }, journal: function(){ return JOURNAL; },
+    tape: function(){ return { i:TAPE.i, t:TAPE.t, dur:TAPE.dur, line:TAPE.line, playing:!!TAPE.node,
+      head:$('noteHead').textContent, body:$('noteBody').textContent, on:$('note').classList.contains('on') }; }, noteCount: function(){ return NOTES.length; },
     viewBeam: function(){ return { x:+viewBeam.x.toFixed(4), y:+viewBeam.y.toFixed(4) }; },
     // 自動露出。検証で「近い壁を向くと絞るか」を数で見るのに使う
     exposure: function(){ return { adapt:expAdapt, now:exposureNow(), hit:beamHitDist() }; },

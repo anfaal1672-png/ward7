@@ -388,6 +388,9 @@
   #jList .jdoc{border-top:1px solid var(--line);padding:10px 2px;font-size:13px;line-height:1.7;color:var(--bone)}
   #jList .jdoc b{display:block;font:11px/1.6 var(--mono);letter-spacing:.14em;color:var(--dim);font-weight:400}
   #jList .jdoc.unread{color:var(--dim);font-style:italic}
+  #jList .jdoc.tape{cursor:pointer;white-space:pre-line}
+  #jList .jdoc.tape b::before{content:'▶ ';color:var(--dim)}
+  #note.tape b::before{content:'● REC  ';color:#a83a32;letter-spacing:.1em}
   #jList .jdoc.letter{cursor:pointer;border-left:2px solid transparent;padding-left:10px;transition:border-color .2s,background .2s}
   #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
   #jList .jdoc.letter.linked{border-left-color:var(--copper)}

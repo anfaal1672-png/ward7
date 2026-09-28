@@ -43,6 +43,15 @@ function buildAssets(){
       out['sfx/' + f.replace(/\.wav$/, '')] = 'data:audio/wav;base64,' + fs.readFileSync(path.join(sfxRoot, f)).toString('base64');
     }
   }
+  /* 録音テープの声（第 11.5 節）。MP3 は data URI、区切りの時刻は文字列のまま */
+  const vRoot = path.join(assetsDir, 'voice');
+  if(fs.existsSync(vRoot)){
+    if(lic.indexOf('| voice/') < 0) throw new Error('assets/LICENSES.md に voice/ の記録が無い');
+    for(const f of fs.readdirSync(vRoot).sort()){
+      if(/\.mp3$/.test(f)) out['voice/' + f.replace(/\.mp3$/, '')] = 'data:audio/mpeg;base64,' + fs.readFileSync(path.join(vRoot, f)).toString('base64');
+    }
+    out['voice/tapes'] = fs.readFileSync(path.join(vRoot, 'tapes.json'), 'utf8').trim();
+  }
   /* 小道具の立体素材（第 7.2 節）。meta は文字列、mesh.bin は base64、色の絵は data URI */
   const mdRoot = path.join(assetsDir, 'models');
   if(fs.existsSync(mdRoot)){

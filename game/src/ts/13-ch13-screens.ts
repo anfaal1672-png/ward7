@@ -403,6 +403,7 @@ function doResume(){
   input.fwd = input.side = 0; stickId = null; lookId = null; setStickVisual(false);
 }
 function toTitle(){
+  stopTape();
   state = STATE.TITLE;
   keepAwake(false);
   // 遊んだ後のワールドをそのまま情景に使う。建て直すと待たされる

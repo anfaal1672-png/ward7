@@ -56,12 +56,13 @@ var LETTER_SLOT = 1;                    // 何枚目のカルテ（0 始まり�
 /* 手帳。読んだものは周回をまたいで残る（Store へ）。
    notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
    endings は見た結末。 */
-var JOURNAL = { notes:({} as Record<string, any>), letters:({} as Record<string, any>), linked:false, endings:({} as Record<string, any>) };
+var JOURNAL = { notes:({} as Record<string, any>), letters:({} as Record<string, any>), tapes:({} as Record<string, any>), linked:false, endings:({} as Record<string, any>) };
 try{
   var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
   if(j0 && typeof j0 === 'object'){
     if(j0.notes && typeof j0.notes === 'object') JOURNAL.notes = j0.notes;
     if(j0.letters && typeof j0.letters === 'object') JOURNAL.letters = j0.letters;
+    if(j0.tapes && typeof j0.tapes === 'object') JOURNAL.tapes = j0.tapes;
     JOURNAL.linked = !!j0.linked;
     if(j0.endings && typeof j0.endings === 'object') JOURNAL.endings = j0.endings;
   }
@@ -90,6 +91,8 @@ function buildNoteOrder(need: any){
   return out;
 }
 function showNote(i: any){
+  stopTape();
+  if(tapeWanted(i)){ playTape(RUN.ch); return; }
   var order = world.noteOrder || buildNoteOrder(player.need || 5);
   var ni = order[i % order.length] % NOTES.length;
   var n = NOTES[ni];
@@ -274,7 +277,7 @@ function updateCue(dt: number){
    所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
-var journalReturn = 'title', jSel = ({} as Record<string, any>);
+var journalReturn = 'title', jSel = ({} as Record<string, any>), JTAPE = (null as any);
 function noteVoice(head: any){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
@@ -318,6 +321,23 @@ function renderJournal(){
     if(rd && !JOURNAL.linked && lr === LETTERS.length){
       el.addEventListener('click', function(){ jSel[li] = !jSel[li]; tryLink(); renderJournal(); });
     }
+    list.appendChild(el);
+  });
+  // 録音テープ（第 11.5 節）。聴いたものは書き起こしを載せ、押すともう一度流れる
+  var sec3 = document.createElement('div'); sec3.className = 'jsec'; sec3.textContent = '録音テープ — 院長の口述';
+  list.appendChild(sec3);
+  TAPES.forEach(function(T, ti){
+    var el = document.createElement('div');
+    var rd = !!JOURNAL.tapes[ti];
+    el.className = 'jdoc' + (rd ? ' tape' : ' unread');
+    el.innerHTML = '<b></b><span></span>';
+    el.firstChild.textContent = rd ? tapeHead(ti) : '（未読）';
+    el.lastChild.textContent = rd ? (T[1] as string[]).join('\n') : '';
+    if(rd) el.addEventListener('click', function(){
+      if(JTAPE){ try{ JTAPE.stop(); }catch(e){} JTAPE = null; return; }
+      Audio2.init(); Audio2.resume();
+      Audio2.voice('voice/tape_' + (ti + 1), function(n: any){ JTAPE = n; n.onended = function(){ if(JTAPE === n) JTAPE = null; }; });
+    });
     list.appendChild(el);
   });
   $('jSummary').textContent = '読んだ記録 ' + readN + ' / ' + NOTES.length + '　私信 ' + lr + ' / ' + LETTERS.length +

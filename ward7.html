@@ -399,6 +399,9 @@
   #jList .jdoc{border-top:1px solid var(--line);padding:10px 2px;font-size:13px;line-height:1.7;color:var(--bone)}
   #jList .jdoc b{display:block;font:11px/1.6 var(--mono);letter-spacing:.14em;color:var(--dim);font-weight:400}
   #jList .jdoc.unread{color:var(--dim);font-style:italic}
+  #jList .jdoc.tape{cursor:pointer;white-space:pre-line}
+  #jList .jdoc.tape b::before{content:'▶ ';color:var(--dim)}
+  #note.tape b::before{content:'● REC  ';color:#a83a32;letter-spacing:.1em}
   #jList .jdoc.letter{cursor:pointer;border-left:2px solid transparent;padding-left:10px;transition:border-color .2s,background .2s}
   #jList .jdoc.letter.sel{border-left-color:var(--amber);background:rgba(232,163,61,.06)}
   #jList .jdoc.letter.linked{border-left-color:var(--copper)}
@@ -808,6 +811,7 @@
     <div class="row"><span>壁の素材</span><b>Long White Tiles — Poly Haven（CC0）</b></div>
     <div class="row"><span>床の素材</span><b>Old Linoleum Flooring 01 — Poly Haven（CC0）</b></div>
     <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
+    <div class="row"><span>録音テープの声</span><b>Open JTalk・HTS voice nitech_jp_atr503_m001 — 名古屋工業大学（CC BY 3.0）を加工</b></div>
     <div class="row"><span>追跡者の体</span><b>MakeHuman（CC0）の人体を加工</b></div>
     <div class="row"><span>小道具の模型</span><b>Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工</b></div>
     <div class="row"><span>足音・割れる音・金属音</span><b>Impact Sounds — Kenney（CC0）を加工</b></div>
@@ -1249,7 +1253,7 @@ var EN = {
     '立体音響': '3D audio', 'ヘッドホン': 'Headphones', 'スピーカー': 'Speakers',
     'ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。': 'With headphones you can tell front from back. On the built-in speaker, left/right only sounds more natural.',
     'クレジット': 'Credits', 'ゲーム': 'Game', '描画': 'Rendering', '壁の素材': 'Wall texture', '床の素材': 'Floor texture',
-    '天井の素材': 'Ceiling texture', 'すべて WebAudio で合成': 'All synthesized with WebAudio', '足音・割れる音・金属音': 'Footsteps, breaking glass, metal', '小道具の模型': 'Prop models', '追跡者の体': 'Pursuer body', 'MakeHuman（CC0）の人体を加工': 'MakeHuman (CC0) human body, processed', 'Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工': 'Metal Office Desk, Wall Clock, Fire Extinguisher, Medical Box, Metal Stool — Poly Haven (CC0), processed', 'Impact Sounds — Kenney（CC0）を加工': 'Impact Sounds — Kenney (CC0), processed', 'その他の音': 'Other sounds', '空調・水・ポンプの持続音': 'Air handling, water and pump loops', '30 CC0 SFX Loops — rubberduck（CC0）を加工': '30 CC0 SFX Loops — rubberduck (CC0), processed', 'WebAudio で合成': 'Synthesized with WebAudio',
+    '天井の素材': 'Ceiling texture', 'すべて WebAudio で合成': 'All synthesized with WebAudio', '足音・割れる音・金属音': 'Footsteps, breaking glass, metal', '小道具の模型': 'Prop models', '追跡者の体': 'Pursuer body', '録音テープの声': 'Tape voice', 'Open JTalk・HTS voice nitech_jp_atr503_m001 — 名古屋工業大学（CC BY 3.0）を加工': 'Open JTalk, HTS voice nitech_jp_atr503_m001 — Nagoya Institute of Technology (CC BY 3.0), processed', '院長': 'Director', '録音テープ — 院長の口述': 'Tapes — dictated by the director', '録音テープ 1 — 昭和六十二年四月二日': 'Tape 1 — April 2, 1987', '録音テープ 2 — 昭和六十二年四月十日': 'Tape 2 — April 10, 1987', '録音テープ 3 — 昭和六十二年五月一日': 'Tape 3 — May 1, 1987', '録音テープ 4 — 昭和六十二年五月十四日': 'Tape 4 — May 14, 1987', '録音テープ 5 — 昭和六十二年五月二十八日': 'Tape 5 — May 28, 1987', '録音テープ 6 — 昭和六十二年六月二日': 'Tape 6 — June 2, 1987', '録音テープ 7 — 昭和六十二年六月十一日': 'Tape 7 — June 11, 1987', '記録。第七病棟の夜間巡回について。': 'Recording. On the night rounds in Ward Seven.', '当直の看護婦から、患者が夜中に廊下を歩き回ると報告があった。': 'The nurse on duty reports that patients walk the corridors at night.', '本人たちに記憶は無い。夢遊の類いだろう。経過を見る。': 'They remember nothing. Some form of sleepwalking. We will observe.', '念のため、夜間は非常灯のほかを落とすよう指示した。': 'As a precaution, I have ordered everything but the emergency lights off at night.', '東棟の大部屋で、四名が同じ夢を訴えている。': 'In the East Wing ward, four patients report the same dream.', '長い髪の女が、枕元に立つのだそうだ。': 'A woman with long hair stands at their bedside, they say.', '灯りを向けると、患者たちは叫ぶ。暗いままにしておけば、静かにしている。': 'When a light is turned on them, they scream. Left in the dark, they stay quiet.', '暗いままにしておく。': 'We will leave them in the dark.', '七名が同時に発症した。': 'Seven patients fell ill at the same time.', '全員が、同じ方角を向いて座っている。地下の方角だ。': 'All of them sit facing the same direction. Toward the basement.', '非常回路の配線を調べさせた。図面に無い線が一本ある。': 'I had the emergency circuit traced. There is one line that is not on the plans.', '誰が引いたのか分からない。工事の書類には、私の印が押してある。': 'No one knows who ran it. The work order carries my seal.', '夜勤の看護婦が、患者に名前を呼ばれたと言ってきた。': 'The night nurse tells me a patient called her by name.', '去年亡くした、妹さんの声だったそうだ。': 'In the voice of her sister, who died last year.', '休ませるべきだと分かっている。だが、彼女がいないと夜の記録が残らない。': 'I know she should rest. But without her, there is no record of the nights.', '天井の上を、何かが這っている。録音を止める。': 'Something is crawling above the ceiling. Stopping the recording.', '記録の持ち出しを禁じた。': 'I have forbidden taking records out.', '外へ出した記録は、翌朝には必ずここへ戻っている。棚の、同じ場所に。': 'Records taken outside are always back here the next morning. In the same place on the shelf.', '書架の間に、誰かが立っている。照らすと、いない。': 'Someone stands between the shelves. When I shine a light, no one is there.', '私は、照らし続けることにした。': 'I have decided to keep the light on it.', '閉鎖を決めた。移送の車は、手配しなかった。': 'I have decided to close the ward. I did not arrange transport.', '患者たちは、自分から地下へ降りていった。水の中を、一列に並んで。': 'The patients went down to the basement on their own. Through the water, in a single line.', 'あの線は、そこへ伸びている。繋がれている、と言ったほうが正しい。': 'That line runs down there. It would be more accurate to say they are connected.', '記録の上では、全員を移送したことにする。': 'On paper, all of them were transferred.', 'これが最後の記録になる。': 'This will be the last recording.', '当直の看護婦が、まだ病棟から出てこない。': 'The nurse on duty has still not come out of the ward.', '呼んでも返事がない。代わりに、妹さんの声が返ってくる。': 'She does not answer when I call. Her sister\'s voice answers instead.', '非常口の場所を、誰も思い出せない。私もだ。': 'No one can remember where the emergency exit is. Neither can I.', 'これを聴いているあなたの名前も、ここのカルテにある。': 'Whoever is listening to this, your name is in these charts too.', 'MakeHuman（CC0）の人体を加工': 'MakeHuman (CC0) human body, processed', 'Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工': 'Metal Office Desk, Wall Clock, Fire Extinguisher, Medical Box, Metal Stool — Poly Haven (CC0), processed', 'Impact Sounds — Kenney（CC0）を加工': 'Impact Sounds — Kenney (CC0), processed', 'その他の音': 'Other sounds', '空調・水・ポンプの持続音': 'Air handling, water and pump loops', '30 CC0 SFX Loops — rubberduck（CC0）を加工': '30 CC0 SFX Loops — rubberduck (CC0), processed', 'WebAudio で合成': 'Synthesized with WebAudio',
     '写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。': 'Photo textures were recolored and weathered to fit a 1987 hospital.',
     // --- カルテ ---
     '夜間、第七病棟の患者が廊下を歩き回る。制止しても反応がない。翌朝は全員、何も覚えていないと言う。': 'At night the Ward 7 patients walk the corridors. They do not respond when stopped. In the morning, every one of them says they remember nothing.',
@@ -2827,7 +2831,43 @@ var Audio2 = (function () {
             o.stop(t + 0.1);
         }, 700);
     }
-    return { setHRTF: setHRTF, setScore: setScore, glass: glass, shriek: shriek, clang: clang, whisper: whisper, splash: splash, setWater: setWater, resting: resting, scoreLevel: function () { return scoreLevel; },
+    /* 録音テープの声（第 11.5 節）。assets.js の voice/<名前>（MP3）を鳴らす時に初めて解く。
+       7 本を最初に全部解くと 20MB 近い PCM を抱えることになる。
+       声は画面の外の世界の音ではなく手元の再生機なので、部屋の返りも立体音響も通さず直に出す。
+       鳴り始めたら cb(元の節点) を返す（止めるのに使う）。素材が無ければ false */
+    var VOICE = {};
+    function voice(key, cb) {
+        var A = window.W7_ASSETS;
+        if (!ready || !A || !A[key])
+            return false;
+        function go(buf) {
+            var s = ctx.createBufferSource();
+            s.buffer = buf;
+            var g = ctx.createGain();
+            g.gain.value = 0.9;
+            s.connect(g);
+            g.connect(master);
+            s.start(ctx.currentTime + 0.05);
+            cb(s);
+        }
+        if (VOICE[key]) {
+            go(VOICE[key]);
+            return true;
+        }
+        try {
+            var bin = atob(A[key].split(',')[1]), u8 = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++)
+                u8[i] = bin.charCodeAt(i);
+            var pr = ctx.decodeAudioData(u8.buffer, function (buf) { VOICE[key] = buf; go(buf); }, function () { });
+            if (pr && pr.catch)
+                pr.catch(function () { });
+        }
+        catch (e) {
+            return false;
+        }
+        return true;
+    }
+    return { voice: voice, setHRTF: setHRTF, setScore: setScore, glass: glass, shriek: shriek, clang: clang, whisper: whisper, splash: splash, setWater: setWater, resting: resting, scoreLevel: function () { return scoreLevel; },
         init: init, resume: resume, suspend: suspend, state: audioState,
         sfxGroups: function () { var o = {}; Object.keys(SFX).forEach(function (k) { o[k] = SFX[k].length; }); return o; }, setVol: setVol, setSpace: setSpace, makeIR: makeIR,
         startAmbient: startAmbient, stopAmbient: stopAmbient, setTension: setTension,
@@ -11631,7 +11671,7 @@ var LETTER_SLOT = 1; // 何枚目のカルテ（0 始まり）の代わりに出
 /* 手帳。読んだものは周回をまたいで残る（Store へ）。
    notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
    endings は見た結末。 */
-var JOURNAL = { notes: {}, letters: {}, linked: false, endings: {} };
+var JOURNAL = { notes: {}, letters: {}, tapes: {}, linked: false, endings: {} };
 try {
     var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
     if (j0 && typeof j0 === 'object') {
@@ -11639,6 +11679,8 @@ try {
             JOURNAL.notes = j0.notes;
         if (j0.letters && typeof j0.letters === 'object')
             JOURNAL.letters = j0.letters;
+        if (j0.tapes && typeof j0.tapes === 'object')
+            JOURNAL.tapes = j0.tapes;
         JOURNAL.linked = !!j0.linked;
         if (j0.endings && typeof j0.endings === 'object')
             JOURNAL.endings = j0.endings;
@@ -11677,6 +11719,11 @@ function buildNoteOrder(need) {
     return out;
 }
 function showNote(i) {
+    stopTape();
+    if (tapeWanted(i)) {
+        playTape(RUN.ch);
+        return;
+    }
     var order = world.noteOrder || buildNoteOrder(player.need || 5);
     var ni = order[i % order.length] % NOTES.length;
     var n = NOTES[ni];
@@ -11889,7 +11936,7 @@ function updateCue(dt) {
    所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
-var journalReturn = 'title', jSel = {};
+var journalReturn = 'title', jSel = {}, JTAPE = null;
 function noteVoice(head) {
     if (head.indexOf('所見') === 0)
         return 0;
@@ -11943,6 +11990,35 @@ function renderJournal() {
         if (rd && !JOURNAL.linked && lr === LETTERS.length) {
             el.addEventListener('click', function () { jSel[li] = !jSel[li]; tryLink(); renderJournal(); });
         }
+        list.appendChild(el);
+    });
+    // 録音テープ（第 11.5 節）。聴いたものは書き起こしを載せ、押すともう一度流れる
+    var sec3 = document.createElement('div');
+    sec3.className = 'jsec';
+    sec3.textContent = '録音テープ — 院長の口述';
+    list.appendChild(sec3);
+    TAPES.forEach(function (T, ti) {
+        var el = document.createElement('div');
+        var rd = !!JOURNAL.tapes[ti];
+        el.className = 'jdoc' + (rd ? ' tape' : ' unread');
+        el.innerHTML = '<b></b><span></span>';
+        el.firstChild.textContent = rd ? tapeHead(ti) : '（未読）';
+        el.lastChild.textContent = rd ? T[1].join('\n') : '';
+        if (rd)
+            el.addEventListener('click', function () {
+                if (JTAPE) {
+                    try {
+                        JTAPE.stop();
+                    }
+                    catch (e) { }
+                    JTAPE = null;
+                    return;
+                }
+                Audio2.init();
+                Audio2.resume();
+                Audio2.voice('voice/tape_' + (ti + 1), function (n) { JTAPE = n; n.onended = function () { if (JTAPE === n)
+                    JTAPE = null; }; });
+            });
         list.appendChild(el);
     });
     $('jSummary').textContent = '読んだ記録 ' + readN + ' / ' + NOTES.length + '　私信 ' + lr + ' / ' + LETTERS.length +
@@ -12285,6 +12361,137 @@ function updateTips(dt) {
     TIPS.still = still ? TIPS.still + dt : 0;
     if (TIPS.still > 2 && !player.hiding && player.time > 60 && peekSide() !== 0)
         tipShow('peek', k('peek') + ' で角から覗く', k('peek') + ' to peek around the corner');
+}
+/* --- 録音テープ（設計指示書 第 11.5 節・第 20.1 節「録音テープ 7 本」） ---------------
+   院長が口述で残した記録。章ごとに 1 本、その回に拾った最初のカルテの代わりに出る
+   （まだ聴いていない章だけ。私信と同じく、チートの回・自動操作・追う側では出さない）。
+   案 A（移送されなかった患者たち）の側から、所見・私信と同じ出来事を語る。
+
+   声は .tools/voice-bake.js が下の台詞から作る（Open JTalk の合成音声をカセットの音へ加工）。
+   台詞を直したら焼き直すこと。区切りの時刻は assets.js の voice/tapes に入り、字幕はそれに合わせて送る。
+   声が無いとき（低品質・assets.js がまだ）は、台詞を全部まとめて紙と同じように読ませる。
+   下の配列は焼く道具が文字列として読むので、式を書かずに文字列の並びだけにしておく */
+var TAPES = [
+    ['昭和六十二年四月二日', [
+            '記録。第七病棟の夜間巡回について。',
+            '当直の看護婦から、患者が夜中に廊下を歩き回ると報告があった。',
+            '本人たちに記憶は無い。夢遊の類いだろう。経過を見る。',
+            '念のため、夜間は非常灯のほかを落とすよう指示した。'
+        ]],
+    ['昭和六十二年四月十日', [
+            '東棟の大部屋で、四名が同じ夢を訴えている。',
+            '長い髪の女が、枕元に立つのだそうだ。',
+            '灯りを向けると、患者たちは叫ぶ。暗いままにしておけば、静かにしている。',
+            '暗いままにしておく。'
+        ]],
+    ['昭和六十二年五月一日', [
+            '七名が同時に発症した。',
+            '全員が、同じ方角を向いて座っている。地下の方角だ。',
+            '非常回路の配線を調べさせた。図面に無い線が一本ある。',
+            '誰が引いたのか分からない。工事の書類には、私の印が押してある。'
+        ]],
+    ['昭和六十二年五月十四日', [
+            '夜勤の看護婦が、患者に名前を呼ばれたと言ってきた。',
+            '去年亡くした、妹さんの声だったそうだ。',
+            '休ませるべきだと分かっている。だが、彼女がいないと夜の記録が残らない。',
+            '天井の上を、何かが這っている。録音を止める。'
+        ]],
+    ['昭和六十二年五月二十八日', [
+            '記録の持ち出しを禁じた。',
+            '外へ出した記録は、翌朝には必ずここへ戻っている。棚の、同じ場所に。',
+            '書架の間に、誰かが立っている。照らすと、いない。',
+            '私は、照らし続けることにした。'
+        ]],
+    ['昭和六十二年六月二日', [
+            '閉鎖を決めた。移送の車は、手配しなかった。',
+            '患者たちは、自分から地下へ降りていった。水の中を、一列に並んで。',
+            'あの線は、そこへ伸びている。繋がれている、と言ったほうが正しい。',
+            '記録の上では、全員を移送したことにする。'
+        ]],
+    ['昭和六十二年六月十一日', [
+            'これが最後の記録になる。',
+            '当直の看護婦が、まだ病棟から出てこない。',
+            '呼んでも返事がない。代わりに、妹さんの声が返ってくる。',
+            '非常口の場所を、誰も思い出せない。私もだ。',
+            'これを聴いているあなたの名前も、ここのカルテにある。'
+        ]]
+];
+var TAPE_SLOT = 0; // 何枚目のカルテ（0 始まり）の代わりに出すか
+var TAPE_SPEAKER = '院長';
+var TAPE = { i: -1, t: 0, dur: 0, line: -1, node: null, times: null };
+function tapeWanted(i) {
+    return i === TAPE_SLOT && RUN.ch >= 0 && RUN.ch < TAPES.length && !cheatUsed && !BOT.on &&
+        playAs !== 'hunter' && !JOURNAL.tapes[RUN.ch];
+}
+/* 区切りの時刻（焼いたときの実測）。無ければ null */
+function tapeTimes(ti) {
+    var A = window.W7_ASSETS;
+    if (!A || !A['voice/tapes'])
+        return null;
+    try {
+        var all = JSON.parse(A['voice/tapes']);
+        return all[ti] || null;
+    }
+    catch (e) {
+        return null;
+    }
+}
+function tapeHead(ti) { return '録音テープ ' + (ti + 1) + ' — ' + TAPES[ti][0]; }
+function playTape(ti) {
+    stopTape();
+    JOURNAL.tapes[ti] = 1;
+    saveJournal();
+    var lines = TAPES[ti][1];
+    TAPE.i = ti;
+    TAPE.t = 0;
+    TAPE.line = -1;
+    TAPE.times = tapeTimes(ti);
+    $('noteHead').textContent = tapeHead(ti);
+    $('note').classList.add('on', 'tape');
+    if (TAPE.times && Audio2.voice('voice/tape_' + (ti + 1), function (node) { TAPE.node = node; })) {
+        TAPE.dur = TAPE.times[TAPE.times.length - 1][1] + 1.2;
+        $('noteBody').textContent = '';
+        noteT = TAPE.dur + 1.5;
+    }
+    else {
+        // 声が無い：書き起こしを紙と同じように読ませる
+        TAPE.i = -1;
+        $('noteBody').textContent = lines.map(function (l) { return trText(TAPE_SPEAKER) + (LANG === 'en' ? ': ' : '：') + trText(l); }).join('\n');
+        noteT = 6 + lines.length * 2.2;
+    }
+}
+function stopTape() {
+    if (TAPE.node) {
+        try {
+            TAPE.node.stop();
+        }
+        catch (e) { }
+        TAPE.node = null;
+    }
+    TAPE.i = -1;
+    $('note').classList.remove('tape');
+}
+/* 字幕を送る。音と同じ時計（AudioContext）で数えると一時停止で自然に止まるが、
+   声の再生が始まるまでの遅れ（decode）は無視できるほど短いので、ゲームの時間で数える */
+function updateTape(dt) {
+    if (TAPE.i < 0)
+        return;
+    if (!TAPE.node) {
+        return;
+    } // 解き終わるのを待つ
+    TAPE.t += dt;
+    var lines = TAPES[TAPE.i][1], cur = -1;
+    for (var k = 0; k < TAPE.times.length; k++)
+        if (TAPE.t >= TAPE.times[k][0] - 0.05)
+            cur = k;
+    if (cur !== TAPE.line) {
+        TAPE.line = cur;
+        $('noteBody').textContent = cur >= 0 ? trText(TAPE_SPEAKER) + (LANG === 'en' ? ': ' : '：') + trText(lines[cur]) : '';
+    }
+    if (TAPE.t > TAPE.dur) {
+        TAPE.node = null;
+        TAPE.i = -1;
+    }
 }
 /* =========================================================================
    13. 画面遷移
@@ -12775,6 +12982,7 @@ function doResume() {
     setStickVisual(false);
 }
 function toTitle() {
+    stopTape();
     state = STATE.TITLE;
     keepAwake(false);
     // 遊んだ後のワールドをそのまま情景に使う。建て直すと待たされる
@@ -15304,10 +15512,13 @@ function updateHUD(dt, bpm, info) {
         if (toastT <= 0)
             $('toast').classList.remove('on');
     }
+    updateTape(dt);
     if (noteT > 0) {
         noteT -= dt;
-        if (noteT <= 0)
+        if (noteT <= 0) {
             $('note').classList.remove('on');
+            stopTape();
+        }
     }
 }
 /* =========================================================================
@@ -15328,6 +15539,7 @@ function deathKind() {
     return ((dx / dl) * fx + (dz / dl) * fz) < -0.35 ? 'back' : 'front';
 }
 function doDeath() {
+    stopTape();
     if (state !== STATE.PLAY)
         return;
     var kind = deathKind();
@@ -15428,6 +15640,7 @@ function doDeath() {
     })();
 }
 function doWin() {
+    stopTape();
     if (state !== STATE.PLAY)
         return;
     tele('win', { time: +player.time.toFixed(1), hits: player.hits || 0, lamp: !!player.lamp });
@@ -19537,7 +19750,12 @@ try {
             return null;
         },
         texGen: { wall: texWall, floor: texFloor },
-        noteOrder: function () { return world.noteOrder; }, noteCount: function () { return NOTES.length; },
+        noteOrder: function () { return world.noteOrder; },
+        showNote: function (i) { showNote(i); }, journal: function () { return JOURNAL; },
+        tape: function () {
+            return { i: TAPE.i, t: TAPE.t, dur: TAPE.dur, line: TAPE.line, playing: !!TAPE.node,
+                head: $('noteHead').textContent, body: $('noteBody').textContent, on: $('note').classList.contains('on') };
+        }, noteCount: function () { return NOTES.length; },
         viewBeam: function () { return { x: +viewBeam.x.toFixed(4), y: +viewBeam.y.toFixed(4) }; },
         // 自動露出。検証で「近い壁を向くと絞るか」を数で見るのに使う
         exposure: function () { return { adapt: expAdapt, now: exposureNow(), hit: beamHitDist() }; },

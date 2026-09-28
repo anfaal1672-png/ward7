@@ -882,7 +882,30 @@ var Audio2 = (function(){
       o.start(t); o.stop(t + 0.1);
     }, 700);
   }
-  return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
+  /* 録音テープの声（第 11.5 節）。assets.js の voice/<名前>（MP3）を鳴らす時に初めて解く。
+     7 本を最初に全部解くと 20MB 近い PCM を抱えることになる。
+     声は画面の外の世界の音ではなく手元の再生機なので、部屋の返りも立体音響も通さず直に出す。
+     鳴り始めたら cb(元の節点) を返す（止めるのに使う）。素材が無ければ false */
+  var VOICE = ({} as Record<string, any>);
+  function voice(key: string, cb: any){
+    var A = window.W7_ASSETS;
+    if(!ready || !A || !A[key]) return false;
+    function go(buf: any){
+      var s: any = ctx.createBufferSource(); s.buffer = buf;
+      var g = ctx.createGain(); g.gain.value = 0.9;
+      s.connect(g); g.connect(master); s.start(ctx.currentTime + 0.05);
+      cb(s);
+    }
+    if(VOICE[key]){ go(VOICE[key]); return true; }
+    try{
+      var bin = atob(A[key].split(',')[1]), u8 = new Uint8Array(bin.length);
+      for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+      var pr = ctx.decodeAudioData(u8.buffer, function(buf: any){ VOICE[key] = buf; go(buf); }, function(){});
+      if(pr && pr.catch) pr.catch(function(){});
+    }catch(e){ return false; }
+    return true;
+  }
+  return { voice:voice, setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, state:audioState,
            sfxGroups:function(){ var o = ({} as Record<string, any>); Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,

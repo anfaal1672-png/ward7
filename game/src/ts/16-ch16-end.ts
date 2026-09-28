@@ -15,6 +15,7 @@ function deathKind(){
   return ((dx/dl)*fx + (dz/dl)*fz) < -0.35 ? 'back' : 'front';
 }
 function doDeath(){
+  stopTape();
   if(state !== STATE.PLAY) return;
   var kind = deathKind();
   tele('death', { x:+player.x.toFixed(1), z:+player.z.toFixed(1), by:(player.lastHitBy || 'hunter'), got:player.got,
@@ -112,6 +113,7 @@ function doDeath(){
   })();
 }
 function doWin(){
+  stopTape();
   if(state !== STATE.PLAY) return;
   tele('win', { time:+player.time.toFixed(1), hits:player.hits||0, lamp:!!player.lamp });
   state = STATE.WIN;

@@ -1886,9 +1886,10 @@ function updateHUD(dt: number, bpm: any, info: any){
     toastT -= dt;
     if(toastT <= 0) $('toast').classList.remove('on');
   }
+  updateTape(dt);
   if(noteT > 0){
     noteT -= dt;
-    if(noteT <= 0) $('note').classList.remove('on');
+    if(noteT <= 0){ $('note').classList.remove('on'); stopTape(); }
   }
 }
 
