@@ -866,7 +866,7 @@ function buildHunter(){
     spine:spine, neck:neck, head:headPivot, jaw:jawPivot,
     armL:armL, armR:armR, legL:legL, legR:legR,
     pupL:pupL, pupR:pupR, eyeMatL:eyeL_, eyeMatR:eyeR_, glowL:glowL, glowR:glowR,
-    strands:strands, gown:gown, skin:skin, baseY:(0.02 + THIGH + SOLE)
+    strands:strands, gown:gown, skin:skin, stainMat:stain, mawMat:maw, boneMat:bone_, baseY:(0.02 + THIGH + SOLE)
   };
   /* 組み上がった全メッシュに対して、最後にもう一度だけ法線を検める。
      途中の各所で守ってはいるが、部品の作り方は 6 通りあり、どれかを
@@ -876,6 +876,149 @@ function buildHunter(){
   g.traverse(function(o: any){ if(o.isMesh && o.geometry) nanFix += fixNormals(o.geometry); });
   scene.add(g); scene.add(sh);
   g.visible = false; sh.visible = false;
+  hunterSkin();
+}
+
+/* ---- 人体の模型（設計指示書 第 9.1 節） ----
+   MakeHuman（CC0）の体を .tools/human-bake.py で痩せさせ、この追跡者の骨格の寸法へ引き伸ばし、
+   関節 20 本の重みに畳んだ物。骨は上で組んだ Group（spine・neck・head・jaw・腕・脚）をそのまま使うので、
+   歩容・殴打・処刑・怯みなどの手続きの動きは何も変えずに皮だけが替わる。
+   高精細以上で assets.js が届いたら差し替える（写真の壁・小道具と同じ条件）。見た目だけで、当たり・視線・
+   乱数には関わらない。手続きの体は描かないだけで残す（遠景の患者はそちらを焼く：第 5.4 節）。
+   段は 3 つ（2 万 / 8 千 / 2 千三角形）。最高品質は 2 万から、高精細は 8 千から始め、遠いほど落とす */
+var HUMAN = { data:(null as any), tried:false };
+function humanData(){
+  if(HUMAN.tried) return HUMAN.data;
+  var A = window.W7_ASSETS;
+  if(!A || !A['models/hunter/meta']) return null;
+  HUMAN.tried = true;
+  var meta = JSON.parse(A['models/hunter/meta']);
+  var bin = atob(A['models/hunter/bin']), u8 = new Uint8Array(bin.length);
+  for(var i=0; i<bin.length; i++) u8[i] = bin.charCodeAt(i);
+  var buf = u8.buffer, mn = meta.box[0], mx = meta.box[1], umn = meta.uv[0], umx = meta.uv[1];
+  var fc = [0, 0, 0];
+  function decode(L: any){
+    var P = new Int16Array(buf, L.off[0], L.v*3), N = new Int8Array(buf, L.off[1], L.v*3),
+        U = new Int16Array(buf, L.off[2], L.v*2);
+    var pos = new Float32Array(L.v*3), nor = new Float32Array(L.v*3), uv = new Float32Array(L.v*2), col = new Float32Array(L.v*3);
+    for(var k=0; k<L.v*3; k++){ var a = k % 3; pos[k] = mn[a] + (P[k] + 32767) / 65534 * (mx[a] - mn[a]); nor[k] = N[k] / 127; }
+    /* 皮の絵（TEX.flesh）は手続きの体と共用なので、繰り返しは UV の側で掛ける。
+       模型の UV は体全体で 0〜1 なので、そのままでは模様が 2m に 1 回しか来ない */
+    for(var k2=0; k2<L.v*2; k2++){ var a2 = k2 % 2; uv[k2] = (umn[a2] + (U[k2] + 32767) / 65534 * (umx[a2] - umn[a2])) * 5; }
+    // 汚れの階調（手続きの体と同じ：足元ほど沈んで青い）
+    for(var v=0; v<L.v; v++){ bodyDirt(pos[v*3+1], fc); col[v*3] = fc[0]; col[v*3+1] = fc[1]; col[v*3+2] = fc[2]; }
+    var si = new Uint8Array(buf.slice(L.off[3], L.off[3] + L.v*4)), sw = new Uint8Array(buf.slice(L.off[4], L.off[4] + L.v*4));
+    var idx = new Uint16Array(buf.slice(L.off[5], L.off[5] + L.i*2));
+    return { pos:pos, nor:nor, uv:uv, col:col, si:si, sw:sw, idx:idx };
+  }
+  var lods = meta.lods.map(decode), gown = (meta.gown || []).map(decode);
+  HUMAN.data = { meta:meta, lods:lods, gown:gown };
+  return HUMAN.data;
+}
+function hunterSkin(){
+  var P = hunter.parts;
+  if(!P || P.human || !hunter.group || !photoWanted()) return;
+  var H = humanData(); if(!H) return;
+  var J = H.meta.joints, g = hunter.group;
+  /* 骨の休みの位置（g から見た座標）。組んだ直後は回転が全部 0 なので、親をたどって位置を足すだけ。
+     ただし動き出した後で呼ばれることもある（assets.js が遅れて届いたとき）。位置は動かさないが
+     回転は動くので、回転は見ずに位置だけを足す */
+  function restOf(o: any){
+    var v = new THREE.Vector3();
+    for(var q = o; q && q !== g; q = q.parent) v.add(q.position);
+    return v;
+  }
+  var headR = restOf(P.head);
+  // 目・顎を模型の顔へ合わせる
+  function toHead(j: any){ return new THREE.Vector3(j[0], j[1], j[2]).sub(headR); }
+  var eL = toHead(J.eyeL), eR = toHead(J.eyeR);
+  /* 目玉の Group は眼窩の縁の位置で、球はそこから 13mm 奥に置いてある。模型の目の関節は
+     球の中心なので、その分だけ前へ出す。模型の眼窩は目玉を入れる前提の穴なので、埋まらないと
+     頭の中が黒く抜けて見える（1.3m で撮って確かめた） */
+  [[P.pupL, eL], [P.pupR, eR], [P.glowL, eL], [P.glowR, eR]].forEach(function(e: any){
+    e[0].position.copy(e[1]); });
+  P.pupL.scale.setScalar(0.72); P.pupR.scale.setScalar(0.72);
+  P.pupL.position.z += 0.013*0.72; P.pupR.position.z += 0.013*0.72;
+  P.glowL.scale.set(0.22, 0.22, 1); P.glowR.scale.set(0.22, 0.22, 1);
+  P.jaw.position.copy(toHead(J.jaw));
+  // 指の付け根と中ほどに 1 段ずつ。丸めの軸は焼くときに手のひらから求めてある
+  function fingers(A: any, side: any){
+    var hR = restOf(A.hand);
+    var pp = new THREE.Group(); pp.position.set(J['fingP' + side][0], J['fingP' + side][1], J['fingP' + side][2]).sub(hR); A.hand.add(pp);
+    var dd = new THREE.Group(); dd.position.set(J['fingD' + side][0] - J['fingP' + side][0], J['fingD' + side][1] - J['fingP' + side][1],
+                                                J['fingD' + side][2] - J['fingP' + side][2]); pp.add(dd);
+    A.fingP = pp; A.fingD = dd; A.curlAx = new THREE.Vector3(J['curl' + side][0], J['curl' + side][1], J['curl' + side][2]).normalize();
+    A.curlK = 0.4;
+  }
+  fingers(P.armL, 'L'); fingers(P.armR, 'R');
+  var byName = ({ spine:P.spine, neck:P.neck, head:P.head, jaw:P.jaw,
+    upL:P.armL.up, foreL:P.armL.fore, handL:P.armL.hand, fingPL:P.armL.fingP, fingDL:P.armL.fingD,
+    upR:P.armR.up, foreR:P.armR.fore, handR:P.armR.hand, fingPR:P.armR.fingP, fingDR:P.armR.fingD,
+    thighL:P.legL.thigh, shinL:P.legL.shin, footL:P.legL.foot, thighR:P.legR.thigh, shinR:P.legR.shin, footR:P.legR.foot } as Record<string, any>);
+  var bones = H.meta.bones.map(function(n: string){ return byName[n]; });
+  var inv = bones.map(function(b: any){ var r = restOf(b); return new THREE.Matrix4().makeTranslation(-r.x, -r.y, -r.z); });
+  var skel = new THREE.Skeleton(bones, inv);
+  /* 模型の面は手続きの体より平らで光を素直に返すので、同じ地色だと白く飛ぶ。少し沈める */
+  var mat = new THREE.MeshStandardMaterial({
+    color:TEX.flesh ? 0xb4b6aa : 0x8a8f80, map:TEX.flesh || null,
+    normalMap:TEX.fleshN || null, roughnessMap:TEX.fleshR || null,
+    roughness:TEX.fleshR ? 1 : 0.94, metalness:0,
+    emissive:0x1d2119, emissiveIntensity:0.14, vertexColors:true
+  });
+  if(mat.normalMap) mat.normalScale = new THREE.Vector2(0.85, 0.85);
+  var gownMat = P.gown.length ? P.gown[0].children[0].material : null;
+  var gMat = new THREE.MeshLambertMaterial({ color:gownMat ? gownMat.color.clone() : 0x8a8a78, map:gownMat ? gownMat.map : null,
+                                             vertexColors:true, side:THREE.DoubleSide });
+  function skinned(L: any, m0: any){
+
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(L.pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(L.nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(L.uv, 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(L.col, 3));
+    geo.setAttribute('skinIndex', new THREE.BufferAttribute(L.si, 4));
+    geo.setAttribute('skinWeight', new THREE.BufferAttribute(L.sw, 4, true));
+    geo.setIndex(new THREE.BufferAttribute(L.idx, 1));
+    var m = new THREE.SkinnedMesh(geo, m0);
+    m.bind(skel, new THREE.Matrix4());
+    m.frustumCulled = false;                 // 腕を伸ばすと休みの姿勢の包み球から出る
+    m.castShadow = !!QC.shadows;
+    m.visible = false;
+    g.add(m);
+    return m;
+  }
+  var meshes = H.lods.map(function(L: any){ return skinned(L, mat); });
+  var gmeshes = H.gown.map(function(L: any){ return skinned(L, gMat); });
+  /* 手続きの体を描かない。Group を兼ねている骨（首・腕・脚）は子を持つので visible は触れず、
+     材質だけ見えない物に替える。患者を焼くとき（bakeFigure）は元の材質で焼く */
+  var hideM = new THREE.MeshBasicMaterial({ visible:false });
+  var hideSet = [P.skin, P.stainMat, P.mawMat, P.boneMat];
+  if(gownMat && gmeshes.length) hideSet.push(gownMat);        // 裂けた裾の帯は体の内側に埋まるので模型の病衣に替える
+  g.traverse(function(o: any){
+    if(o.isMesh && !o.isSkinnedMesh && hideSet.indexOf(o.material) >= 0){ o.userData.procMat = o.material; o.material = hideM; }
+  });
+  // 口の奥（顎を開くと頭の中が抜けて見えないように）と歯
+  var maw2 = new THREE.Mesh(new THREE.SphereGeometry(0.030, 10, 8), P.mawMat.clone());
+  maw2.scale.set(1, 1.15, 0.8); maw2.position.copy(toHead(J.mouth)); maw2.position.z -= 0.030; maw2.userData.human = true; P.head.add(maw2);
+  var th = [];
+  for(var ti=0; ti<6; ti++)
+    th.push({ type:'cyl', rt:0.0045, rb:0.0018, h:0.016, x:-0.0125 + ti*0.005, y:-0.004, z:0, rx:Math.PI });
+  var teeth = new THREE.Mesh(mergeBoxes(th), P.boneMat.clone());
+  var mo = toHead(J.mouth).sub(P.jaw.position); teeth.position.set(mo.x, mo.y, mo.z - 0.008); teeth.userData.human = true; P.jaw.add(teeth);
+  P.human = { meshes:meshes, gown:gmeshes, lod:-1, base:(settings.quality|0) >= 3 ? 0 : 1 };
+  hunterLOD(0);
+}
+/* 近いほど細かい段。切り替えの境に揺れないよう 1m の幅を持たせる */
+function hunterLOD(d: number){
+  var Hm = hunter.parts && hunter.parts.human; if(!Hm) return;
+  var cur = Hm.lod < 0 ? Hm.base : Hm.lod;
+  var want = Hm.base + (d > 16 ? 2 : (d > 7 ? 1 : 0));
+  if(want > cur && d < (cur === Hm.base ? 8 : 17)) want = cur;
+  want = Math.min(2, Math.max(Hm.base, want));
+  if(want === Hm.lod) return;
+  Hm.lod = want;
+  Hm.meshes.forEach(function(m: any, i: number){ m.visible = (i === want); });
+  Hm.gown.forEach(function(m: any, i: number){ m.visible = (i === want); });
 }
 
 function placeHunter(reach: any, startC: any){
@@ -935,7 +1078,8 @@ function bakeFigure(src: any){
   var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
   var byMat = ({} as Record<string, any>), keys = ([] as any[]);
   src.traverseVisible(function(o: any){
-    if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
+    if(!o.isMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.material || o.userData.human) return;
+    var om = o.userData.procMat || o.material;
     var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
     var n = g.attributes.position.count;
@@ -947,8 +1091,8 @@ function bakeFigure(src: any){
     Object.keys(g.attributes).forEach(function(k){
       if(k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') g.deleteAttribute(k); });
     g.morphAttributes = {};
-    var key = o.material.uuid;
-    if(!byMat[key]){ byMat[key] = { mat:o.material, list:[] }; keys.push(key); }
+    var key = om.uuid;
+    if(!byMat[key]){ byMat[key] = { mat:om, list:[] }; keys.push(key); }
     byMat[key].list.push(g);
   });
   var out = new THREE.Group();

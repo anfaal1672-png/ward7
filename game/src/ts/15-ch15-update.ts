@@ -1421,6 +1421,18 @@ function updateHunter(dt: number, info: any){
     P.head.scale.y = 1 / P.neck.scale.y;
   }
 
+  /* 人体の模型（第 9.1 節）の指。手続きの体は丸め違いの手を 2 体持って見せ分けていたが、
+     模型は指の付け根と中ほどの 2 段を実際に曲げる。走るときは獲物へ伸ばし、歩くときは半握り */
+  if(P.human){
+    var ck = claw ? 0.12 : 0.75;
+    [P.armL, P.armR].forEach(function(A: any){
+      A.curlK = lerp(A.curlK, ck, 1 - Math.pow(0.02, dt));
+      A.fingP.quaternion.setFromAxisAngle(A.curlAx, A.curlK*0.85);
+      A.fingD.quaternion.setFromAxisAngle(A.curlAx, A.curlK*1.05);
+    });
+    hunterLOD(Math.hypot(hunter.x - camera.position.x, hunter.z - camera.position.z));
+  }
+
   hunter.group.position.set(hunter.x, 0, hunter.z);
   hunter.group.rotation.y = hunter.yaw + hunter.twitch*0.25 + (rndFx()-0.5)*0.55*gl;
   hunter.group.rotation.z = Math.sin(hunter.bob*0.5)*0.045 + hunter.twitch*0.1;

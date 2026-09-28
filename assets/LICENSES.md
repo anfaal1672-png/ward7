@@ -15,5 +15,6 @@
 | models/medbox/ | Poly Haven「Medical Box」 https://polyhaven.com/a/medical_box | Poly Haven | CC0 1.0 | 同上 |
 | models/stool/ | Poly Haven「Metal Stool 01」 https://polyhaven.com/a/metal_stool_01 | Poly Haven | CC0 1.0 | 同上 |
 | sfx/（amb_hvac_0・amb_air_0・amb_pump_0・amb_water_0） | OpenGameArt「30 CC0 SFX Loops」 https://opengameart.org/content/30-cc0-sfx-loops （ambient_01 / noise_01 / pump_02 / water_flowing） | rubberduck | CC0 1.0 | 22.05kHz・モノラルへ落とし、尻の 0.4 秒を頭へ重ねて継ぎ目の無い輪にした。ピーク -6dB。16bit WAV（`.tools/sound-bake.js`）。空調の持続音・通気口のかすれ・地下の水音とポンプとして低く敷く |
+| models/hunter/ | MakeHuman 基本の体・形の差分・既定の骨格と重み https://github.com/makehumancommunity/makehuman （makehuman/data の 3dobjs/base.obj・targets・rigs、コミット a8bc2d5） | Data Collection AB・Joel Palmius・Jonas Hauquier | CC0 1.0 | 年寄りで痩せた背の高い男の形の差分を掛け、追跡者の骨格の寸法へ引き伸ばした（腕 2.5 倍・胴 1.6 倍）。163 本の骨を 20 本へ畳み、三角形 2 万 / 8 千 / 2 千の 3 段へ減らした。病衣は胴と腰の面を浮かせ、補助の筒（helper-skirt）を膝上で切って作った。位置・UV 16bit、法線・重み 8bit（`.tools/human-bake.py`） |
 
 CC0 なので帰属表示の義務は無いが、クレジット画面には出所として載せる。

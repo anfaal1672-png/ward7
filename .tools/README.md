@@ -139,6 +139,7 @@ Chromium（SwiftShader）で実 WebGL を通し、PNG を書き出す。
     node .tools/graffiti-shot.js <html> <png> [章]  小部屋の落書きを正面から撮る（第 6.3 節）
     node .tools/breath-shot.js  <html> <png>  隠れて息を止めた左手を撮る（第 9.4 節）
     node .tools/balance-judge.js <rows…>  章ごとのボット結果から第 5.6 節の目標を判定（CI の balance）
+    python3 .tools/human-bake.py  MakeHuman（CC0）の体を追跡者の骨格へ合わせて assets/models/hunter/ に書く（numpy・fast-simplification が要る）
     node .tools/sound-bake.js   Kenney（CC0）の音を取り寄せて加工し assets/sfx/ に書く
 
 ### 落とし穴、その 6 と 7

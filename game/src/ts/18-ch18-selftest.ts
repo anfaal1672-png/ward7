@@ -264,7 +264,7 @@ function runSelfTest(){
       var lo4 = 1e9, hi4 = 0, cnt4 = 0;
       hunter.group.traverse(function(o: any){
         if(!o.isMesh || !o.userData || !o.userData.loft) return;
-        if(o.material !== hunter.parts.skin) return;   // skin は buildHunter の中の名前
+        if((o.userData.procMat || o.material) !== hunter.parts.skin) return;   // skin は buildHunter の中の名前（人体の模型に替えた後は控えの材質）
         var ua = o.geometry.attributes.uv, pa4 = o.geometry.attributes.position;
         if(!ua || !pa4) return;
         var vmin = 1e9, vmax = -1e9, ymin = 1e9, ymax = -1e9;
@@ -308,7 +308,7 @@ function runSelfTest(){
   (function(){
     var worst = 0, worstN = '';
     hunter.group.traverse(function(o: any){
-      if(!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) return;
+      if(!o.isMesh || o.isSkinnedMesh || !o.geometry.index || !o.geometry.attributes.position) return;
       var pa = o.geometry.attributes.position, ix = o.geometry.index;
       if(pa.count < 120) return;
       var arr = pa.array, ia = ix.array || ix, m = ia.length;
@@ -326,6 +326,36 @@ function runSelfTest(){
     });
     t('追跡者に突き出した頂点が無い（最長辺 ' + worstN + ' = ' + worst.toFixed(1) + '倍）',
       worst < 6);
+  })();
+
+  /* --- 人体の模型（第 9.1 節） ---
+     高精細以上で assets.js が届いていれば、手続きの体の代わりに模型が付いていること。
+     骨は 40 本以内、いちばん細かい段で三角形 2 万以内。
+     棘の検め：模型は腕を 2.5 倍に引き伸ばしてあるので、骨の向きの辺は元から長い（実測で平均の 10〜13 倍）。
+     焼き損じの棘は体の外へ 1m 近く飛ぶので、長さそのもので見る（0.6m 未満） */
+  (function(){
+    if(!photoWanted() || !humanData()) return;
+    var Hm = hunter.parts && hunter.parts.human;
+    t('追跡者が人体の模型になっている', !!Hm);
+    if(!Hm) return;
+    var sk = Hm.meshes[0].skeleton;
+    t('模型の骨が 40 本以内で、全部が追跡者の関節につながっている（' + sk.bones.length + ' 本）',
+      sk.bones.length <= 40 && sk.bones.every(function(b: any){ return !!b && !!b.parent; }));
+    t('模型のいちばん細かい段が 2 万三角形以内（' + (Hm.meshes[0].geometry.index.count/3) + '）',
+      Hm.meshes[0].geometry.index.count/3 <= 20000);
+    var worstE = 0;
+    Hm.meshes.concat(Hm.gown).forEach(function(m: any){
+      var a = m.geometry.attributes.position.array, ia = m.geometry.index.array;
+      for(var q=0; q<ia.length; q+=3) for(var e=0; e<3; e++){
+        var v0 = ia[q+e]*3, v1 = ia[q+(e+1)%3]*3;
+        var L = Math.hypot(a[v0]-a[v1], a[v0+1]-a[v1+1], a[v0+2]-a[v1+2]); if(L > worstE) worstE = L;
+      }
+    });
+    t('模型に突き出した頂点が無い（最長辺 ' + worstE.toFixed(2) + 'm）', worstE < 0.6);
+    var nanW = 0;
+    Hm.meshes.forEach(function(m: any){ var w = m.geometry.attributes.skinWeight.array;
+      for(var i=0; i<w.length; i+=4) if(w[i] + w[i+1] + w[i+2] + w[i+3] < 250) nanW++; });
+    t('模型の重みが頂点ごとに 1 に揃っている', nanW === 0);
   })();
 
   var hc = worldToCell(hunter.x, hunter.z);
