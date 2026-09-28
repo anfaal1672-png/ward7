@@ -155,7 +155,7 @@ function moveScale(f, s){
 }
 
 function updatePlayer(dt){
-  readKeys();
+  readKeys(dt);
 
   // 視点（移動量は腕のスウェイにも使う）
   var swayX = input.lookX * 26, swayY = input.lookY * 26;

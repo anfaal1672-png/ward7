@@ -21,7 +21,9 @@ const fs=require('fs'), path=require('path');
   await p.waitForTimeout(600);
   const s0 = await p.evaluate(()=>{ const pl=window.__WARD7.player; return {x:pl.x, z:pl.z, yaw:pl.yaw, lamp:pl.lamp}; });
   await p.evaluate(()=>{ window.__pad.axes[1] = -1; window.__pad.axes[2] = 0.8; });
-  await p.waitForTimeout(3000);
+  // 描画の遅い所ではゲームの時間が遅れて進む（回りも刻みで掛かる）ので、決め打ちの 3 秒でなく結果を待つ
+  await p.waitForFunction((s0)=>{ const pl=window.__WARD7.player; return Math.abs(pl.yaw - s0.yaw) > 2.2 && Math.hypot(pl.x-s0.x, pl.z-s0.z) > 1.2; },
+                          s0, {timeout:30000}).catch(()=>{});
   await p.evaluate(()=>{ window.__pad.axes[1] = 0; window.__pad.axes[2] = 0; window.__pad.buttons[2] = {pressed:true, value:1}; });
   await p.waitForTimeout(200);
   await p.evaluate(()=>{ window.__pad.buttons[2] = {pressed:false, value:0}; window.__pad.buttons[9] = {pressed:true, value:1}; });

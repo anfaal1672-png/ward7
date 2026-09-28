@@ -9422,7 +9422,7 @@ document.addEventListener('keyup', function(e){
 /* いま使っている入力機器（操作説明の出し分け。第 11.4 節）：'touch' | 'kb' | 'pad' */
 var lastInputKind = IS_TOUCH ? 'touch' : 'kb';
 
-function readKeys(){
+function readKeys(dt){
   /* 追う側モードでは、スティックは追跡者のもの。逃げる側はボットが
      キーで動かすので、スティックを握っていてもキーを読む。 */
   if(IS_TOUCH && stickId !== null && playAs !== 'hunter') return;
@@ -9431,7 +9431,7 @@ function readKeys(){
   var s = (k.KeyD||k.ArrowRight?1:0) - (k.KeyA||k.ArrowLeft?1:0);
   if(f||s||!IS_TOUCH){ input.fwd = f; input.side = s; }
   input.run = !!(k.ShiftLeft || k.ShiftRight);
-  readPad();
+  readPad(dt);
 }
 
 /* --- ゲームパッド（設計指示書 第 12.2 節） ------------------------------
@@ -9449,7 +9449,7 @@ function padAxis(v){
   if(a < PAD_DEAD) return 0;
   return Math.sign(v) * (a - PAD_DEAD) / (1 - PAD_DEAD);
 }
-function readPad(){
+function readPad(simDt){
   pad.back = pad.hold = pad.sneak = false;
   if(!navigator.getGamepads) return;
   var list = navigator.getGamepads(), gp = null;
@@ -9467,7 +9467,10 @@ function readPad(){
   if(mx || my){ input.fwd = -my; input.side = mx; }
   /* 視点は経過時間に掛ける（フレームに掛けると端末の速さで回り方が変わる）。
      最大に倒して感度 1 で、横に 1 秒 2.4 ラジアン、縦に 1.8 ラジアン */
-  var now = performance.now(), pdt = clamp((now - (pad.t || now)) / 1000, 0, 0.1);
+  /* 遊びの刻み（固定 1/60 秒）で掛ける。壁時計で掛けていたときは、1 フレームが 0.1 秒を超える
+     端末（と CI）で回りが削られ、固定刻みで 1 フレームに何度も呼ばれるようになってからは
+     2 回目以降が 0 になっていた。刻みで掛ければ、ゲームの時間に対して常に同じ速さで回る */
+  var now = performance.now(), pdt = (simDt > 0) ? simDt : clamp((now - (pad.t || now)) / 1000, 0, 0.1);
   pad.t = now;
   input.lookX += lx * 2.4 * pdt * settings.sens;
   input.lookY += ly * 1.8 * pdt * settings.sens * (settings.invert ? -1 : 1);
@@ -10999,7 +11002,7 @@ function moveScale(f, s){
 }
 
 function updatePlayer(dt){
-  readKeys();
+  readKeys(dt);
 
   // 視点（移動量は腕のスウェイにも使う）
   var swayX = input.lookX * 26, swayY = input.lookY * 26;
