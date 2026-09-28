@@ -8,7 +8,7 @@
   "05-ch05-config.ts",
   "06-ch06-renderer.ts",
   "07-ch07-materials.ts",
-  "08-ch08-world.ts",
+  "08-ch08-world.ts", "08b-levels.ts",
   "09-ch09-hunter.ts",
   "10-ch10-player.ts",
   "11-ch11-input.ts",

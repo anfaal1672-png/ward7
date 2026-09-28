@@ -80,7 +80,13 @@ const three = buildSync({
    tsconfig.json（npm run typecheck）が受け持つ */
 const order = JSON.parse(fs.readFileSync(path.join(src, 'ts', 'order.json'), 'utf8'));
 const strip = s => s.endsWith('\n') ? s.slice(0, -1) : s;
-const tsSrc = order.map(f => strip(fs.readFileSync(path.join(src, 'ts', f), 'utf8'))).join('\n');
+/* 手で置いたレベルの上書き（第 6.4 節）。game/src/levels/ch<N>.json を LEVELS に差し込む */
+const lvDir = path.join(src, 'levels'), levels = {};
+if(fs.existsSync(lvDir)) for(const f of fs.readdirSync(lvDir).sort())
+  if(/^ch\d+\.json$/.test(f)) levels[f.replace(/\.json$/, '')] = JSON.parse(fs.readFileSync(path.join(lvDir, f), 'utf8'));
+const LV_DECL = 'var LEVELS: Record<string, any> = {};';
+const tsSrc = order.map(f => strip(fs.readFileSync(path.join(src, 'ts', f), 'utf8'))).join('\n')
+  .replace(LV_DECL, () => 'var LEVELS: Record<string, any> = ' + JSON.stringify(levels) + ';');
 const js = strip(ts.transpileModule(tsSrc, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None,
   removeComments: false, isolatedModules: false }, reportDiagnostics: false }).outputText);
 const css = strip(fs.readFileSync(path.join(src, 'style.css'), 'utf8'));

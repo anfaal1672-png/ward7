@@ -56,6 +56,7 @@ function startGame(){
   applyPhoto();
   applyModels();                 // 小道具の立体素材（第 7.2 節）
   viewHandModel();               // 一人称の手（第 9.4 節）
+  levelLoad();                   // 手で置いた上書き（第 6.4 節）
   buildHunter();
   /* 法線の最終検め。
      生成の各所で fixNormals を通してはいるが、形の作り方は 6 通りあり、

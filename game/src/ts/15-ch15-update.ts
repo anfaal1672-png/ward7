@@ -179,6 +179,7 @@ function updatePlayer(dt: number){
     if(pcS.x >= RM.x && pcS.x < RM.x + RM.w && pcS.y >= RM.y && pcS.y < RM.y + RM.h) inRoom = true;
   }
   Audio2.setSpace(player.hiding ? 'box' : (inRoom ? 'room' : 'hall'));
+  levelUpdate(dt);                // 手で置いた音響領域・演出（第 6.4 節）
   if(player.hiding){
     var H = player.hiding;
     var rel2 = ((player.yaw - H.yaw + Math.PI*3) % TAU) - Math.PI;
@@ -937,7 +938,7 @@ function updateHunter(dt: number, info: any){
           pick = cand3; break;
         }
         if(want > 0 && pick) DIRECTOR.calmT = 0;          // 寄せるのは一度に一回。次はまた calm を待つ
-        hunter.patrolGoal = pick || reach[(rndAI()*reach.length)|0];
+        hunter.patrolGoal = levelPatrolPick() || pick || reach[(rndAI()*reach.length)|0];
         hunter.patrolT = 4.5 + rndAI()*4;
       }
       goal = { x:hunter.patrolGoal.x, y:hunter.patrolGoal.y };
