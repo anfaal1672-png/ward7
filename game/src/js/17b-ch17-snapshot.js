@@ -29,6 +29,7 @@ function snapRefIndex(){
   SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(/** @type {any} */ o, /** @type {any} */ i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
   return m;
 }
+/** @return {any} */
 function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} */ depth, /** @type {any} */ home){
   if(v === null || typeof v !== 'object') return (typeof v === 'function') ? { $skip:1 } : v;
   if(snapSkip(v)) return { $skip:1 };
@@ -36,13 +37,13 @@ function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} 
   if(!home && refs.has(v)) return { $ref:refs.get(v) };
   if(ArrayBuffer.isView(v)) return { $ta:Array.prototype.slice.call(v), $k:v.constructor.name };
   if(v instanceof Map || v instanceof Set) return { $skip:1 };
-  if(Array.isArray(v)) return v.map(function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
-  var o = {};
+  if(Array.isArray(v)) return v.map(/** @return {any} */ function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
+  var o = /** @type {Object<string, any>} */ ({});
   for(var k in v){ if(Object.prototype.hasOwnProperty.call(v, k)) o[k] = snapVal(v[k], refs, depth + 1, false); }
   return o;
 }
 function snapTake(){
-  var refs = snapRefIndex(), R = snapRoots(), out = { roots:{}, reg:{}, n:{} };
+  var refs = snapRefIndex(), R = /** @type {Object<string, any>} */ (snapRoots()), out = /** @type {any} */ ({ roots:{}, reg:{}, n:{} });
   Object.keys(R).forEach(function(k){ out.roots[k] = snapVal(R[k], refs, 0, true); });
   // world の配列の要素そのもの（ここだけは参照にせず中身を持つ）
   SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(/** @type {any} */ o){ return snapVal(o, refs, 1, true); }); });
@@ -52,11 +53,12 @@ function snapTake(){
             rnd:rnd.getState(), rndAI:rndAI.getState(), rndFx:rndFx.getState() };
   return JSON.stringify(out);
 }
+/** @return {any} */
 function snapResolve(/** @type {any} */ s, /** @type {any} */ refs){
   if(s && typeof s === 'object' && s.$ref){ var a = snapArr(s.$ref[0]); return a ? a[s.$ref[1]] : null; }
   if(s && typeof s === 'object' && s.$ta){ var C = /** @type {any} */ (window[s.$k] || Float32Array); return new C(s.$ta); }
-  if(Array.isArray(s)) return s.map(function(e){ return snapResolve(e, refs); });
-  if(s && typeof s === 'object'){ var o = {}; for(var k in s) if(!(s[k] && s[k].$skip)) o[k] = snapResolve(s[k], refs); return o; }
+  if(Array.isArray(s)) return s.map(/** @return {any} */ function(/** @type {any} */ e){ return snapResolve(e, refs); });
+  if(s && typeof s === 'object'){ var o = /** @type {Object<string, any>} */ ({}); for(var k in s) if(!(s[k] && s[k].$skip)) o[k] = snapResolve(s[k], refs); return o; }
   return s;
 }
 /* 今ある物 t へ写しの値 s を書き戻す。飛ばした物（$skip）は触らない。写しに無い鍵は消す
@@ -91,7 +93,7 @@ function snapInto(/** @type {any} */ t, /** @type {any} */ s){
 function snapRestore(/** @type {any} */ json){
   var S = typeof json === 'string' ? JSON.parse(json) : json;
   SNAP_REG.forEach(function(name){ var a = snapArr(name); if(a && S.reg[name]) snapInto(a, S.reg[name]); });
-  var R = snapRoots();
+  var R = /** @type {Object<string, any>} */ (snapRoots());
   Object.keys(S.roots).forEach(function(k){ snapInto(R[k], S.roots[k]); });
   var n = S.n;
   toastT = n.toastT; noteT = n.noteT; lampFlick = n.lampFlick; ambientCreakT = n.ambientCreakT; heartT = n.heartT;

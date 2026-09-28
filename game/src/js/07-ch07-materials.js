@@ -1,7 +1,7 @@
 /* =========================================================================
    7. マテリアル／テクスチャの準備
    ========================================================================= */
-var TEX = {};
+var TEX = /** @type {Object<string, any>} */ ({});
 var envRT = /** @type {any} */ (null);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
 /* 環境マップ（映り込み）。
    金属を metalness 0.75 で置いても、映すものが無ければ真っ黒にしかならない。
@@ -213,12 +213,12 @@ function buildTextures(){
    そのまま効く。軽量・標準では読まない（端末のメモリと読み込みを優先）。
    1 マスの広さ 4.2m に対して、壁のボーダータイル 1 枚の絵が約 1.1m、床の
    長尺シートの絵が 1 マスぶん、天井板が約 2m。 */
-var PHOTO = { tex:null, loading:false, wait:[] };
+var PHOTO = { tex:/** @type {any} */ (null), loading:false, wait:/** @type {any[]} */ ([]) };
 /* 最初の案（壁 3.8×3.3・床 1 マス 1 枚）は、壁の目地が細かすぎて白い面に溶け、
    床の八角形が大きすぎて手前が柄に見えた。撮って合わせた値 */
-var PHOTO_REPEAT = { wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] };
+var PHOTO_REPEAT = /** @type {Object<string, any>} */ ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] });
 /* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
-var PHOTO_TINT = { wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 };
+var PHOTO_TINT = /** @type {Object<string, any>} */ ({ wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 });
 /* 起動の時点では assets.js はまだ届いていない（defer）。置いてあるかどうかで見込む */
 function photoExpected(){
   return (settings.quality|0) >= 2 && !!(renderer.capabilities && renderer.capabilities.isWebGL2) &&
@@ -233,8 +233,8 @@ function loadPhoto(/** @type {any} */ cb){
   PHOTO.wait.push(cb);
   if(PHOTO.loading) return;
   PHOTO.loading = true;
-  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = {}, left = 0;
-  var sets = { wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' };
+  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = /** @type {Object<string, any>} */ ({}), left = 0;
+  var sets = /** @type {Object<string, any>} */ ({ wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' });
   Object.keys(sets).forEach(function(k){
     T[k] = {};
     ['diff', 'nor', 'rough'].forEach(function(m){

@@ -2,15 +2,15 @@
    9. 追跡者
    ========================================================================= */
 var hunter = {
-  group:null, root:null, head:null, armL:null, armR:null, legL:null, legR:null, shadow:null,
-  x:0, z:0, yaw:0, cell:{x:1,y:1}, target:null, path:null,
-  mode:'patrol', repathT:0, patrolT:0, lastSeen:null, speed:1.9, attackCd:0, bob:0, spawnGrace:0,
-  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:undefined, parts:null,
+  group:/** @type {any} */ (null), root:/** @type {any} */ (null), head:/** @type {any} */ (null), armL:/** @type {any} */ (null), armR:/** @type {any} */ (null), legL:/** @type {any} */ (null), legR:/** @type {any} */ (null), shadow:/** @type {any} */ (null),
+  x:0, z:0, yaw:0, cell:{x:1,y:1}, target:/** @type {any} */ (null), path:/** @type {any} */ (null),
+  mode:'patrol', repathT:0, patrolT:0, lastSeen:/** @type {any} */ (null), speed:1.9, attackCd:0, bob:0, spawnGrace:0,
+  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:/** @type {any} */ (undefined), parts:/** @type {any} */ (null),
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
   gazeT:0, gazeY:0, gazeTarget:0,
-  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0,
-  vent:null, ventT:0, ventCd:0
+  dirX:0, dirZ:0, cornerK:0, inspect:/** @type {any} */ (null), inspectT:0,
+  vent:/** @type {any} */ (null), ventT:0, ventCd:0
 };
 
 /* 演出の頭脳（設計指示書 第 5.3 節）。
@@ -922,7 +922,7 @@ var patients = /** @type {any[]} */ ([]);
 var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
 var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
 var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
-var patientMats = {};
+var patientMats = /** @type {Object<string, any>} */ ({});
 function patientMat(/** @type {any} */ m){
   if(patientMats[m.uuid]) return patientMats[m.uuid];
   var c = m.clone();
@@ -934,7 +934,7 @@ function patientMat(/** @type {any} */ m){
 function bakeFigure(/** @type {any} */ src){
   src.updateMatrixWorld(true);
   var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
-  var byMat = {}, keys = /** @type {any[]} */ ([]);
+  var byMat = /** @type {Object<string, any>} */ ({}), keys = /** @type {any[]} */ ([]);
   src.traverseVisible(function(/** @type {any} */ o){
     if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
     var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
@@ -984,7 +984,7 @@ function buildPatients(/** @type {any} */ info, /** @type {any} */ n){
     return walls >= 2;                                                   // 行き止まりや曲がり角の壁際
   });
   var fig = bakeFigure(hunter.group);
-  var usedP = {};
+  var usedP = /** @type {Object<string, any>} */ ({});
   for(var i=0; i<n && cand.length; i++){
     var c = cand.splice((br() * cand.length) | 0, 1)[0];
     var key = c.x + ',' + c.y; if(usedP[key]) continue; usedP[key] = 1;
@@ -1171,7 +1171,7 @@ function ventBang(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */
    触れられると、捕まったのと同じだけ削られる。
    柱 1「光は命綱であり、罠である」を、あれとは逆向きに突きつける：
    あれから隠れるには灯りを消したいが、消せばこちらが寄ってくる。 */
-var shade = { group:null, on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:0 };
+var shade = { group:/** @type {any} */ (null), on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:0 };
 /* 3 秒・1.4 m/s では第5章の通常が 18.3%（被弾 0.89 /100 秒。ボット 240 本）と
    ほかの章の半分に落ちた。消している時間を少し長く許し、足を遅くした */
 var SHADE_SPEED = 1.2;        // 歩き（3.1 m/s）の半分より遅い

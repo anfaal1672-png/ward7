@@ -56,22 +56,24 @@
       正面 ±30 度に相手を入れて照らすと見つける。明滅（2.6 秒点/2.2 秒消）が
       最良で、そこから点灯を増やすと 83% → 60% まで落ちる。 */
 
+/** @type {Object<string, any>} */
+/** @type {any} */
 var BOT = {
   on:false, ready:false,
   ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false,
         stepWorld:0, stepAtt:0, worldA:0, err:0, errT:0, conf:0, heardT:-99 },
   /* 足音から立てた「相手はこのへん」の見当。x,z と、聞いてからの経過 age。 */
-  bel:null, belAge:99, belT:-99, belD:99,
-  known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null, signUsed:{},
-  goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
+  bel:/** @type {any} */ (null), belAge:99, belT:-99, belD:99,
+  known:/** @type {any} */ (null), penalty:/** @type {any} */ (null), danger:/** @type {any} */ (null), dangerT:0, seen:/** @type {any[]} */ ([]), seenKey:{}, signHint:/** @type {any} */ (null), signUsed:{},
+  goal:/** @type {any} */ (null), wp:/** @type {any} */ (null), pathLen:0, seekExit:false, repath:0, exploreTgt:/** @type {any} */ (null),
   aimVel:0, noiseT:0, noise:0, fixT:0, tremT:0,
-  quietT:0, backT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
-  fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
-  escGoal:null, escGoalT:0, hideT:0,
+  quietT:0, backT:0, hpos:/** @type {any} */ (null), hposFresh:0, trail:/** @type {any[]} */ ([]), trailT:0,
+  fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:/** @type {any} */ (null), escWorld:0,
+  escGoal:/** @type {any} */ (null), escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, lookCd:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:/** @type {any} */ (null), hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0,
-  startCell:null
+  startCell:/** @type {any} */ (null)
 };
 
 /* 初期値をそのまま控えておく。
@@ -80,7 +82,7 @@ var BOT = {
    遊び直すと 1 回目と 2 回目で挙動が変わる）。
    数える方（初期値）と消す方（reset）を一箇所にまとめて、書き忘れを消す。 */
 var BOT_INIT = (function(){
-  var o = {};
+  var o = /** @type {Object<string, any>} */ ({});
   for(var k in BOT){
     var v = BOT[k];
     if(k === 'on' || k === 'ear') continue;                 // on は設定、ear は別で戻す
@@ -88,7 +90,7 @@ var BOT_INIT = (function(){
   }
   return o;
 })();
-var EAR_INIT = (function(){ var o = {}; for(var k in BOT.ear) o[k] = BOT.ear[k]; return o; })();
+var EAR_INIT = (function(){ var o = /** @type {Object<string, any>} */ ({}), E = /** @type {Object<string, any>} */ (BOT.ear); for(var k in E) o[k] = E[k]; return o; })();
 
 /* ボットの乱数はゲーム側と分ける。
    共有していたせいで、演出用の乱数消費がひとつずれるだけでボットの判断が

@@ -1,6 +1,7 @@
 /* =========================================================================
    11. 入力
    ========================================================================= */
+/** @type {Object<string, any>} */
 var input = {
   fwd:0, side:0, lookX:0, lookY:0,
   run:false, use:false, toggleLamp:false,
@@ -10,9 +11,9 @@ var input = {
    ボットは input.keys を毎フレーム上書きするので、人間の WASD は消える。
    そこで人間ぶんだけ別に控える（スティックも同様）。
    逃げる側モードでは使わない。 */
-var humanKeys = {}, stickIn = { fwd:0, side:0, run:false };
+var humanKeys = /** @type {Object<string, any>} */ ({}), stickIn = { fwd:0, side:0, run:false };
 
-var pointers = {};   // id -> {mode, sx, sy, x, y}
+var pointers = /** @type {Object<string, any>} */ ({});   // id -> {mode, sx, sy, x, y}
 var stickEl = $('stick'), stickKnob = stickEl.querySelector('i');
 var stickId = /** @type {any} */ (null), lookId = /** @type {any} */ (null), stickRunning = false, holdBtnDown = false, backBtnDown = false;
 var stickOrigin = {x:0,y:0};
@@ -156,10 +157,10 @@ var KEYACT = [
   { a:'peek',  canon:'KeyX',      alt:[],             label:'覗く' },
   { a:'look',  canon:'KeyQ',      alt:['KeyC'],       label:'振り返る' }
 ];
-var KEYACT_BY = {};
+var KEYACT_BY = /** @type {Object<string, any>} */ ({});
 KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
 /* 実キー → canon の表。割り当てを変えたら作り直す */
-var KEYMAP = {};
+var KEYMAP = /** @type {Object<string, any>} */ ({});
 function keyOf(/** @type {any} */ a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
 function rebuildKeymap(){
   KEYMAP = {};
@@ -178,10 +179,10 @@ function keyLabel(/** @type {any} */ code){
   if(!code) return '—';
   if(/^Key[A-Z]$/.test(code)) return code.slice(3);
   if(/^Digit[0-9]$/.test(code)) return code.slice(5);
-  return ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
+  return (/** @type {Object<string, any>} */ ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
             Space:'Space', Tab:'Tab', Enter:'Enter', ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→',
             CapsLock:'Caps', Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Semicolon:';',
-            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
+            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' }))[code] || code;
 }
 rebuildKeymap();
 var keyCapture = /** @type {any} */ (null);                // 設定画面で「キーを押す」を待っている操作
@@ -300,7 +301,7 @@ function toggleLamp(){
    画面（パネル）が出ている間は、十字キーか左スティックで押せる物の間を動き、
    A で押し、B で戻る。動く先は画面上の位置で決める（見えている並びのとおりに動く）。
    つまみ（音量など）に居るときは、左右で値を動かす。 */
-var padMenu = { prev:[], rep:0, dir:null };
+var padMenu = { prev:/** @type {any[]} */ ([]), rep:0, dir:/** @type {any} */ (null) };
 function visiblePanel(){
   for(var i=0; i<panels.length; i++){ var el = $(panels[i]); if(el && !el.hidden) return el; }
   return null;

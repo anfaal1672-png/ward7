@@ -1,11 +1,12 @@
 /* =========================================================================
    8. ワールド構築
    ========================================================================= */
+/** @type {Object<string, any>} */
 var world = {
-  grid:null, walls:null, props:[], records:[], batteries:[],
-  lamps:[], lampLights:[], exit:null, exitLight:null, group:null,
-  rooms:[], hides:[], key:null, lockDoor:null, lever:null, power:false, endgame:false,
-  zones:[], exitField:null, nav:null
+  grid:/** @type {any} */ (null), walls:/** @type {any} */ (null), props:/** @type {any[]} */ ([]), records:/** @type {any[]} */ ([]), batteries:/** @type {any[]} */ ([]),
+  lamps:/** @type {any[]} */ ([]), lampLights:/** @type {any[]} */ ([]), exit:/** @type {any} */ (null), exitLight:/** @type {any} */ (null), group:/** @type {any} */ (null),
+  rooms:/** @type {any[]} */ ([]), hides:/** @type {any[]} */ ([]), key:/** @type {any} */ (null), lockDoor:/** @type {any} */ (null), lever:/** @type {any} */ (null), power:false, endgame:false,
+  zones:/** @type {any[]} */ ([]), exitField:/** @type {any} */ (null), nav:/** @type {any} */ (null)
 };
 
 function disposeObject(/** @type {any} */ obj){
@@ -2144,7 +2145,7 @@ function buildWorld(){
   var pipeMat = regEnvMat(new THREE.MeshStandardMaterial({
     color:SRGB(0x33372f), roughness:0.52, metalness:0.55
   }));
-  var runSeen = {};
+  var runSeen = /** @type {Object<string, any>} */ ({});
   for(y=1;y<GH-1;y++) for(x=1;x<GW-1;x++){
     if(g[idx(x,y)] !== 0) continue;
     for(var ax2=0; ax2<2; ax2++){
@@ -2276,7 +2277,7 @@ function buildWorld(){
   // シャッフル
   for(var i=pool.length-1;i>0;i--){ var j=(rnd()*(i+1))|0; var t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
 
-  var used = {};
+  var used = /** @type {Object<string, any>} */ ({});
   function take(/** @type {any} */ minSep){
     for(var k=0;k<pool.length;k++){
       var c = pool[k];
@@ -2743,7 +2744,7 @@ function buildWorld(){
   var signGeo  = new THREE.PlaneGeometry(1.05, 0.52);
   var arrowGeo = new THREE.PlaneGeometry(0.40, 0.40);
   var zoneMats = [];
-  var zoneBuckets = [];
+  var zoneBuckets = /** @type {any[][]} */ ([]);
   for(var zb=0; zb<9; zb++) zoneBuckets.push([]);
   for(var zr=0; zr<reach.length; zr++){
     var zc = reach[zr];
@@ -3131,7 +3132,7 @@ function mergeMeshes(/** @type {any} */ list, /** @type {any} */ parentInv){
 function bakeStaticFurniture(){
   world.group.updateMatrixWorld(true);
   var parentInv = new THREE.Matrix4().copy(world.group.matrixWorld).invert();
-  var buckets = {}, order = [];
+  var buckets = /** @type {Object<string, any>} */ ({}), order = [];
   var targets = /** @type {any[]} */ ([]);
 
   // 印はグループ側に付ける。動くもの（誘導矢印など）だけ noBake で除外する
@@ -3208,7 +3209,7 @@ function buildNavGrid(/** @type {any} */ g, /** @type {any} */ seedCell){
   }
 
   // 什器の無いマスは判定するだけ無駄なので、什器の周り1マスだけを調べる
-  var candidate = {};
+  var candidate = /** @type {Object<string, any>} */ ({});
   for(var pi2=0; pi2<world.props.length; pi2++){
     var pc = worldToCell(world.props[pi2].x, world.props[pi2].z);
     for(var cy=-1; cy<=1; cy++) for(var cx=-1; cx<=1; cx++){
@@ -3308,7 +3309,7 @@ function placeBandages(/** @type {any} */ pool, /** @type {any} */ used, /** @ty
   }
   var h = (pool.length * 40503 ^ (startC.x * 65537) ^ (startC.y * 257)) >>> 0;
   var br = mulberry32(h || 7);
-  var taken = {};
+  var taken = /** @type {Object<string, any>} */ ({});
   world.bottles.forEach(function(/** @type {any} */ b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
   var free = pool.filter(function(/** @type {any} */ c){ var k = c.x + ',' + c.y;
     return !used[k] && !taken[k] && (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
@@ -3350,7 +3351,7 @@ function buildWater(/** @type {any} */ info, /** @type {any} */ on){
   var br = mulberry32(((info.reach.length * 1597334677) ^ (info.start.x * 3812015801) ^ (info.start.y * 71)) >>> 0 || 9);
   var zs = [0,1,2,3,4,5,6,7,8];
   for(var i=zs.length-1; i>0; i--){ var j = (br() * (i+1)) | 0; var t = zs[i]; zs[i] = zs[j]; zs[j] = t; }
-  var wet = {}; zs.slice(0, 4).forEach(function(z){ wet[z] = 1; });
+  var wet = /** @type {Object<string, any>} */ ({}); zs.slice(0, 4).forEach(function(z){ wet[z] = 1; });
   world.water = new Uint8Array(GW*GH);
   var pos = [], nor = [], uv = [], idxs = [], n = 0, h = CELL * 0.5;
   for(var y=0; y<GH; y++) for(var x=0; x<GW; x++){
@@ -3422,6 +3423,7 @@ function updateWater(/** @type {number} */ dt){
    家具は壁際にだけ置く。通路の口（壁の向こうが床のところ）は塞がない。
    置く前に既存の家具・拾い物と重ならないかを見る。ゲームの乱数は引かない
    （同じ種で間取りと展開が変わらないように）。 */
+/** @type {Object<string, any>} */
 var HERO = {
   1:{ sign:'ナースステーション', kit:['counter','counter','shelf','shelf','clock','charts'] },
   2:{ sign:'大部屋',             kit:['bed','bed','bed','bed','bed','bed','curtain','curtain'] },
@@ -3434,6 +3436,7 @@ var HERO = {
 /* 章ごとの小部屋（第 6.1 節「各章 3〜5 部屋」・第 6.3 節「部屋ごとに物語の小道具を 1 つ」）。
    大広間とは別に、掘った部屋のうち大きい順に 3 つを作り込む。最後の 1 品が物語の小道具
    （患者の私物・落書き・止まった時計など）。落書きは '#' の後ろが壁に書かれる文 */
+/** @type {Object<string, any>} */
 var HERO_ROOMS = {
   1:[ { sign:'処置室', kit:['bed','ivstand','cabinet','sink'] },
       { sign:'病室　三号', kit:['bed','bed','curtain','toys'] },
@@ -3526,7 +3529,7 @@ function heroPiece(/** @type {any} */ kind){
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
   return { parts:P, len:len, h:h, r:r };
 }
-var heroMat = /** @type {any} */ (null), heroSignTex = {};
+var heroMat = /** @type {any} */ (null), heroSignTex = /** @type {Object<string, any>} */ ({});
 function heroSign(/** @type {any} */ text){
   if(heroSignTex[text]) return heroSignTex[text];
   var c = makeCanvas(512); c.height = 128;
@@ -3657,11 +3660,11 @@ function heroRooms(/** @type {any} */ g, /** @type {any} */ bigHall, /** @type {
   world.hero = { name:def ? def.sign : '', pieces:placed };
   world.heroes = [{ name:world.hero.name, pieces:placed, x:bigHall.cx, y:bigHall.cy }];
   var subs = HERO_ROOMS[n] || [];
-  var cand = world.rooms.filter(function(r){
+  var cand = world.rooms.filter(function(/** @type {any} */ r){
     if(r === bigHall) return false;
     if(startC && startC.x >= r.x - 1 && startC.x <= r.x + r.w && startC.y >= r.y - 1 && startC.y <= r.y + r.h) return false;
     return true;
-  }).sort(function(a, b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
+  }).sort(function(/** @type {any} */ a, /** @type {any} */ b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
   for(var i=0; i<subs.length && i<cand.length; i++){
     var p = heroRoom(g, cand[i], subs[i]);
     world.heroes.push({ name:subs[i].sign, pieces:p, x:cand[i].cx, y:cand[i].cy });
@@ -3747,7 +3750,7 @@ function moonWindows(/** @type {any} */ g){
    高精細以上で assets.js が届いたら置く。置き場所は病棟を建てるときに world.modelSlots に
    控えてある（見た目だけ。当たり・視線・乱数には関わらないので遊びは変わらない）。
    hide を持つ場所は手続きの物（時計）の代わりなので、そちらを隠す */
-var MODELS = { cache:{}, mats:{} };
+var MODELS = { cache:/** @type {Object<string, any>} */ ({}), mats:/** @type {Object<string, any>} */ ({}) };
 function modelGeo(/** @type {any} */ name){
   if(MODELS.cache[name] !== undefined) return MODELS.cache[name];
   var A = window.W7_ASSETS; if(!A || !A['models/' + name + '/meta']){ MODELS.cache[name] = null; return null; }

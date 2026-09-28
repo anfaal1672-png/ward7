@@ -1078,6 +1078,7 @@ var LANG = 'ja';
 })();
 var JP_RE = /[぀-ヿ一-鿿　-〿！-～]/;
 
+/** @type {Object<string, any>} */
 var EN = {
   // --- タイトル・パネル ---
   'WARD 7 — 第七病棟':'WARD 7', '第七病棟':'Ward Seven',
@@ -1304,6 +1305,7 @@ var EN = {
   'WASD＝移動　マウス＝視点　Shift＝突進':'WASD = move · Mouse = look · Shift = charge'
 };
 /* 数字の入る決まった形 */
+/** @type {Array<any>} */
 var EN_PATTERNS = [
   [/^カルテ (\d+) \/ (\d+)$/, 'Records $1 / $2'],
   [/^カルテ(\d+)枚 → 非常口$/, '$1 records → exit'],
@@ -1317,9 +1319,9 @@ var EN_PATTERNS = [
   [/^包帯を巻いた — あと (\d+) 回振りほどける$/, 'Bandaged — you can break free $1 more times'],
   [/^瓶を拾った（(\d+)）— 投げると音で気を引ける$/, 'Picked up a bottle ($1) — throw it to draw it away'],
   [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ z, /** @type {any} */ dir){
-      return 'The ' + ({'カルテ':'records','鍵':'key','非常口':'exit'})[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
+      return 'The ' + (/** @type {Object<string, any>} */ ({'カルテ':'records','鍵':'key','非常口':'exit'}))[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
   [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ dir, /** @type {any} */ far){
-      return '[' + trText(what) + ' · ' + ({'前':'ahead','右':'right','後ろ':'behind','左':'left'})[dir] +
+      return '[' + trText(what) + ' · ' + (/** @type {Object<string, any>} */ ({'前':'ahead','右':'right','後ろ':'behind','左':'left'}))[dir] +
              (far ? ' · ' + (far === '近い' ? 'near' : 'far') : '') + ']'; }],
   [/^カルテを (\d+) 枚 集めろ$/, 'Collect $1 records'],
   [/^挑戦 (\d+)/, function(/** @type {any} */ m){ return trFragments(m); }],
@@ -1341,6 +1343,7 @@ function trFragments(/** @type {any} */ s){
   for(var i=0; i<EN_FRAG.length; i++) if(s.indexOf(EN_FRAG[i][0]) >= 0) s = s.split(EN_FRAG[i][0]).join(EN_FRAG[i][1]);
   return s;
 }
+/** @return {any} */
 function trText(/** @type {any} */ s){
   if(LANG !== 'en' || !s || !JP_RE.test(s)) return s;
   var lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], core = s.trim();
@@ -1453,7 +1456,7 @@ var Audio2 = (function(){
   /* 収録素材の音（設計指示書 第 10.1 節）。assets.js の sfx/<群>_<番号> を解いて群ごとに持つ。
      assets.js は後から読まれる（defer）ので、鳴らす前にも取りに行く。
      解けなかった群は合成の音のまま鳴る（素材が無くても遊べる） */
-  var SFX = {}, sfxLoading = false;
+  var SFX = /** @type {Object<string, any>} */ ({}), sfxLoading = false;
   function loadSfx(){
     if(sfxLoading || !ctx || !window.W7_ASSETS) return;
     sfxLoading = true;
@@ -1509,7 +1512,7 @@ var Audio2 = (function(){
   }
 
   // 位置を持つ持続音のための共通バス（音量・左右・こもり具合を毎フレーム更新する）
-  var buses = { hunter:null, lamps:[], exit:null };
+  var buses = { hunter:/** @type {any} */ (null), lamps:/** @type {any[]} */ ([]), exit:/** @type {any} */ (null) };
   /* 頭部伝達関数（HRTF、設計指示書 第 10.2 節）。ヘッドホンなら前後と上下まで
      分かる。左右の振り分け（StereoPanner）では「真後ろ」と「真正面」が同じに鳴る。
      音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
@@ -2265,7 +2268,7 @@ var Audio2 = (function(){
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, state:audioState,
-           sfxGroups:function(){ var o = {}; Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           sfxGroups:function(){ var o = /** @type {Object<string, any>} */ ({}); Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,
@@ -3109,7 +3112,7 @@ function inBounds(/** @type {any} */ x,/** @type {any} */ y){ return x>=0 && y>=
 function genMaze(/** @type {any} */ loopChance){
   var g = new Uint8Array(GW*GH);
   g.fill(1);
-  var stack = [];
+  var stack = /** @type {number[]} */ ([]);
   var sx = 1, sy = 1;
   g[idx(sx,sy)] = 0;
   stack.push(sx, sy);
@@ -3349,7 +3352,7 @@ var CHAPTERS = [
 ];
 /* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
    同じ日なら誰が遊んでも同じ病棟。日が変われば別の病棟 */
-var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
+var NIGHT = { n:0, name:'夜勤', seed:/** @type {any} */ (null), patients:[2,2,3], blackout:false,
   intro:'日替わりの病棟。今日の夜勤は、今日だけ。' };
 function nightSeed(){
   var d = new Date(), k = d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
@@ -3360,7 +3363,7 @@ var RUN = { ch:0 };
 function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
 function isFinalChapter(){ return RUN.ch === CHAPTERS.length - 1; }
 /* 章の進み。どこまで開いたか・どれを抜けたか */
-var PROGRESS = { unlocked:1, cleared:{} };
+var PROGRESS = { unlocked:1, cleared:/** @type {Object<string, any>} */ ({}) };
 try{
   var pg0 = JSON.parse(Store.get('ward7.progress') || 'null');
   if(pg0 && typeof pg0 === 'object'){
@@ -3375,6 +3378,7 @@ RUN.ch = clamp(PROGRESS.unlocked - 1, 0, CHAPTERS.length - 1);
    追う側のときは逃げる側を AI（第19章のボット）が動かす。 */
 var playAs = 'survivor';
 
+/** @type {Object<string, any>} */
 var settings = {
   quality: 1,      // 0 軽量 / 1 標準 / 2 高精細
   sens: 1.0,
@@ -3434,7 +3438,7 @@ try{
    無傷で脱出したか、を残す。次に何を狙うかが自分で決められるようになる。
    保存できない環境（プライベートモード等）では黙って諦める——
    記録が残らないだけで遊べなくなるものではない。 */
-var RECS = [null, null, null];
+var RECS = /** @type {any[]} */ ([null, null, null]);
 function blankRec(){ return { runs:0, wins:0, best:0, noHit:false, most:0 }; }
 try{
   var rr = JSON.parse(Store.get('ward7.recs') || 'null');
@@ -3480,7 +3484,7 @@ function saveSettings(){
    まずそれで仮に決め、タイトルの情景を 5 秒描いて実測し（BENCH）、重ければ 1 段下げ、
    十分に軽ければ 1 段上げて読み込み直す。読み込み直しは 2 回まで。自動操作
    （テスト・ボット）では測らない。設定で画質を選んだら、以後は自動で変えない */
-var BENCH = { on:false, t:0, dts:[], round:0, up:false };
+var BENCH = { on:false, t:0, dts:/** @type {any[]} */ ([]), round:0, up:false };
 (function(){
   var b = null;
   try{ b = JSON.parse(Store.get('ward7.bench') || 'null'); }catch(e){}
@@ -3548,7 +3552,7 @@ var CHEAT_ACTS = [
   { k:'win',      label:'即座に脱出する' },
   { k:'lose',     label:'即座に力尽きる' }
 ];
-var cheats = {}, cheatUsed = false;
+var cheats = /** @type {Object<string, any>} */ ({}), cheatUsed = false;
 CHEATS.forEach(function(c){ cheats[c.k] = false; });
 try{
   var sc = JSON.parse(Store.get('ward7.cheats') || 'null');
@@ -3768,7 +3772,7 @@ resize();
 /* =========================================================================
    7. マテリアル／テクスチャの準備
    ========================================================================= */
-var TEX = {};
+var TEX = /** @type {Object<string, any>} */ ({});
 var envRT = /** @type {any} */ (null);          // 環境マップ（PMREM 済み）。品質変更のたびに作り直す
 /* 環境マップ（映り込み）。
    金属を metalness 0.75 で置いても、映すものが無ければ真っ黒にしかならない。
@@ -3980,12 +3984,12 @@ function buildTextures(){
    そのまま効く。軽量・標準では読まない（端末のメモリと読み込みを優先）。
    1 マスの広さ 4.2m に対して、壁のボーダータイル 1 枚の絵が約 1.1m、床の
    長尺シートの絵が 1 マスぶん、天井板が約 2m。 */
-var PHOTO = { tex:null, loading:false, wait:[] };
+var PHOTO = { tex:/** @type {any} */ (null), loading:false, wait:/** @type {any[]} */ ([]) };
 /* 最初の案（壁 3.8×3.3・床 1 マス 1 枚）は、壁の目地が細かすぎて白い面に溶け、
    床の八角形が大きすぎて手前が柄に見えた。撮って合わせた値 */
-var PHOTO_REPEAT = { wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] };
+var PHOTO_REPEAT = /** @type {Object<string, any>} */ ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2] });
 /* 写真の地は手続きの絵より明るい（床は特に黄色く浮いた）。色で沈める */
-var PHOTO_TINT = { wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 };
+var PHOTO_TINT = /** @type {Object<string, any>} */ ({ wall:0xbac3bd, floor:0x7f7c6c, ceil:0xb0b0a8 });
 /* 起動の時点では assets.js はまだ届いていない（defer）。置いてあるかどうかで見込む */
 function photoExpected(){
   return (settings.quality|0) >= 2 && !!(renderer.capabilities && renderer.capabilities.isWebGL2) &&
@@ -4000,8 +4004,8 @@ function loadPhoto(/** @type {any} */ cb){
   PHOTO.wait.push(cb);
   if(PHOTO.loading) return;
   PHOTO.loading = true;
-  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = {}, left = 0;
-  var sets = { wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' };
+  var A = window.W7_ASSETS, L = new THREE.TextureLoader(), T = /** @type {Object<string, any>} */ ({}), left = 0;
+  var sets = /** @type {Object<string, any>} */ ({ wall:'wall_tile', floor:'floor_lino', ceil:'ceiling' });
   Object.keys(sets).forEach(function(k){
     T[k] = {};
     ['diff', 'nor', 'rough'].forEach(function(m){
@@ -4043,11 +4047,12 @@ window.addEventListener('load', function(){ if(state === STATE.PLAY || (state ==
 /* =========================================================================
    8. ワールド構築
    ========================================================================= */
+/** @type {Object<string, any>} */
 var world = {
-  grid:null, walls:null, props:[], records:[], batteries:[],
-  lamps:[], lampLights:[], exit:null, exitLight:null, group:null,
-  rooms:[], hides:[], key:null, lockDoor:null, lever:null, power:false, endgame:false,
-  zones:[], exitField:null, nav:null
+  grid:/** @type {any} */ (null), walls:/** @type {any} */ (null), props:/** @type {any[]} */ ([]), records:/** @type {any[]} */ ([]), batteries:/** @type {any[]} */ ([]),
+  lamps:/** @type {any[]} */ ([]), lampLights:/** @type {any[]} */ ([]), exit:/** @type {any} */ (null), exitLight:/** @type {any} */ (null), group:/** @type {any} */ (null),
+  rooms:/** @type {any[]} */ ([]), hides:/** @type {any[]} */ ([]), key:/** @type {any} */ (null), lockDoor:/** @type {any} */ (null), lever:/** @type {any} */ (null), power:false, endgame:false,
+  zones:/** @type {any[]} */ ([]), exitField:/** @type {any} */ (null), nav:/** @type {any} */ (null)
 };
 
 function disposeObject(/** @type {any} */ obj){
@@ -6186,7 +6191,7 @@ function buildWorld(){
   var pipeMat = regEnvMat(new THREE.MeshStandardMaterial({
     color:SRGB(0x33372f), roughness:0.52, metalness:0.55
   }));
-  var runSeen = {};
+  var runSeen = /** @type {Object<string, any>} */ ({});
   for(y=1;y<GH-1;y++) for(x=1;x<GW-1;x++){
     if(g[idx(x,y)] !== 0) continue;
     for(var ax2=0; ax2<2; ax2++){
@@ -6318,7 +6323,7 @@ function buildWorld(){
   // シャッフル
   for(var i=pool.length-1;i>0;i--){ var j=(rnd()*(i+1))|0; var t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
 
-  var used = {};
+  var used = /** @type {Object<string, any>} */ ({});
   function take(/** @type {any} */ minSep){
     for(var k=0;k<pool.length;k++){
       var c = pool[k];
@@ -6785,7 +6790,7 @@ function buildWorld(){
   var signGeo  = new THREE.PlaneGeometry(1.05, 0.52);
   var arrowGeo = new THREE.PlaneGeometry(0.40, 0.40);
   var zoneMats = [];
-  var zoneBuckets = [];
+  var zoneBuckets = /** @type {any[][]} */ ([]);
   for(var zb=0; zb<9; zb++) zoneBuckets.push([]);
   for(var zr=0; zr<reach.length; zr++){
     var zc = reach[zr];
@@ -7173,7 +7178,7 @@ function mergeMeshes(/** @type {any} */ list, /** @type {any} */ parentInv){
 function bakeStaticFurniture(){
   world.group.updateMatrixWorld(true);
   var parentInv = new THREE.Matrix4().copy(world.group.matrixWorld).invert();
-  var buckets = {}, order = [];
+  var buckets = /** @type {Object<string, any>} */ ({}), order = [];
   var targets = /** @type {any[]} */ ([]);
 
   // 印はグループ側に付ける。動くもの（誘導矢印など）だけ noBake で除外する
@@ -7250,7 +7255,7 @@ function buildNavGrid(/** @type {any} */ g, /** @type {any} */ seedCell){
   }
 
   // 什器の無いマスは判定するだけ無駄なので、什器の周り1マスだけを調べる
-  var candidate = {};
+  var candidate = /** @type {Object<string, any>} */ ({});
   for(var pi2=0; pi2<world.props.length; pi2++){
     var pc = worldToCell(world.props[pi2].x, world.props[pi2].z);
     for(var cy=-1; cy<=1; cy++) for(var cx=-1; cx<=1; cx++){
@@ -7350,7 +7355,7 @@ function placeBandages(/** @type {any} */ pool, /** @type {any} */ used, /** @ty
   }
   var h = (pool.length * 40503 ^ (startC.x * 65537) ^ (startC.y * 257)) >>> 0;
   var br = mulberry32(h || 7);
-  var taken = {};
+  var taken = /** @type {Object<string, any>} */ ({});
   world.bottles.forEach(function(/** @type {any} */ b){ var c = worldToCell(b.x, b.z); taken[c.x + ',' + c.y] = 1; });
   var free = pool.filter(function(/** @type {any} */ c){ var k = c.x + ',' + c.y;
     return !used[k] && !taken[k] && (!world.nav || world.nav[idx(c.x, c.y)] === 0); });
@@ -7392,7 +7397,7 @@ function buildWater(/** @type {any} */ info, /** @type {any} */ on){
   var br = mulberry32(((info.reach.length * 1597334677) ^ (info.start.x * 3812015801) ^ (info.start.y * 71)) >>> 0 || 9);
   var zs = [0,1,2,3,4,5,6,7,8];
   for(var i=zs.length-1; i>0; i--){ var j = (br() * (i+1)) | 0; var t = zs[i]; zs[i] = zs[j]; zs[j] = t; }
-  var wet = {}; zs.slice(0, 4).forEach(function(z){ wet[z] = 1; });
+  var wet = /** @type {Object<string, any>} */ ({}); zs.slice(0, 4).forEach(function(z){ wet[z] = 1; });
   world.water = new Uint8Array(GW*GH);
   var pos = [], nor = [], uv = [], idxs = [], n = 0, h = CELL * 0.5;
   for(var y=0; y<GH; y++) for(var x=0; x<GW; x++){
@@ -7464,6 +7469,7 @@ function updateWater(/** @type {number} */ dt){
    家具は壁際にだけ置く。通路の口（壁の向こうが床のところ）は塞がない。
    置く前に既存の家具・拾い物と重ならないかを見る。ゲームの乱数は引かない
    （同じ種で間取りと展開が変わらないように）。 */
+/** @type {Object<string, any>} */
 var HERO = {
   1:{ sign:'ナースステーション', kit:['counter','counter','shelf','shelf','clock','charts'] },
   2:{ sign:'大部屋',             kit:['bed','bed','bed','bed','bed','bed','curtain','curtain'] },
@@ -7476,6 +7482,7 @@ var HERO = {
 /* 章ごとの小部屋（第 6.1 節「各章 3〜5 部屋」・第 6.3 節「部屋ごとに物語の小道具を 1 つ」）。
    大広間とは別に、掘った部屋のうち大きい順に 3 つを作り込む。最後の 1 品が物語の小道具
    （患者の私物・落書き・止まった時計など）。落書きは '#' の後ろが壁に書かれる文 */
+/** @type {Object<string, any>} */
 var HERO_ROOMS = {
   1:[ { sign:'処置室', kit:['bed','ivstand','cabinet','sink'] },
       { sign:'病室　三号', kit:['bed','bed','curtain','toys'] },
@@ -7568,7 +7575,7 @@ function heroPiece(/** @type {any} */ kind){
            { w:0.06, h:0.45, d:0.4, x:0.8, y:0.22, c:C.steel }); }
   return { parts:P, len:len, h:h, r:r };
 }
-var heroMat = /** @type {any} */ (null), heroSignTex = {};
+var heroMat = /** @type {any} */ (null), heroSignTex = /** @type {Object<string, any>} */ ({});
 function heroSign(/** @type {any} */ text){
   if(heroSignTex[text]) return heroSignTex[text];
   var c = makeCanvas(512); c.height = 128;
@@ -7699,11 +7706,11 @@ function heroRooms(/** @type {any} */ g, /** @type {any} */ bigHall, /** @type {
   world.hero = { name:def ? def.sign : '', pieces:placed };
   world.heroes = [{ name:world.hero.name, pieces:placed, x:bigHall.cx, y:bigHall.cy }];
   var subs = HERO_ROOMS[n] || [];
-  var cand = world.rooms.filter(function(r){
+  var cand = world.rooms.filter(function(/** @type {any} */ r){
     if(r === bigHall) return false;
     if(startC && startC.x >= r.x - 1 && startC.x <= r.x + r.w && startC.y >= r.y - 1 && startC.y <= r.y + r.h) return false;
     return true;
-  }).sort(function(a, b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
+  }).sort(function(/** @type {any} */ a, /** @type {any} */ b){ return (b.w*b.h - a.w*a.h) || (a.x - b.x) || (a.y - b.y); });
   for(var i=0; i<subs.length && i<cand.length; i++){
     var p = heroRoom(g, cand[i], subs[i]);
     world.heroes.push({ name:subs[i].sign, pieces:p, x:cand[i].cx, y:cand[i].cy });
@@ -7789,7 +7796,7 @@ function moonWindows(/** @type {any} */ g){
    高精細以上で assets.js が届いたら置く。置き場所は病棟を建てるときに world.modelSlots に
    控えてある（見た目だけ。当たり・視線・乱数には関わらないので遊びは変わらない）。
    hide を持つ場所は手続きの物（時計）の代わりなので、そちらを隠す */
-var MODELS = { cache:{}, mats:{} };
+var MODELS = { cache:/** @type {Object<string, any>} */ ({}), mats:/** @type {Object<string, any>} */ ({}) };
 function modelGeo(/** @type {any} */ name){
   if(MODELS.cache[name] !== undefined) return MODELS.cache[name];
   var A = window.W7_ASSETS; if(!A || !A['models/' + name + '/meta']){ MODELS.cache[name] = null; return null; }
@@ -7847,15 +7854,15 @@ function applyModels(){
    9. 追跡者
    ========================================================================= */
 var hunter = {
-  group:null, root:null, head:null, armL:null, armR:null, legL:null, legR:null, shadow:null,
-  x:0, z:0, yaw:0, cell:{x:1,y:1}, target:null, path:null,
-  mode:'patrol', repathT:0, patrolT:0, lastSeen:null, speed:1.9, attackCd:0, bob:0, spawnGrace:0,
-  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:undefined, parts:null,
+  group:/** @type {any} */ (null), root:/** @type {any} */ (null), head:/** @type {any} */ (null), armL:/** @type {any} */ (null), armR:/** @type {any} */ (null), legL:/** @type {any} */ (null), legR:/** @type {any} */ (null), shadow:/** @type {any} */ (null),
+  x:0, z:0, yaw:0, cell:{x:1,y:1}, target:/** @type {any} */ (null), path:/** @type {any} */ (null),
+  mode:'patrol', repathT:0, patrolT:0, lastSeen:/** @type {any} */ (null), speed:1.9, attackCd:0, bob:0, spawnGrace:0,
+  memT:0, chaseT:0, twitchT:0, twitch:0, stepAcc:0, jawOpen:0, reach:0, gaitRun:0, turnLead:0, walkK:0, bank:0, yawRate:0, yawPrev:/** @type {any} */ (undefined), parts:/** @type {any} */ (null),
   glitchT:0, glitch:0, eyeT:0, eyeOff:0, stunT:0, windT:0, swingT:0,
   stuckT:0, slideDir:0, noDirectT:0, punchArm:1,
   gazeT:0, gazeY:0, gazeTarget:0,
-  dirX:0, dirZ:0, cornerK:0, inspect:null, inspectT:0,
-  vent:null, ventT:0, ventCd:0
+  dirX:0, dirZ:0, cornerK:0, inspect:/** @type {any} */ (null), inspectT:0,
+  vent:/** @type {any} */ (null), ventT:0, ventCd:0
 };
 
 /* 演出の頭脳（設計指示書 第 5.3 節）。
@@ -8767,7 +8774,7 @@ var patients = /** @type {any[]} */ ([]);
 var PATIENT_NOTICE = 6.0;         // これより近いときだけ気づく（視線が通っていること）
 var PATIENT_STARE = 6.0;          // 叫んだあと、こちらを見続ける秒数
 var PATIENT_COOL = 20;            // 同じ患者が次に騒ぐまで
-var patientMats = {};
+var patientMats = /** @type {Object<string, any>} */ ({});
 function patientMat(/** @type {any} */ m){
   if(patientMats[m.uuid]) return patientMats[m.uuid];
   var c = m.clone();
@@ -8779,7 +8786,7 @@ function patientMat(/** @type {any} */ m){
 function bakeFigure(/** @type {any} */ src){
   src.updateMatrixWorld(true);
   var inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
-  var byMat = {}, keys = /** @type {any[]} */ ([]);
+  var byMat = /** @type {Object<string, any>} */ ({}), keys = /** @type {any[]} */ ([]);
   src.traverseVisible(function(/** @type {any} */ o){
     if(!o.isMesh || Array.isArray(o.material) || !o.material) return;
     var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
@@ -8829,7 +8836,7 @@ function buildPatients(/** @type {any} */ info, /** @type {any} */ n){
     return walls >= 2;                                                   // 行き止まりや曲がり角の壁際
   });
   var fig = bakeFigure(hunter.group);
-  var usedP = {};
+  var usedP = /** @type {Object<string, any>} */ ({});
   for(var i=0; i<n && cand.length; i++){
     var c = cand.splice((br() * cand.length) | 0, 1)[0];
     var key = c.x + ',' + c.y; if(usedP[key]) continue; usedP[key] = 1;
@@ -9016,7 +9023,7 @@ function ventBang(/** @type {any} */ x, /** @type {any} */ z, /** @type {any} */
    触れられると、捕まったのと同じだけ削られる。
    柱 1「光は命綱であり、罠である」を、あれとは逆向きに突きつける：
    あれから隠れるには灯りを消したいが、消せばこちらが寄ってくる。 */
-var shade = { group:null, on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:0 };
+var shade = { group:/** @type {any} */ (null), on:false, x:0, z:0, darkT:0, litT:0, cool:0, whisperT:0 };
 /* 3 秒・1.4 m/s では第5章の通常が 18.3%（被弾 0.89 /100 秒。ボット 240 本）と
    ほかの章の半分に落ちた。消している時間を少し長く許し、足を遅くした */
 var SHADE_SPEED = 1.2;        // 歩き（3.1 m/s）の半分より遅い
@@ -9123,7 +9130,7 @@ var player = {
   x:0, z:0, y:1.62, yaw:0, pitch:0,
   vx:0, vz:0, hp:100, battery:100, stamina:100, sanity:100,
   lamp:true, running:false, exhausted:false, bob:0, stepAcc:0, breath:0,
-  hiding:null, hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
+  hiding:/** @type {any} */ (null), hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
   got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
   sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0, wet:false
@@ -9330,6 +9337,7 @@ function peekOffset(){
 /* =========================================================================
    11. 入力
    ========================================================================= */
+/** @type {Object<string, any>} */
 var input = {
   fwd:0, side:0, lookX:0, lookY:0,
   run:false, use:false, toggleLamp:false,
@@ -9339,9 +9347,9 @@ var input = {
    ボットは input.keys を毎フレーム上書きするので、人間の WASD は消える。
    そこで人間ぶんだけ別に控える（スティックも同様）。
    逃げる側モードでは使わない。 */
-var humanKeys = {}, stickIn = { fwd:0, side:0, run:false };
+var humanKeys = /** @type {Object<string, any>} */ ({}), stickIn = { fwd:0, side:0, run:false };
 
-var pointers = {};   // id -> {mode, sx, sy, x, y}
+var pointers = /** @type {Object<string, any>} */ ({});   // id -> {mode, sx, sy, x, y}
 var stickEl = $('stick'), stickKnob = stickEl.querySelector('i');
 var stickId = /** @type {any} */ (null), lookId = /** @type {any} */ (null), stickRunning = false, holdBtnDown = false, backBtnDown = false;
 var stickOrigin = {x:0,y:0};
@@ -9485,10 +9493,10 @@ var KEYACT = [
   { a:'peek',  canon:'KeyX',      alt:[],             label:'覗く' },
   { a:'look',  canon:'KeyQ',      alt:['KeyC'],       label:'振り返る' }
 ];
-var KEYACT_BY = {};
+var KEYACT_BY = /** @type {Object<string, any>} */ ({});
 KEYACT.forEach(function(k){ KEYACT_BY[k.a] = k; });
 /* 実キー → canon の表。割り当てを変えたら作り直す */
-var KEYMAP = {};
+var KEYMAP = /** @type {Object<string, any>} */ ({});
 function keyOf(/** @type {any} */ a){ var k = KEYACT_BY[a]; return (settings.keys && settings.keys[a]) || k.canon; }
 function rebuildKeymap(){
   KEYMAP = {};
@@ -9507,10 +9515,10 @@ function keyLabel(/** @type {any} */ code){
   if(!code) return '—';
   if(/^Key[A-Z]$/.test(code)) return code.slice(3);
   if(/^Digit[0-9]$/.test(code)) return code.slice(5);
-  return ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
+  return (/** @type {Object<string, any>} */ ({ ShiftLeft:'Shift', ShiftRight:'右Shift', ControlLeft:'Ctrl', ControlRight:'右Ctrl', AltLeft:'Alt', AltRight:'右Alt',
             Space:'Space', Tab:'Tab', Enter:'Enter', ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→',
             CapsLock:'Caps', Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Semicolon:';',
-            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' })[code] || code;
+            Quote:"'", Comma:',', Period:'.', Slash:'/', Backslash:'\\' }))[code] || code;
 }
 rebuildKeymap();
 var keyCapture = /** @type {any} */ (null);                // 設定画面で「キーを押す」を待っている操作
@@ -9629,7 +9637,7 @@ function toggleLamp(){
    画面（パネル）が出ている間は、十字キーか左スティックで押せる物の間を動き、
    A で押し、B で戻る。動く先は画面上の位置で決める（見えている並びのとおりに動く）。
    つまみ（音量など）に居るときは、左右で値を動かす。 */
-var padMenu = { prev:[], rep:0, dir:null };
+var padMenu = { prev:/** @type {any[]} */ ([]), rep:0, dir:/** @type {any} */ (null) };
 function visiblePanel(){
   for(var i=0; i<panels.length; i++){ var el = $(panels[i]); if(el && !el.hidden) return el; }
   return null;
@@ -9761,7 +9769,7 @@ var LETTER_SLOT = 1;                    // 何枚目のカルテ（0 始まり�
 /* 手帳。読んだものは周回をまたいで残る（Store へ）。
    notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
    endings は見た結末。 */
-var JOURNAL = { notes:{}, letters:{}, linked:false, endings:{} };
+var JOURNAL = { notes:/** @type {Object<string, any>} */ ({}), letters:/** @type {Object<string, any>} */ ({}), linked:false, endings:/** @type {Object<string, any>} */ ({}) };
 try{
   var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
   if(j0 && typeof j0 === 'object'){
@@ -9784,7 +9792,7 @@ function lettersRead(){
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
 function buildNoteOrder(/** @type {any} */ need){
-  var pool = [];
+  var pool = /** @type {number[]} */ ([]);
   for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
   for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
     var k = (rnd() * (j+1)) | 0;
@@ -9979,7 +9987,7 @@ function updateCue(/** @type {number} */ dt){
    所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
-var journalReturn = 'title', jSel = {};
+var journalReturn = 'title', jSel = /** @type {Object<string, any>} */ ({});
 function noteVoice(/** @type {any} */ head){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
@@ -10055,6 +10063,7 @@ function tryLink(){
 var HINT_T1 = 180, HINT_T2 = 300;
 var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
 function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
+/** @return {any} */
 function hintTarget(){
   var best = null, bd = 1e9;
   function consider(/** @type {any} */ o, /** @type {any} */ what){
@@ -10062,7 +10071,7 @@ function hintTarget(){
     if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
   }
   if(player.got < player.need){
-    world.records.forEach(function(r){ if(!r.taken) consider(r, 'カルテ'); });
+    world.records.forEach(function(/** @type {any} */ r){ if(!r.taken) consider(r, 'カルテ'); });
   }else if(world.key && !world.key.taken && !player.hasKey){
     consider(world.key, '鍵');
   }else if(world.exit){
@@ -10179,7 +10188,7 @@ function drawMap(){
    目的は二つ：捕まる場所が偏っていないか（理不尽の検出）と、どこでやめてしまうか。
    記録するもの：章の開始と終わり（結果・時間）、捕まった場所と相手、隠れ場所に入った場所、
    1 分ごとのフレーム時間の分布（中央値・95%）と温度の段階。 */
-var TELE = { ev:null, ft:[], ftT:0 };
+var TELE = { ev:/** @type {any} */ (null), ft:/** @type {any[]} */ ([]), ftT:0 };
 var TELE_MAX = 3000;
 function teleLoad(){
   if(TELE.ev) return;
@@ -10189,7 +10198,7 @@ function teleLoad(){
 function tele(/** @type {any} */ kind, /** @type {any} */ data){
   if(!settings.tele || BOT.on) return;
   teleLoad();
-  var e = { k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 };
+  var e = /** @type {Object<string, any>} */ ({ k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 });
   for(var key in data) e[key] = data[key];
   TELE.ev.push(e);
   if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
@@ -10223,17 +10232,17 @@ function teleExport(){
    最初から一覧を見せず、その操作が要る場面に初めて来たときに 1 度だけ出す。
    出した物は端末に控え、周回しても繰り返さない。表示は使っている入力機器に合わせる
    （キーは割り当てを引く）。追われている間は「走れ」以外を出さない。 */
-var TIPS = { seen:{}, cool:0, still:0 };
+var TIPS = { seen:/** @type {Object<string, any>} */ ({}), cool:0, still:0 };
 try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
-var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
+var PAD_NAME = /** @type {Object<string, any>} */ ({ use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' });
 function tipKey(/** @type {any} */ a){
   var ja = LANG !== 'en';
   if(lastInputKind === 'pad') return PAD_NAME[a];
   if(lastInputKind === 'touch'){
-    return ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
+    return (/** @type {Object<string, any>} */ ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
               throw: ja ? '「投げる」' : '“Throw”', peek: ja ? '「覗く」' : '“Peek”',
               run: ja ? 'スティックを大きく倒して' : 'Push the stick all the way',
-              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' })[a];
+              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' }))[a];
   }
   return keyLabel(keyOf(a === 'hold' ? 'run' : a));
 }
@@ -10459,7 +10468,7 @@ function doCheatAct(/** @type {any} */ k){
   }
   cheatUsed = true; updateCheatBadge();
   if(k === 'records'){
-    world.records.forEach(function(r){
+    world.records.forEach(function(/** @type {any} */ r){
       if(r.taken) return;
       r.taken = true; r.mesh.visible = false; r.spr.visible = false; player.got++;
     });
@@ -10507,7 +10516,7 @@ function doCheatAct(/** @type {any} */ k){
       toast('追跡者を飛ばした（' + Math.round(Math.sqrt(fd)) + 'm 先）', 2);
     }
   }else if(k === 'battery'){
-    world.batteries.forEach(function(q){
+    world.batteries.forEach(function(/** @type {any} */ q){
       if(q.taken) return;
       q.taken = true; q.mesh.visible = false; q.spr.visible = false;
     });
@@ -10989,7 +10998,7 @@ function spatial(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} *
    持ち、壁越しの音はその道のりの長さで小さくし、回り道が長いほどこもらせる。
    向き（左右）は、音が入ってくる開口（こちらのマスの隣の、道の最後の 1 マス）
    から鳴らす。角の向こうの足音は、角の方から聞こえる。 */
-var PATHF = { t:0, cx:-1, cy:-1, field:null };
+var PATHF = { t:0, cx:-1, cy:-1, field:/** @type {any} */ (null) };
 function updatePathField(/** @type {number} */ dt){
   PATHF.t -= dt;
   var c = worldToCell(player.x, player.z);
@@ -12577,7 +12586,7 @@ function updateHunterVox(/** @type {number} */ dt, /** @type {any} */ info, /** 
 function updateEnv(/** @type {number} */ dt, /** @type {any} */ info){
   // 非常灯：最寄り n 個だけをライトプールに割り当てる
   var lamps = world.lamps.slice();
-  lamps.sort(function(a,b){
+  lamps.sort(function(/** @type {any} */ a,/** @type {any} */ b){
     var da = (a.x-player.x)*(a.x-player.x)+(a.z-player.z)*(a.z-player.z);
     var db = (b.x-player.x)*(b.x-player.x)+(b.z-player.z)*(b.z-player.z);
     return da-db;
@@ -12749,13 +12758,13 @@ function updateCheatView(/** @type {number} */ dt){
     var mark = function(/** @type {any} */ sp){ if(!sp) return;
       sp.material.depthTest = !wantItems; sp.renderOrder = wantItems ? 12 : 0;
       sp.material.opacity = wantItems ? 0.9 : 0.55; sp.material.needsUpdate = true; };
-    world.records.forEach(function(r){ mark(r.spr); });
-    world.batteries.forEach(function(b){ mark(b.spr); });
+    world.records.forEach(function(/** @type {any} */ r){ mark(r.spr); });
+    world.batteries.forEach(function(/** @type {any} */ b){ mark(b.spr); });
     if(world.key) mark(world.key.spr);
   }
   if(CV.hides !== wantHides){
     CV.hides = wantHides;
-    world.hides.forEach(function(h){
+    world.hides.forEach(function(/** @type {any} */ h){
       if(!h.group) return;
       h.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.material || !o.material.emissive) return;
@@ -13333,6 +13342,7 @@ function snapRefIndex(){
   SNAP_REG.forEach(function(name){ (snapArr(name) || []).forEach(function(/** @type {any} */ o, /** @type {any} */ i){ if(o && typeof o === 'object') m.set(o, [name, i]); }); });
   return m;
 }
+/** @return {any} */
 function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} */ depth, /** @type {any} */ home){
   if(v === null || typeof v !== 'object') return (typeof v === 'function') ? { $skip:1 } : v;
   if(snapSkip(v)) return { $skip:1 };
@@ -13340,13 +13350,13 @@ function snapVal(/** @type {any} */ v, /** @type {any} */ refs, /** @type {any} 
   if(!home && refs.has(v)) return { $ref:refs.get(v) };
   if(ArrayBuffer.isView(v)) return { $ta:Array.prototype.slice.call(v), $k:v.constructor.name };
   if(v instanceof Map || v instanceof Set) return { $skip:1 };
-  if(Array.isArray(v)) return v.map(function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
-  var o = {};
+  if(Array.isArray(v)) return v.map(/** @return {any} */ function(/** @type {any} */ e){ return snapVal(e, refs, depth + 1, false); });
+  var o = /** @type {Object<string, any>} */ ({});
   for(var k in v){ if(Object.prototype.hasOwnProperty.call(v, k)) o[k] = snapVal(v[k], refs, depth + 1, false); }
   return o;
 }
 function snapTake(){
-  var refs = snapRefIndex(), R = snapRoots(), out = { roots:{}, reg:{}, n:{} };
+  var refs = snapRefIndex(), R = /** @type {Object<string, any>} */ (snapRoots()), out = /** @type {any} */ ({ roots:{}, reg:{}, n:{} });
   Object.keys(R).forEach(function(k){ out.roots[k] = snapVal(R[k], refs, 0, true); });
   // world の配列の要素そのもの（ここだけは参照にせず中身を持つ）
   SNAP_REG.forEach(function(name){ out.reg[name] = (snapArr(name) || []).map(function(/** @type {any} */ o){ return snapVal(o, refs, 1, true); }); });
@@ -13356,11 +13366,12 @@ function snapTake(){
             rnd:rnd.getState(), rndAI:rndAI.getState(), rndFx:rndFx.getState() };
   return JSON.stringify(out);
 }
+/** @return {any} */
 function snapResolve(/** @type {any} */ s, /** @type {any} */ refs){
   if(s && typeof s === 'object' && s.$ref){ var a = snapArr(s.$ref[0]); return a ? a[s.$ref[1]] : null; }
   if(s && typeof s === 'object' && s.$ta){ var C = /** @type {any} */ (window[s.$k] || Float32Array); return new C(s.$ta); }
-  if(Array.isArray(s)) return s.map(function(e){ return snapResolve(e, refs); });
-  if(s && typeof s === 'object'){ var o = {}; for(var k in s) if(!(s[k] && s[k].$skip)) o[k] = snapResolve(s[k], refs); return o; }
+  if(Array.isArray(s)) return s.map(/** @return {any} */ function(/** @type {any} */ e){ return snapResolve(e, refs); });
+  if(s && typeof s === 'object'){ var o = /** @type {Object<string, any>} */ ({}); for(var k in s) if(!(s[k] && s[k].$skip)) o[k] = snapResolve(s[k], refs); return o; }
   return s;
 }
 /* 今ある物 t へ写しの値 s を書き戻す。飛ばした物（$skip）は触らない。写しに無い鍵は消す
@@ -13395,7 +13406,7 @@ function snapInto(/** @type {any} */ t, /** @type {any} */ s){
 function snapRestore(/** @type {any} */ json){
   var S = typeof json === 'string' ? JSON.parse(json) : json;
   SNAP_REG.forEach(function(name){ var a = snapArr(name); if(a && S.reg[name]) snapInto(a, S.reg[name]); });
-  var R = snapRoots();
+  var R = /** @type {Object<string, any>} */ (snapRoots());
   Object.keys(S.roots).forEach(function(k){ snapInto(R[k], S.roots[k]); });
   var n = S.n;
   toastT = n.toastT; noteT = n.noteT; lampFlick = n.lampFlick; ambientCreakT = n.ambientCreakT; heartT = n.heartT;
@@ -13456,7 +13467,7 @@ function runSelfTest(){
      ただのバンドパスノイズになる。数字の打ち間違いは耳では気づけない
      （どれも「唸り」に聞こえてしまう）ので、ここで押さえる。 */
   (function(){
-    var vs = Audio2.voxSpec(), specOK = true, distinct = {};
+    var vs = Audio2.voxSpec(), specOK = true, distinct = /** @type {Object<string, any>} */ ({});
     vs.forEach(function(v){
       if(!(v.fm[0] < v.fm[1] && v.fm[1] < v.fm[2])) specOK = false;
       if(!(v.dur > 0 && v.amp > 0 && v.f0 > 0 && v.f1 > 0)) specOK = false;
@@ -13484,7 +13495,7 @@ function runSelfTest(){
   t('出口に到達可能', field[idx(world.exit.cell.x, world.exit.cell.y)] >= 0);
 
   var allReach = true;
-  world.records.forEach(function(r){
+  world.records.forEach(function(/** @type {any} */ r){
     var c = worldToCell(r.x, r.z);
     if(field[idx(c.x,c.y)] < 0) allReach = false;
   });
@@ -13492,7 +13503,7 @@ function runSelfTest(){
   t('カルテ数が難易度どおり', world.records.length === DIFF[settings.diff].records);
 
   var batReach = true;
-  world.batteries.forEach(function(b){
+  world.batteries.forEach(function(/** @type {any} */ b){
     var c = worldToCell(b.x, b.z);
     if(field[idx(c.x,c.y)] < 0) batReach = false;
   });
@@ -13505,7 +13516,7 @@ function runSelfTest(){
   t('施錠扉は出口セルを守っている',
     !world.lockDoor || (world.lockDoor.cell.x === world.exit.cell.x && world.lockDoor.cell.y === world.exit.cell.y));
   var hidesOK = true;
-  world.hides.forEach(function(h){
+  world.hides.forEach(function(/** @type {any} */ h){
     var hcell = worldToCell(h.exitX, h.exitZ);
     if(!inBounds(hcell.x,hcell.y) || field[idx(hcell.x,hcell.y)] < 0) hidesOK = false;
   });
@@ -13543,8 +13554,8 @@ function runSelfTest(){
   // --- 区画表示板 ---
   var DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];   // EDIRS は buildWorld のローカルなのでここで持つ
   t('区画表示板が設置されている', world.zones.length >= 9);
-  var zseen = {}, zwall = true;
-  world.zones.forEach(function(z){
+  var zseen = /** @type {Object<string, any>} */ ({}), zwall = true;
+  world.zones.forEach(function(/** @type {any} */ z){
     var zc = worldToCell(z.x, z.z);
     zseen[zoneOf(zc.x, zc.y)] = true;
     // 板は壁面に貼られているので、板の位置のマスは壁か、隣が壁のはず
@@ -13564,7 +13575,7 @@ function runSelfTest(){
   var exf = world.exitField, leadOK = true;
   if(exf){
     var cur = { x:world.exit.cell.x, y:world.exit.cell.y };
-    world.zones.forEach(function(z){
+    world.zones.forEach(function(/** @type {any} */ z){
       var zc2 = worldToCell(z.x, z.z);
       if(!inBounds(zc2.x, zc2.y)) return;
       var walk = { x:zc2.x, y:zc2.y }, guard = 0;
@@ -13583,7 +13594,7 @@ function runSelfTest(){
     });
   }
   t('誘導矢印をたどると非常口に着く', leadOK);
-  t('誘導矢印は初期状態で消灯', world.zones.every(function(z){ return !z.arrow.visible; }) || world.exit.open);
+  t('誘導矢印は初期状態で消灯', world.zones.every(function(/** @type {any} */ z){ return !z.arrow.visible; }) || world.exit.open);
 
   /* --- 壁と床の形 ---
      壁を InstancedMesh から結合ジオメトリに変えた。三角形を自前で
@@ -13758,18 +13769,18 @@ function runSelfTest(){
 
   // --- 什器による視線遮蔽 ---
   t('什器に高さが設定されている',
-    world.props.every(function(op){ return typeof op.h === 'number' && op.h > 0; }));
+    world.props.every(function(/** @type {any} */ op){ return typeof op.h === 'number' && op.h > 0; }));
   // 遮るのはロッカーだけ。隠れ場所のロッカー数と一致するはず
-  var tall = world.props.filter(function(op){ return op.h > SIGHT_H; });
-  var lockers = world.hides.filter(function(hd){ return hd.type === 'locker'; });
+  var tall = world.props.filter(function(/** @type {any} */ op){ return op.h > SIGHT_H; });
+  var lockers = world.hides.filter(function(/** @type {any} */ hd){ return hd.type === 'locker'; });
   t('視線を遮る什器はロッカーのみ', tall.length === lockers.length);
   // 壁を挟まない純粋な幾何として、什器の真上を通る線分で確かめる
   var tallBlocks = true, lowPasses = true;
-  world.props.forEach(function(op){
+  world.props.forEach(function(/** @type {any} */ op){
     var blocked = propBlocksSight(op.x - 1.2, op.z, op.x + 1.2, op.z);
     if(op.h > SIGHT_H){ if(!blocked) tallBlocks = false; return; }
     // 低い什器でも、真横に高い什器があれば当然遮られる。その組は判定から外す
-    var near = tall.some(function(tp){
+    var near = tall.some(function(/** @type {any} */ tp){
       return Math.abs(tp.z - op.z) < tp.r && Math.abs(tp.x - op.x) < 1.2 + tp.r;
     });
     if(!near && blocked) lowPasses = false;
@@ -13985,7 +13996,7 @@ function runSelfTest(){
      途中で出る、のどれもゲームの筋が壊れるが、遊んで気づくには周回が要る。 */
   (function(){
     var ord = world.noteOrder || [];
-    var uniq = {}, dup = false, range = true;
+    var uniq = /** @type {Object<string, any>} */ ({}), dup = false, range = true;
     for(var i=0;i<ord.length;i++){
       if(uniq[ord[i]]) dup = true;
       uniq[ord[i]] = 1;
@@ -14177,22 +14188,24 @@ window.__ward7SelfTest = runSelfTest;
       正面 ±30 度に相手を入れて照らすと見つける。明滅（2.6 秒点/2.2 秒消）が
       最良で、そこから点灯を増やすと 83% → 60% まで落ちる。 */
 
+/** @type {Object<string, any>} */
+/** @type {any} */
 var BOT = {
   on:false, ready:false,
   ear:{ vol:0, pan:0, cut:4000, muffled:true, stepT:-99, stepPan:0, stepHot:false, stepChase:false,
         stepWorld:0, stepAtt:0, worldA:0, err:0, errT:0, conf:0, heardT:-99 },
   /* 足音から立てた「相手はこのへん」の見当。x,z と、聞いてからの経過 age。 */
-  bel:null, belAge:99, belT:-99, belD:99,
-  known:null, penalty:null, danger:null, dangerT:0, seen:[], seenKey:{}, signHint:null, signUsed:{},
-  goal:null, wp:null, pathLen:0, seekExit:false, repath:0, exploreTgt:null,
+  bel:/** @type {any} */ (null), belAge:99, belT:-99, belD:99,
+  known:/** @type {any} */ (null), penalty:/** @type {any} */ (null), danger:/** @type {any} */ (null), dangerT:0, seen:/** @type {any[]} */ ([]), seenKey:{}, signHint:/** @type {any} */ (null), signUsed:{},
+  goal:/** @type {any} */ (null), wp:/** @type {any} */ (null), pathLen:0, seekExit:false, repath:0, exploreTgt:/** @type {any} */ (null),
   aimVel:0, noiseT:0, noise:0, fixT:0, tremT:0,
-  quietT:0, backT:0, hpos:null, hposFresh:0, trail:[], trailT:0,
-  fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:null, escWorld:0,
-  escGoal:null, escGoalT:0, hideT:0,
+  quietT:0, backT:0, hpos:/** @type {any} */ (null), hposFresh:0, trail:/** @type {any[]} */ ([]), trailT:0,
+  fleeT:0, cautionT:0, unseenT:0, escRel:0, escT:0, escWp:/** @type {any} */ (null), escWorld:0,
+  escGoal:/** @type {any} */ (null), escGoalT:0, hideT:0,
   glanceT:0, glanceHold:0, glanceDir:1, lookBackT:0, lookCd:0, readT:0,
-  useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:null, hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
+  useCd:0, lampCd:0, stuck:0, idleT:0, idlePitch:0, idlePitch2:0, hideWaitT:0, hideSkip:/** @type {any} */ (null), hideSkipT:0, hideGoT:0, breathOn:false, lastX:0, lastZ:0, lastCell:'', dwell:0, unstickT:0, unstickDir:1,
   note:'', noteT:0, lastHp:100, blown:false, pulseOn:true, pulseT:0,
-  startCell:null
+  startCell:/** @type {any} */ (null)
 };
 
 /* 初期値をそのまま控えておく。
@@ -14201,7 +14214,7 @@ var BOT = {
    遊び直すと 1 回目と 2 回目で挙動が変わる）。
    数える方（初期値）と消す方（reset）を一箇所にまとめて、書き忘れを消す。 */
 var BOT_INIT = (function(){
-  var o = {};
+  var o = /** @type {Object<string, any>} */ ({});
   for(var k in BOT){
     var v = BOT[k];
     if(k === 'on' || k === 'ear') continue;                 // on は設定、ear は別で戻す
@@ -14209,7 +14222,7 @@ var BOT_INIT = (function(){
   }
   return o;
 })();
-var EAR_INIT = (function(){ var o = {}; for(var k in BOT.ear) o[k] = BOT.ear[k]; return o; })();
+var EAR_INIT = (function(){ var o = /** @type {Object<string, any>} */ ({}), E = /** @type {Object<string, any>} */ (BOT.ear); for(var k in E) o[k] = E[k]; return o; })();
 
 /* ボットの乱数はゲーム側と分ける。
    共有していたせいで、演出用の乱数消費がひとつずれるだけでボットの判断が
@@ -16319,7 +16332,7 @@ function updateTitleScene(/** @type {number} */ dt){
    ========================================================================= */
 /* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
    load-check.js が読む */
-var BOOT_T = { t0:performance.now(), steps:[] };
+var BOOT_T = { t0:performance.now(), steps:/** @type {any[]} */ ([]) };
 function bootStep(/** @type {any} */ name, /** @type {any} */ fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
 window.__W7BOOT = BOOT_T;
 try{

@@ -4,7 +4,7 @@
   "compilerOptions": {
     "allowJs": true, "checkJs": true, "noEmit": true,
     "target": "es2020", "lib": ["es2020", "dom", "dom.iterable"],
-    "strict": false, "noImplicitAny": false,
+    "strict": false, "noImplicitAny": false,   // 型の無い数は any-ratchet.js が章ごとに 0 を守る（ここで入れると JS の後付けのプロパティまで閉じてしまう）
     // 締めた段（第 15.2 節 手順 2「章ごとに締める」）：到達しない分岐・使わない変数・型の無い this
     "noImplicitReturns": true, "noFallthroughCasesInSwitch": true, "noUnusedLocals": true,
     "noImplicitThis": true, "strictBindCallApply": true, "alwaysStrict": true,

@@ -37,7 +37,7 @@ function runSelfTest(){
      ただのバンドパスノイズになる。数字の打ち間違いは耳では気づけない
      （どれも「唸り」に聞こえてしまう）ので、ここで押さえる。 */
   (function(){
-    var vs = Audio2.voxSpec(), specOK = true, distinct = {};
+    var vs = Audio2.voxSpec(), specOK = true, distinct = /** @type {Object<string, any>} */ ({});
     vs.forEach(function(v){
       if(!(v.fm[0] < v.fm[1] && v.fm[1] < v.fm[2])) specOK = false;
       if(!(v.dur > 0 && v.amp > 0 && v.f0 > 0 && v.f1 > 0)) specOK = false;
@@ -65,7 +65,7 @@ function runSelfTest(){
   t('出口に到達可能', field[idx(world.exit.cell.x, world.exit.cell.y)] >= 0);
 
   var allReach = true;
-  world.records.forEach(function(r){
+  world.records.forEach(function(/** @type {any} */ r){
     var c = worldToCell(r.x, r.z);
     if(field[idx(c.x,c.y)] < 0) allReach = false;
   });
@@ -73,7 +73,7 @@ function runSelfTest(){
   t('カルテ数が難易度どおり', world.records.length === DIFF[settings.diff].records);
 
   var batReach = true;
-  world.batteries.forEach(function(b){
+  world.batteries.forEach(function(/** @type {any} */ b){
     var c = worldToCell(b.x, b.z);
     if(field[idx(c.x,c.y)] < 0) batReach = false;
   });
@@ -86,7 +86,7 @@ function runSelfTest(){
   t('施錠扉は出口セルを守っている',
     !world.lockDoor || (world.lockDoor.cell.x === world.exit.cell.x && world.lockDoor.cell.y === world.exit.cell.y));
   var hidesOK = true;
-  world.hides.forEach(function(h){
+  world.hides.forEach(function(/** @type {any} */ h){
     var hcell = worldToCell(h.exitX, h.exitZ);
     if(!inBounds(hcell.x,hcell.y) || field[idx(hcell.x,hcell.y)] < 0) hidesOK = false;
   });
@@ -124,8 +124,8 @@ function runSelfTest(){
   // --- 区画表示板 ---
   var DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];   // EDIRS は buildWorld のローカルなのでここで持つ
   t('区画表示板が設置されている', world.zones.length >= 9);
-  var zseen = {}, zwall = true;
-  world.zones.forEach(function(z){
+  var zseen = /** @type {Object<string, any>} */ ({}), zwall = true;
+  world.zones.forEach(function(/** @type {any} */ z){
     var zc = worldToCell(z.x, z.z);
     zseen[zoneOf(zc.x, zc.y)] = true;
     // 板は壁面に貼られているので、板の位置のマスは壁か、隣が壁のはず
@@ -145,7 +145,7 @@ function runSelfTest(){
   var exf = world.exitField, leadOK = true;
   if(exf){
     var cur = { x:world.exit.cell.x, y:world.exit.cell.y };
-    world.zones.forEach(function(z){
+    world.zones.forEach(function(/** @type {any} */ z){
       var zc2 = worldToCell(z.x, z.z);
       if(!inBounds(zc2.x, zc2.y)) return;
       var walk = { x:zc2.x, y:zc2.y }, guard = 0;
@@ -164,7 +164,7 @@ function runSelfTest(){
     });
   }
   t('誘導矢印をたどると非常口に着く', leadOK);
-  t('誘導矢印は初期状態で消灯', world.zones.every(function(z){ return !z.arrow.visible; }) || world.exit.open);
+  t('誘導矢印は初期状態で消灯', world.zones.every(function(/** @type {any} */ z){ return !z.arrow.visible; }) || world.exit.open);
 
   /* --- 壁と床の形 ---
      壁を InstancedMesh から結合ジオメトリに変えた。三角形を自前で
@@ -339,18 +339,18 @@ function runSelfTest(){
 
   // --- 什器による視線遮蔽 ---
   t('什器に高さが設定されている',
-    world.props.every(function(op){ return typeof op.h === 'number' && op.h > 0; }));
+    world.props.every(function(/** @type {any} */ op){ return typeof op.h === 'number' && op.h > 0; }));
   // 遮るのはロッカーだけ。隠れ場所のロッカー数と一致するはず
-  var tall = world.props.filter(function(op){ return op.h > SIGHT_H; });
-  var lockers = world.hides.filter(function(hd){ return hd.type === 'locker'; });
+  var tall = world.props.filter(function(/** @type {any} */ op){ return op.h > SIGHT_H; });
+  var lockers = world.hides.filter(function(/** @type {any} */ hd){ return hd.type === 'locker'; });
   t('視線を遮る什器はロッカーのみ', tall.length === lockers.length);
   // 壁を挟まない純粋な幾何として、什器の真上を通る線分で確かめる
   var tallBlocks = true, lowPasses = true;
-  world.props.forEach(function(op){
+  world.props.forEach(function(/** @type {any} */ op){
     var blocked = propBlocksSight(op.x - 1.2, op.z, op.x + 1.2, op.z);
     if(op.h > SIGHT_H){ if(!blocked) tallBlocks = false; return; }
     // 低い什器でも、真横に高い什器があれば当然遮られる。その組は判定から外す
-    var near = tall.some(function(tp){
+    var near = tall.some(function(/** @type {any} */ tp){
       return Math.abs(tp.z - op.z) < tp.r && Math.abs(tp.x - op.x) < 1.2 + tp.r;
     });
     if(!near && blocked) lowPasses = false;
@@ -566,7 +566,7 @@ function runSelfTest(){
      途中で出る、のどれもゲームの筋が壊れるが、遊んで気づくには周回が要る。 */
   (function(){
     var ord = world.noteOrder || [];
-    var uniq = {}, dup = false, range = true;
+    var uniq = /** @type {Object<string, any>} */ ({}), dup = false, range = true;
     for(var i=0;i<ord.length;i++){
       if(uniq[ord[i]]) dup = true;
       uniq[ord[i]] = 1;

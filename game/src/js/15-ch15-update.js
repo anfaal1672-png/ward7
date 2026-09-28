@@ -29,7 +29,7 @@ function spatial(/** @type {any} */ wx, /** @type {any} */ wz, /** @type {any} *
    持ち、壁越しの音はその道のりの長さで小さくし、回り道が長いほどこもらせる。
    向き（左右）は、音が入ってくる開口（こちらのマスの隣の、道の最後の 1 マス）
    から鳴らす。角の向こうの足音は、角の方から聞こえる。 */
-var PATHF = { t:0, cx:-1, cy:-1, field:null };
+var PATHF = { t:0, cx:-1, cy:-1, field:/** @type {any} */ (null) };
 function updatePathField(/** @type {number} */ dt){
   PATHF.t -= dt;
   var c = worldToCell(player.x, player.z);
@@ -1617,7 +1617,7 @@ function updateHunterVox(/** @type {number} */ dt, /** @type {any} */ info, /** 
 function updateEnv(/** @type {number} */ dt, /** @type {any} */ info){
   // 非常灯：最寄り n 個だけをライトプールに割り当てる
   var lamps = world.lamps.slice();
-  lamps.sort(function(a,b){
+  lamps.sort(function(/** @type {any} */ a,/** @type {any} */ b){
     var da = (a.x-player.x)*(a.x-player.x)+(a.z-player.z)*(a.z-player.z);
     var db = (b.x-player.x)*(b.x-player.x)+(b.z-player.z)*(b.z-player.z);
     return da-db;
@@ -1789,13 +1789,13 @@ function updateCheatView(/** @type {number} */ dt){
     var mark = function(/** @type {any} */ sp){ if(!sp) return;
       sp.material.depthTest = !wantItems; sp.renderOrder = wantItems ? 12 : 0;
       sp.material.opacity = wantItems ? 0.9 : 0.55; sp.material.needsUpdate = true; };
-    world.records.forEach(function(r){ mark(r.spr); });
-    world.batteries.forEach(function(b){ mark(b.spr); });
+    world.records.forEach(function(/** @type {any} */ r){ mark(r.spr); });
+    world.batteries.forEach(function(/** @type {any} */ b){ mark(b.spr); });
     if(world.key) mark(world.key.spr);
   }
   if(CV.hides !== wantHides){
     CV.hides = wantHides;
-    world.hides.forEach(function(h){
+    world.hides.forEach(function(/** @type {any} */ h){
       if(!h.group) return;
       h.group.traverse(function(/** @type {any} */ o){
         if(!o.isMesh || !o.material || !o.material.emissive) return;

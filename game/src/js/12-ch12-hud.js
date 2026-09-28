@@ -56,7 +56,7 @@ var LETTER_SLOT = 1;                    // 何枚目のカルテ（0 始まり�
 /* 手帳。読んだものは周回をまたいで残る（Store へ）。
    notes/letters は読んだ番号、linked は 3 通を結びつけ終えたか、
    endings は見た結末。 */
-var JOURNAL = { notes:{}, letters:{}, linked:false, endings:{} };
+var JOURNAL = { notes:/** @type {Object<string, any>} */ ({}), letters:/** @type {Object<string, any>} */ ({}), linked:false, endings:/** @type {Object<string, any>} */ ({}) };
 try{
   var j0 = JSON.parse(Store.get('ward7.journal') || 'null');
   if(j0 && typeof j0 === 'object'){
@@ -79,7 +79,7 @@ function lettersRead(){
 /* その回に出す順番を種から引く。閉じの文は取り置いて最後に足す。
    同じ紙を二度出さない（need は最大 6 枚、候補は 17 枚あるので必ず足りる）。 */
 function buildNoteOrder(/** @type {any} */ need){
-  var pool = [];
+  var pool = /** @type {number[]} */ ([]);
   for(var i=0;i<NOTES.length;i++) if(i !== NOTE_LAST) pool.push(i);
   for(var j=pool.length-1; j>0; j--){          // Fisher-Yates
     var k = (rnd() * (j+1)) | 0;
@@ -274,7 +274,7 @@ function updateCue(/** @type {number} */ dt){
    所見・書き置き・通達・私信の 4 つの声で並べる。未読は題だけ伏せて出す
    （あと何があるかは分かるが、何が書いてあるかは分からない）。
    私信は指で選べる。妹に宛てた声の 3 通を選び揃えると、結びつく。 */
-var journalReturn = 'title', jSel = {};
+var journalReturn = 'title', jSel = /** @type {Object<string, any>} */ ({});
 function noteVoice(/** @type {any} */ head){
   if(head.indexOf('所見') === 0) return 0;
   if(head.indexOf('書き置き') === 0) return 1;
@@ -350,6 +350,7 @@ function tryLink(){
 var HINT_T1 = 180, HINT_T2 = 300;
 var HINT = { idle:0, level:0, lastGot:-1, lastKey:false };
 function resetHint(){ HINT.idle = 0; HINT.level = 0; HINT.lastGot = -1; HINT.lastKey = false; }
+/** @return {any} */
 function hintTarget(){
   var best = null, bd = 1e9;
   function consider(/** @type {any} */ o, /** @type {any} */ what){
@@ -357,7 +358,7 @@ function hintTarget(){
     if(dd < bd){ bd = dd; best = { x:o.x, z:o.z, what:what }; }
   }
   if(player.got < player.need){
-    world.records.forEach(function(r){ if(!r.taken) consider(r, 'カルテ'); });
+    world.records.forEach(function(/** @type {any} */ r){ if(!r.taken) consider(r, 'カルテ'); });
   }else if(world.key && !world.key.taken && !player.hasKey){
     consider(world.key, '鍵');
   }else if(world.exit){
@@ -474,7 +475,7 @@ function drawMap(){
    目的は二つ：捕まる場所が偏っていないか（理不尽の検出）と、どこでやめてしまうか。
    記録するもの：章の開始と終わり（結果・時間）、捕まった場所と相手、隠れ場所に入った場所、
    1 分ごとのフレーム時間の分布（中央値・95%）と温度の段階。 */
-var TELE = { ev:null, ft:[], ftT:0 };
+var TELE = { ev:/** @type {any} */ (null), ft:/** @type {any[]} */ ([]), ftT:0 };
 var TELE_MAX = 3000;
 function teleLoad(){
   if(TELE.ev) return;
@@ -484,7 +485,7 @@ function teleLoad(){
 function tele(/** @type {any} */ kind, /** @type {any} */ data){
   if(!settings.tele || BOT.on) return;
   teleLoad();
-  var e = { k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 };
+  var e = /** @type {Object<string, any>} */ ({ k:kind, t:Math.round(Date.now()/1000), ch:runDef().n, d:settings.diff|0 });
   for(var key in data) e[key] = data[key];
   TELE.ev.push(e);
   if(TELE.ev.length > TELE_MAX) TELE.ev.splice(0, TELE.ev.length - TELE_MAX);
@@ -518,17 +519,17 @@ function teleExport(){
    最初から一覧を見せず、その操作が要る場面に初めて来たときに 1 度だけ出す。
    出した物は端末に控え、周回しても繰り返さない。表示は使っている入力機器に合わせる
    （キーは割り当てを引く）。追われている間は「走れ」以外を出さない。 */
-var TIPS = { seen:{}, cool:0, still:0 };
+var TIPS = { seen:/** @type {Object<string, any>} */ ({}), cool:0, still:0 };
 try{ TIPS.seen = JSON.parse(Store.get('ward7.tips') || '{}') || {}; }catch(e){ TIPS.seen = {}; }
-var PAD_NAME = { use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' };
+var PAD_NAME = /** @type {Object<string, any>} */ ({ use:'A', lamp:'X', throw:'RB', peek:'R3', run:'RT', sneak:'LT', look:'LB', hold:'B' });
 function tipKey(/** @type {any} */ a){
   var ja = LANG !== 'en';
   if(lastInputKind === 'pad') return PAD_NAME[a];
   if(lastInputKind === 'touch'){
-    return ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
+    return (/** @type {Object<string, any>} */ ({ use: ja ? '右下のボタン' : 'the bottom-right button', lamp:'LAMP',
               throw: ja ? '「投げる」' : '“Throw”', peek: ja ? '「覗く」' : '“Peek”',
               run: ja ? 'スティックを大きく倒して' : 'Push the stick all the way',
-              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' })[a];
+              look: ja ? '「後ろを見る」' : '“Look back”', hold: ja ? '「息を止める」' : '“Hold breath”' }))[a];
   }
   return keyLabel(keyOf(a === 'hold' ? 'run' : a));
 }

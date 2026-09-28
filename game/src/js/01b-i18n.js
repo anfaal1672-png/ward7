@@ -21,6 +21,7 @@ var LANG = 'ja';
 })();
 var JP_RE = /[぀-ヿ一-鿿　-〿！-～]/;
 
+/** @type {Object<string, any>} */
 var EN = {
   // --- タイトル・パネル ---
   'WARD 7 — 第七病棟':'WARD 7', '第七病棟':'Ward Seven',
@@ -247,6 +248,7 @@ var EN = {
   'WASD＝移動　マウス＝視点　Shift＝突進':'WASD = move · Mouse = look · Shift = charge'
 };
 /* 数字の入る決まった形 */
+/** @type {Array<any>} */
 var EN_PATTERNS = [
   [/^カルテ (\d+) \/ (\d+)$/, 'Records $1 / $2'],
   [/^カルテ(\d+)枚 → 非常口$/, '$1 records → exit'],
@@ -260,9 +262,9 @@ var EN_PATTERNS = [
   [/^包帯を巻いた — あと (\d+) 回振りほどける$/, 'Bandaged — you can break free $1 more times'],
   [/^瓶を拾った（(\d+)）— 投げると音で気を引ける$/, 'Picked up a bottle ($1) — throw it to draw it away'],
   [/^(カルテ|鍵|非常口)は区画 ([A-J]) のあたりにあった気がする(?:。(.+))?$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ z, /** @type {any} */ dir){
-      return 'The ' + ({'カルテ':'records','鍵':'key','非常口':'exit'})[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
+      return 'The ' + (/** @type {Object<string, any>} */ ({'カルテ':'records','鍵':'key','非常口':'exit'}))[what] + ' seemed to be around zone ' + z + (dir ? ', ' + trText(dir) : ''); }],
   [/^［(.+?)・(前|右|後ろ|左)(?:・(近い|遠い))?］$/, function(/** @type {any} */ m, /** @type {any} */ what, /** @type {any} */ dir, /** @type {any} */ far){
-      return '[' + trText(what) + ' · ' + ({'前':'ahead','右':'right','後ろ':'behind','左':'left'})[dir] +
+      return '[' + trText(what) + ' · ' + (/** @type {Object<string, any>} */ ({'前':'ahead','右':'right','後ろ':'behind','左':'left'}))[dir] +
              (far ? ' · ' + (far === '近い' ? 'near' : 'far') : '') + ']'; }],
   [/^カルテを (\d+) 枚 集めろ$/, 'Collect $1 records'],
   [/^挑戦 (\d+)/, function(/** @type {any} */ m){ return trFragments(m); }],
@@ -284,6 +286,7 @@ function trFragments(/** @type {any} */ s){
   for(var i=0; i<EN_FRAG.length; i++) if(s.indexOf(EN_FRAG[i][0]) >= 0) s = s.split(EN_FRAG[i][0]).join(EN_FRAG[i][1]);
   return s;
 }
+/** @return {any} */
 function trText(/** @type {any} */ s){
   if(LANG !== 'en' || !s || !JP_RE.test(s)) return s;
   var lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], core = s.trim();

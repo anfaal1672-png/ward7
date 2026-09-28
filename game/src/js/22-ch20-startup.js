@@ -3,7 +3,7 @@
    ========================================================================= */
 /* 起動の各段にかかった時間（設計指示書 第 1.1 節「起動からタイトルまで 5 秒」の内訳）。
    load-check.js が読む */
-var BOOT_T = { t0:performance.now(), steps:[] };
+var BOOT_T = { t0:performance.now(), steps:/** @type {any[]} */ ([]) };
 function bootStep(/** @type {any} */ name, /** @type {any} */ fn){ var t = performance.now(); fn(); BOOT_T.steps.push([name, Math.round(performance.now() - t)]); }
 window.__W7BOOT = BOOT_T;
 try{

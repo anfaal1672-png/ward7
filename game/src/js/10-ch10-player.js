@@ -5,7 +5,7 @@ var player = {
   x:0, z:0, y:1.62, yaw:0, pitch:0,
   vx:0, vz:0, hp:100, battery:100, stamina:100, sanity:100,
   lamp:true, running:false, exhausted:false, bob:0, stepAcc:0, breath:0,
-  hiding:null, hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
+  hiding:/** @type {any} */ (null), hideSeen:false, blockedT:0, holdBreath:false, breathBroken:0, breathLock:false, hasKey:false,
   lookBackT:0, viewYaw:0,
   got:0, need:5, time:0, hurtT:0, deadT:0, shake:0, radius:0.42,
   sneaking:false, bottles:0, grabT:0, grabX:0, grabZ:0, wet:false

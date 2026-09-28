@@ -72,7 +72,7 @@ var Audio2 = (function(){
   /* 収録素材の音（設計指示書 第 10.1 節）。assets.js の sfx/<群>_<番号> を解いて群ごとに持つ。
      assets.js は後から読まれる（defer）ので、鳴らす前にも取りに行く。
      解けなかった群は合成の音のまま鳴る（素材が無くても遊べる） */
-  var SFX = {}, sfxLoading = false;
+  var SFX = /** @type {Object<string, any>} */ ({}), sfxLoading = false;
   function loadSfx(){
     if(sfxLoading || !ctx || !window.W7_ASSETS) return;
     sfxLoading = true;
@@ -128,7 +128,7 @@ var Audio2 = (function(){
   }
 
   // 位置を持つ持続音のための共通バス（音量・左右・こもり具合を毎フレーム更新する）
-  var buses = { hunter:null, lamps:[], exit:null };
+  var buses = { hunter:/** @type {any} */ (null), lamps:/** @type {any[]} */ ([]), exit:/** @type {any} */ (null) };
   /* 頭部伝達関数（HRTF、設計指示書 第 10.2 節）。ヘッドホンなら前後と上下まで
      分かる。左右の振り分け（StereoPanner）では「真後ろ」と「真正面」が同じに鳴る。
      音量とこもりは今までどおりこちらで決め、Panner には向きだけを渡す
@@ -884,7 +884,7 @@ var Audio2 = (function(){
   }
   return { setHRTF:setHRTF, setScore:setScore, glass:glass, shriek:shriek, clang:clang, whisper:whisper, splash:splash, setWater:setWater, resting:resting, scoreLevel:function(){ return scoreLevel; },
            init:init, resume:resume, suspend:suspend, state:audioState,
-           sfxGroups:function(){ var o = {}; Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
+           sfxGroups:function(){ var o = /** @type {Object<string, any>} */ ({}); Object.keys(SFX).forEach(function(k){ o[k] = SFX[k].length; }); return o; }, setVol:setVol, setSpace:setSpace, makeIR:makeIR,
            startAmbient:startAmbient, stopAmbient:stopAmbient, setTension:setTension,
            step:step, heart:heart, pickup:pickup, unlock:unlock, click:click, hunterStep:hunterStep,
            stinger:stinger, scream:scream, hurt:hurt, creak:creak, gasp:gasp,

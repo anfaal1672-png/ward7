@@ -183,7 +183,7 @@ function doCheatAct(/** @type {any} */ k){
   }
   cheatUsed = true; updateCheatBadge();
   if(k === 'records'){
-    world.records.forEach(function(r){
+    world.records.forEach(function(/** @type {any} */ r){
       if(r.taken) return;
       r.taken = true; r.mesh.visible = false; r.spr.visible = false; player.got++;
     });
@@ -231,7 +231,7 @@ function doCheatAct(/** @type {any} */ k){
       toast('追跡者を飛ばした（' + Math.round(Math.sqrt(fd)) + 'm 先）', 2);
     }
   }else if(k === 'battery'){
-    world.batteries.forEach(function(q){
+    world.batteries.forEach(function(/** @type {any} */ q){
       if(q.taken) return;
       q.taken = true; q.mesh.visible = false; q.spr.visible = false;
     });

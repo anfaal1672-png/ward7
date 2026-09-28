@@ -43,7 +43,7 @@ var CHAPTERS = [
 ];
 /* 夜勤の種は日付から作る（設計指示書 第 5.7 節「日替わりの種」）。
    同じ日なら誰が遊んでも同じ病棟。日が変われば別の病棟 */
-var NIGHT = { n:0, name:'夜勤', seed:null, patients:[2,2,3], blackout:false,
+var NIGHT = { n:0, name:'夜勤', seed:/** @type {any} */ (null), patients:[2,2,3], blackout:false,
   intro:'日替わりの病棟。今日の夜勤は、今日だけ。' };
 function nightSeed(){
   var d = new Date(), k = d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
@@ -54,7 +54,7 @@ var RUN = { ch:0 };
 function runDef(){ return RUN.ch >= 0 ? CHAPTERS[RUN.ch] : NIGHT; }
 function isFinalChapter(){ return RUN.ch === CHAPTERS.length - 1; }
 /* 章の進み。どこまで開いたか・どれを抜けたか */
-var PROGRESS = { unlocked:1, cleared:{} };
+var PROGRESS = { unlocked:1, cleared:/** @type {Object<string, any>} */ ({}) };
 try{
   var pg0 = JSON.parse(Store.get('ward7.progress') || 'null');
   if(pg0 && typeof pg0 === 'object'){
@@ -69,6 +69,7 @@ RUN.ch = clamp(PROGRESS.unlocked - 1, 0, CHAPTERS.length - 1);
    追う側のときは逃げる側を AI（第19章のボット）が動かす。 */
 var playAs = 'survivor';
 
+/** @type {Object<string, any>} */
 var settings = {
   quality: 1,      // 0 軽量 / 1 標準 / 2 高精細
   sens: 1.0,
@@ -128,7 +129,7 @@ try{
    無傷で脱出したか、を残す。次に何を狙うかが自分で決められるようになる。
    保存できない環境（プライベートモード等）では黙って諦める——
    記録が残らないだけで遊べなくなるものではない。 */
-var RECS = [null, null, null];
+var RECS = /** @type {any[]} */ ([null, null, null]);
 function blankRec(){ return { runs:0, wins:0, best:0, noHit:false, most:0 }; }
 try{
   var rr = JSON.parse(Store.get('ward7.recs') || 'null');
@@ -174,7 +175,7 @@ function saveSettings(){
    まずそれで仮に決め、タイトルの情景を 5 秒描いて実測し（BENCH）、重ければ 1 段下げ、
    十分に軽ければ 1 段上げて読み込み直す。読み込み直しは 2 回まで。自動操作
    （テスト・ボット）では測らない。設定で画質を選んだら、以後は自動で変えない */
-var BENCH = { on:false, t:0, dts:[], round:0, up:false };
+var BENCH = { on:false, t:0, dts:/** @type {any[]} */ ([]), round:0, up:false };
 (function(){
   var b = null;
   try{ b = JSON.parse(Store.get('ward7.bench') || 'null'); }catch(e){}
@@ -242,7 +243,7 @@ var CHEAT_ACTS = [
   { k:'win',      label:'即座に脱出する' },
   { k:'lose',     label:'即座に力尽きる' }
 ];
-var cheats = {}, cheatUsed = false;
+var cheats = /** @type {Object<string, any>} */ ({}), cheatUsed = false;
 CHEATS.forEach(function(c){ cheats[c.k] = false; });
 try{
   var sc = JSON.parse(Store.get('ward7.cheats') || 'null');

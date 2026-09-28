@@ -39,7 +39,7 @@ function inBounds(/** @type {any} */ x,/** @type {any} */ y){ return x>=0 && y>=
 function genMaze(/** @type {any} */ loopChance){
   var g = new Uint8Array(GW*GH);
   g.fill(1);
-  var stack = [];
+  var stack = /** @type {number[]} */ ([]);
   var sx = 1, sy = 1;
   g[idx(sx,sy)] = 0;
   stack.push(sx, sy);
