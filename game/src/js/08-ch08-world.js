@@ -3052,6 +3052,7 @@ function buildWorld(){
 
   // 章ごとの「顔」になる部屋（第 6.1 節）。中央の大広間を作り込む。経路の格子より先に置く
   heroRooms(g, bigHall, startC);
+  moonWindows(g);
 
   // 什器を織り込んだ、追跡者の経路探索専用グリッドを作る
   world.nav = buildNavGrid(g, startC);
@@ -3646,4 +3647,78 @@ function heroRooms(g, bigHall, startC){
     var p = heroRoom(g, cand[i], subs[i]);
     world.heroes.push({ name:subs[i].sign, pieces:p, x:cand[i].cx, y:cand[i].cy });
   }
+}
+
+/* ---- 窓の月明かり（設計指示書 第 7.3 節「光は 4 系統：蛍光灯・非常灯・ランプ・窓の月明かり」） ----
+   外周の壁のうち、通路に面した所にいくつか窓を開ける（嵌め殺し・格子付き）。
+   光源は置かない（モバイルでは実時間の光は高い）。青白い硝子、窓から床へ斜めに落ちる
+   光の筋（加算の面で作る四角い錐）、床に落ちた光の溜まり、の 3 つで「月が出ている」を作る。
+   選ぶのは間取りの乱数（rnd）ではなくマスの座標のハッシュ。rnd を引くと、窓を足しただけで
+   同じ種の病棟の置き物が全部ずれる */
+var MOON_TEX = null;
+function moonWindows(g){
+  world.moon = [];
+  var want = [2, 5, 6, 7][clamp(settings.quality|0, 0, 3)];
+  var cand = [];
+  function h(x, y){ var v = (x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995; v = Math.imul(v ^ (v >>> 13), 0x5bd1e995); return ((v ^ (v >>> 15)) >>> 0) / 4294967296; }
+  var ex = world.exit ? worldToCell(world.exit.x, world.exit.z) : null;
+  for(var y=1; y<GH-1; y++) for(var x=1; x<GW-1; x++){
+    if(g[idx(x, y)] !== 0) continue;
+    var dirs = [];
+    if(x === 1) dirs.push([-1, 0]); if(x === GW-2) dirs.push([1, 0]);
+    if(y === 1) dirs.push([0, -1]); if(y === GH-2) dirs.push([0, 1]);
+    if(!dirs.length) continue;
+    if(ex && Math.abs(ex.x - x) + Math.abs(ex.y - y) < 3) continue;
+    cand.push({ x:x, y:y, d:dirs[0], k:h(x, y) });
+  }
+  cand.sort(function(a, b){ return a.k - b.k; });
+  var picked = [];
+  for(var i=0; i<cand.length && picked.length<want; i++){
+    var c = cand[i], near = false;
+    for(var j=0; j<picked.length; j++) if(Math.abs(picked[j].x - c.x) + Math.abs(picked[j].y - c.y) < 6) near = true;
+    if(!near) picked.push(c);
+  }
+  if(!MOON_TEX){ MOON_TEX = new THREE.CanvasTexture(glowSprite('rgba(150,185,230,0.9)')); MOON_TEX.colorSpace = THREE.SRGBColorSpace; }
+  var frameM = new THREE.MeshStandardMaterial({ color:0x2a2e2c, roughness:0.8, metalness:0.3 });
+  /* 外は夜。硝子は外の空の色だけ。暗い画面では露出が上がるので、ここの色は相当に暗くしないと
+     白く飛ぶ（最初の 0x3a5874 は真っ白な窓になった） */
+  var glassM = new THREE.MeshBasicMaterial({ color:0x08101a });
+  var barM = new THREE.MeshStandardMaterial({ color:0x1a1c1b, roughness:0.6, metalness:0.5 });
+  picked.forEach(function(c){
+    var w = cellToWorld(c.x, c.y), nx = c.d[0], nz = c.d[1];
+    var wx = w.x + nx * (CELL/2 - 0.02), wz = w.z + nz * (CELL/2 - 0.02);   // 壁の内側の面
+    var grp = new THREE.Group();
+    grp.position.set(wx, 0, wz);
+    grp.rotation.y = Math.atan2(-nx, -nz);                                    // 部屋の内側（-n）を向く
+    var W = 1.3, H = 0.95, Y = 2.0;
+    var glass = new THREE.Mesh(new THREE.PlaneGeometry(W, H), glassM); glass.position.set(0, Y, -0.005); grp.add(glass);
+    [[0, Y + H/2 + 0.04, W + 0.16, 0.08], [0, Y - H/2 - 0.04, W + 0.16, 0.08]].forEach(function(f){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(f[2], f[3], 0.1), frameM); m.position.set(f[0], f[1], 0.02); grp.add(m); });
+    [-W/2 - 0.04, W/2 + 0.04].forEach(function(fx){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(0.08, H + 0.16, 0.1), frameM); m.position.set(fx, Y, 0.02); grp.add(m); });
+    for(var b=1; b<5; b++){ var bar = new THREE.Mesh(new THREE.BoxGeometry(0.025, H, 0.025), barM); bar.position.set(-W/2 + b*W/5, Y, 0.05); grp.add(bar); }
+    // 床に落ちた光の溜まり
+    var pool = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.4),
+      new THREE.MeshBasicMaterial({ map:MOON_TEX, transparent:true, opacity:0.16, blending:THREE.AdditiveBlending, depthWrite:false }));
+    pool.rotation.x = -Math.PI/2; pool.position.set(0, 0.012, 1.9); pool.renderOrder = 2; grp.add(pool);
+    // 光の筋：窓の四角から床の溜まりへ向かう錐（側面 4 枚、上は明るく下は暗い＝加算で下ほど薄い）
+    if(QC.shaft || (settings.quality|0) >= 1){
+      var tl = [-W/2, Y + H/2, 0], tr = [W/2, Y + H/2, 0], br = [W/2, Y - H/2, 0], bl = [-W/2, Y - H/2, 0];
+      var fl = [-0.75, 0.02, 2.9], fr = [0.75, 0.02, 2.9], nr = [0.75, 0.02, 0.9], nl = [-0.75, 0.02, 0.9];
+      var quads = [[tl, tr, fr, fl], [bl, br, nr, nl], [tl, bl, nl, fl], [tr, br, nr, fr]];
+      var pos = [], col = [];
+      quads.forEach(function(q){
+        [[0,1,2],[0,2,3]].forEach(function(t){ t.forEach(function(k){ var p = q[k]; pos.push(p[0], p[1], p[2]);
+          var top = p[1] > 1 ? 1 : 0; col.push(0.030*top + 0.002, 0.042*top + 0.003, 0.062*top + 0.005); }); });
+      });
+      var sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      sg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      var shaft = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0.5,
+        blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide }));
+      shaft.renderOrder = 4; grp.add(shaft);
+    }
+    world.group.add(grp);
+    world.moon.push({ x:wx, z:wz, nx:nx, nz:nz });
+  });
 }
