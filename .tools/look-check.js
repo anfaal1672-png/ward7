@@ -25,7 +25,10 @@ const { chromium, EXEC } = require('./pw.js');
         pl.viewYaw=pl.yaw;
         document.querySelectorAll('#hud, #touch, #note, #toast, #hint, #cue').forEach(e=>{ e.style.visibility='hidden'; });
       }, [ch,v]);
-      await p.waitForTimeout(1800);
+      // 始まりの暗転が明けて露出が落ち着くまで、ゲーム内の時間で待つ（CI の遅い描画で、決め打ちの
+      // 1.8 秒では第1章の 1 枚目がまだ暗転の途中＝真っ黒な平らな画になっていた）
+      const tt = await p.evaluate(()=>window.__WARD7.player.time);
+      await p.waitForFunction((tt)=>window.__WARD7.player.time > tt + 1.6, tt, {timeout:60000}).catch(()=>{});
       const png = await p.locator('canvas').first().screenshot();
       if(pre) require('fs').writeFileSync(`${pre}-c${ch+1}-${v}.png`, png);
       const m = await p.evaluate(async(b64)=>{
