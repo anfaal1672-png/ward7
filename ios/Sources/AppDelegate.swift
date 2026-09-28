@@ -2,10 +2,15 @@
 //
 //  ゲーム本体は ward7.html 一枚で完結している。ここがやるのは
 //  「全画面の WKWebView に読ませて、ブラウザらしい振る舞いを全部止める」
-//  ことだけ。ゲーム側のコードには一切手を入れない。
+//  ことに加えて、Safari では届かない端末の機能を 3 つだけ橋渡しする。
+//    - 音：消音スイッチが入っていても鳴らす（AVAudioSession を playback に）
+//    - 振動：ゲーム側の haptic() が ward7haptic へ投げたものを Taptic Engine で鳴らす
+//    - 画面：遊んでいる間に自動で消灯・施錠しない
+//    - 熱：端末の温度の段階をゲームへ渡す（内部解像度の上限を下げる。第 8.3 節）
 
 import UIKit
 import WebKit
+import AVFoundation
 
 @UIApplicationMain
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -13,6 +18,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // 既定（soloAmbient）だと消音スイッチで WebAudio ごと黙る。
+        // ホラーは音が半分なので、音楽アプリと同じ扱いにする。
+        // mixWithOthers は付けない：他のアプリの音楽が重なると台無しになる。
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        // 暗い廊下で息を殺している間に画面が消えると、そのまま施錠される
+        application.isIdleTimerDisabled = true
         let w = UIWindow(frame: UIScreen.main.bounds)
         w.rootViewController = GameViewController()
         w.makeKeyAndVisible()
@@ -21,9 +33,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-final class GameViewController: UIViewController, WKNavigationDelegate {
+final class GameViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler {
 
     private var webView: WKWebView!
+    private let heavy = UIImpactFeedbackGenerator(style: .heavy)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -35,6 +48,8 @@ final class GameViewController: UIViewController, WKNavigationDelegate {
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.suppressesIncrementalRendering = false
+        // 振動の橋渡し。ゲーム側の haptic() がこれを見つけると vibrate の代わりに使う
+        cfg.userContentController.add(self, name: "ward7haptic")
 
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
@@ -64,6 +79,50 @@ final class GameViewController: UIViewController, WKNavigationDelegate {
             return
         }
         webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged),
+            name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+    }
+
+    /// 端末の温度の段階（0 nominal … 3 critical）をゲームへ渡す。
+    /// 熱で急にコマ落ちする前に、ゲーム側が内部解像度の上限を下げる。
+    @objc private func thermalChanged() {
+        let n: Int
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: n = 0
+        case .fair: n = 1
+        case .serious: n = 2
+        case .critical: n = 3
+        @unknown default: n = 1
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript("window.__w7thermal && window.__w7thermal(\(n))", completionHandler: nil)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        thermalChanged()                  // 起動時点の温度も渡す
+    }
+
+    /// haptic(pat) の pat は ms の数、または [鳴る, 休む, 鳴る, ...]（navigator.vibrate と同じ形）。
+    /// Taptic Engine は長さを持たないので、長さを強さに読み替えて 1 打ずつ鳴らす
+    /// （12ms の走り出しは軽く、200ms の死亡は最も重く）。
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == "ward7haptic" else { return }
+        var pattern: [Double] = []
+        if let n = message.body as? NSNumber { pattern = [n.doubleValue] }
+        else if let a = message.body as? [NSNumber] { pattern = a.map { $0.doubleValue } }
+        var at = 0.0
+        for (i, ms) in pattern.prefix(16).enumerated() {
+            if i % 2 == 0 {
+                let strength = CGFloat(min(1.0, max(0.25, ms / 200.0)))
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) { [weak self] in
+                    self?.heavy.impactOccurred(intensity: strength)
+                }
+            }
+            at += ms / 1000.0
+        }
+        heavy.prepare()
     }
 
     // 画面の縁まで使う。safe-area はゲーム側の CSS が env() で見ている

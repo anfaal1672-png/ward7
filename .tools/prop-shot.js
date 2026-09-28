@@ -1,17 +1,17 @@
 /* 小物の実際の画素を測る。投影して矩形を置く方法は当たらなかったので、
    場面を止めたまま素材だけ黒に差し替えて撮り直し、差が出た画素＝小物とする。 */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 const grab=`(()=>new Promise(res=>{requestAnimationFrame(()=>{const cv=document.querySelector('canvas');
  const gl=cv.getContext('webgl2')||cv.getContext('webgl');const w=cv.width,h=cv.height,d=new Uint8Array(w*h*4);
  gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,d);res({w,h,d:Array.from(d)});});}))()`;
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280}});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.goto('file://'+process.argv[2]+'?debug=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.evaluate(async()=>{

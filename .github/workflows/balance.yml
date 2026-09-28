@@ -1,0 +1,49 @@
+# 遊びの釣り合い（設計指示書 第 5.6 節・第 18.3 節）。ボットに各章を通常で 240 本遊ばせ、
+# クリア率が 30〜50%・章どうしの差が 20 ポイント以内かを見る。ハーネスは仮想時計と
+# 決まった種で回るので、手元（.tools/runall2.sh）と同じ数字が出る。
+# 1 章およそ 6 分。章ごとに並べて走らせる。遊びの中身（game/src）が変わった PR でだけ走る。
+name: balance
+
+on:
+  pull_request:
+    paths: ["game/src/**", ".tools/many.js", ".tools/harness.js", ".github/workflows/balance.yml"]
+  workflow_dispatch:
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        ch: [0, 1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ボット 240 本（通常）
+        working-directory: .tools
+        env:
+          WARD7_CH: ${{ matrix.ch }}
+        run: |
+          sh runall2.sh "$GITHUB_WORKSPACE/ward7.html" 1 9200 240 4 > "rows-ch${{ matrix.ch }}.txt"
+          node sum2.js "rows-ch${{ matrix.ch }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-ch${{ matrix.ch }}
+          path: .tools/rows-ch${{ matrix.ch }}.txt
+
+  judge:
+    needs: measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: rows
+          merge-multiple: true
+      - name: 目標との照らし合わせ
+        run: node .tools/balance-judge.js rows/rows-ch*.txt

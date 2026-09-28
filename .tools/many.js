@@ -1,6 +1,8 @@
 const H=require('./harness.js'); const A=H.window.__WARD7;
 const D=+process.argv[2], CAP=+(process.env.CAP||800);
 for(const sd of process.argv.slice(3).map(Number)){
+  // WARD7_CH=1 で第2章（患者）、2 で第3章（停電）の決まりで測る。無ければ第1章（=これまで）
+  if(process.env.WARD7_CH && A.run) A.run.ch = +process.env.WARD7_CH;
   H.resetTime(); A.toTitle(); A.skipUI(true); A.seed(sd); A.botOn(true); A.settings.diff=D; A.start(); H.pump(2);
   const p=A.player;
   let hp=100, hits=0, f=0;

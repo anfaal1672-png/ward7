@@ -1,0 +1,49 @@
+# Web 版を GitHub Pages に置く（設計指示書 第 16 章）。
+# 使う前に一度だけ：リポジトリの Settings → Pages → Source を「GitHub Actions」にする。
+# 有効になっていないと deploy が失敗するが、ほかの CI は止めない（continue-on-error）。
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 源と組み立て結果が一致しているか
+        run: node game/build.mjs --check
+      - name: 置くものを集める
+        run: |
+          mkdir -p _site
+          cp ward7.html _site/index.html
+          cp ward7.html three.min.js assets.js sw.js _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

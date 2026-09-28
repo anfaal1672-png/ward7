@@ -5,17 +5,17 @@
    （実機では画質ボタンが location.reload() するので問題は起きない）。
    だから localStorage に入れてから開く。
    使い方: node pin.js <html> [枚数] [間隔ms] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs=require('fs'), path=require('path');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b=await chromium.launch({executablePath:EXEC,
     args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
   const p=await b.newPage({viewport:{width:720,height:1280},deviceScaleFactor:2});
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   await p.route('**/three.min.js', r=>r.fulfill({status:200,contentType:'application/javascript',
-    body:fs.readFileSync(path.join(__dirname,'three.min.js'),'utf8')}));
+    body:fs.readFileSync(path.join(__dirname,'..','three.min.js'),'utf8')}));
   await p.addInitScript(()=>{ try{ localStorage.setItem('ward7.settings',
-    JSON.stringify({quality:3, diff:2, gamma:1, invert:false})); }catch(e){} });
+    JSON.stringify({quality:3, diff:2, gamma:1, invert:false, lang:'ja'})); }catch(e){} });
   await p.goto('file://'+process.argv[2]+'?debug=1&bot=1',{waitUntil:'load'});
   await p.waitForFunction('!!window.__WARD7',{timeout:20000});
   await p.evaluate(()=>{ const A=window.__WARD7; A.skipUI(true); A.seed(4242); A.botOn(true); A.start();

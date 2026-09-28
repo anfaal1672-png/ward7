@@ -1,0 +1,14 @@
+{
+  // 設計指示書 第 15.2 節。源（game/src/ts/*.ts）を型で検める（出力はしない。組み立ては game/build.mjs）。
+  // どの源も import/export を持たない台本で、1 つの範囲を分け合う。
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "es2020", "lib": ["es2020", "dom", "dom.iterable"],
+    "strict": false, "noImplicitAny": false,   // 型の無い数は any-ratchet.js が章ごとに 0 を守る
+    // 締めた段（第 15.2 節 手順 2「章ごとに締める」）：到達しない分岐・使わない変数・型の無い this
+    "noImplicitReturns": true, "noFallthroughCasesInSwitch": true, "noUnusedLocals": true,
+    "noImplicitThis": true, "strictBindCallApply": true, "alwaysStrict": true,
+    "skipLibCheck": true, "types": []
+  },
+  "include": ["game/src/ts/*.ts", "types/globals.d.ts"]
+}

@@ -1,12 +1,12 @@
 /* PNG の切り出しと拡大。外部依存を増やさないよう Chromium の canvas を使う
    （pngjs も ImageMagick もこの環境には無い）。
    使い方: node crop.js <src.png> <dst.png> <X> <Y> <W> <H> [倍率] */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs = require('fs');
 (async () => {
   const [,,src,dst,X,Y,W,H,S] = process.argv;
   const sc = +(S || 1);
-  const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  const b = await chromium.launch({ executablePath:EXEC,
     args:['--no-sandbox'] });
   const p = await b.newPage();
   const data = 'data:image/png;base64,' + fs.readFileSync(src).toString('base64');

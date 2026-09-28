@@ -13,7 +13,7 @@
      fov  … 腕用カメラの画角。小さいほど寄る（既定 0 = ゲームと同じ）
      bg   … 背景の明るさ 0..255（既定 90）
      pose … 'game'（既定）／'side'（真横から）／'top'（真上から） */
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, EXEC } = require('./pw.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -24,7 +24,7 @@ const path = require('path');
   const bg   = process.argv[5] !== undefined ? +process.argv[5] : 90;
   const pose = process.argv[6] || 'game';
   const browser = await chromium.launch({
-    executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    executablePath:EXEC,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
            '--ignore-gpu-blocklist', '--enable-webgl', '--no-sandbox']
   });
@@ -34,7 +34,7 @@ const path = require('path');
   page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
   await page.route('**/three.min.js', r =>
     r.fulfill({ status: 200, contentType: 'application/javascript',
-                body: fs.readFileSync(path.join(__dirname, 'three.min.js'), 'utf8') }));
+                body: fs.readFileSync(path.join(__dirname, '..', 'three.min.js'), 'utf8') }));
 
   await page.goto('file://' + file + '?debug=1', { waitUntil: 'load' });
   await page.waitForFunction('!!window.__WARD7', { timeout: 20000 });

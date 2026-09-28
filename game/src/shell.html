@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05090a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>WARD 7 — 第七病棟</title>
+<style>
+<!--@style-->
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="fx">
+  <div id="grain"></div>
+  <div id="panic"></div>
+  <div id="hurt"></div>
+  <div id="vig"></div>
+  <div id="blackout"></div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="vitals">
+    <canvas id="ecg" width="440" height="68"></canvas>
+    <div class="meter"><div class="lbl"><span>LAMP</span><span id="txtBat">100%</span></div>
+      <div class="bar" id="barBat"><i></i></div></div>
+    <div class="meter"><div class="lbl"><span>BREATH</span><span id="txtSta">100%</span></div>
+      <div class="bar" id="barSta"><i></i></div></div>
+    <div class="meter"><div class="lbl"><span>VITALS</span><span id="txtHp">あと 2 回</span></div>
+      <div class="bar" id="barHp"><i></i></div></div>
+  </div>
+  <div id="objective">
+    <span>RECORDS RECOVERED</span>
+    <b><span id="numGot">0</span><span class="of">/<span id="numAll">5</span></span></b>
+    <div class="sub" id="objSub">病棟内のカルテを回収せよ</div>
+  </div>
+  <canvas id="radar" width="192" height="192" hidden></canvas>
+  <div id="cheatBadge" hidden>CHEAT ACTIVE</div>
+  <div id="lowhp"></div>
+  <div id="hideView"></div>
+  <div id="reticle"></div>
+  <div id="toast"></div>
+  <div id="cue" aria-live="polite"><i></i><span></span></div>
+  <div id="botHud" hidden></div>
+  <div id="note"><b id="noteHead"></b><span id="noteBody"></span></div>
+</div>
+
+<!-- touch controls -->
+<div id="touch">
+  <div id="stick"><span id="stickLbl">RUN</span><i></i></div>
+  <button class="tbtn" id="bLight" type="button">LAMP</button>
+  <button class="tbtn" id="bThrow" type="button" style="display:none">投げる<br><span id="nThrow">1</span></button>
+  <button class="tbtn" id="bPeek" type="button" style="display:none">覗く</button>
+  <button class="tbtn" id="bBack" type="button">後ろを<br>見る</button>
+  <button class="tbtn" id="bHold" type="button" style="display:none">息を<br>止める</button>
+  <button class="tbtn dim" id="bUse" type="button">拾う</button>
+  <button id="bPause" type="button">| |</button>
+</div>
+
+<!-- boot -->
+<div class="panel" id="boot">
+  <div class="eyebrow">Loading assets</div>
+  <h1 class="title">WARD 7<span class="jp">第七病棟</span></h1>
+  <div class="bar"><i></i></div>
+</div>
+
+<!-- error -->
+<div class="panel" id="err" hidden>
+  <div class="eyebrow">System</div>
+  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">起動できません</h1>
+  <div class="rule"></div>
+  <p class="lede" id="errMsg"></p>
+  <div class="rule"></div>
+  <button class="btn" id="errRetry" type="button">再読み込み</button>
+</div>
+
+<!-- title -->
+<div id="huntHud" hidden>
+  <b>WARD 7</b> <span id="huntNote">獲物を探せ</span>
+  <div><span>気配</span><i class="mtr"><u id="huntMtr" style="width:0%"></u></i></div>
+  <div id="huntSub"></div>
+</div>
+
+<div class="panel" id="title" hidden>
+  <div id="titleStack">
+    <!-- 折り返すと行末に「·」だけが取り残される。区切りは後半の頭に付け、
+         前半・後半をそれぞれ折れない塊にする -->
+    <div class="eyebrow"><span class="nb">Kurosawa Memorial Hospital</span>
+      <span class="nb"><span class="sep">·</span>Closed 1987</span></div>
+    <h1 class="title">WARD 7<span class="jp">第七病棟</span></h1>
+    <div class="rule"></div>
+    <div class="chart">
+      <div class="row"><span>患者</span><b>あなた</b></div>
+      <div class="row"><span>所持品</span><b>手回し式ランプ 1</b></div>
+      <div class="row"><span>逃げ場</span><b>ロッカー・ベッドの下</b></div>
+      <div class="row"><span>目的</span><b id="chartGoal">カルテ5枚 → 非常口</b></div>
+      <div class="row"><span>警告</span><b style="color:#8c2626">病棟内に別の何かがいる</b></div>
+      <div class="row"><span>記録</span><b id="chartRec">記録なし</b></div>
+    </div>
+    <div class="seg" role="group" aria-label="難易度">
+      <button type="button" data-diff="0" aria-pressed="false">静穏</button>
+      <button type="button" data-diff="1" aria-pressed="true">通常</button>
+      <button type="button" data-diff="2" aria-pressed="false">絶望</button>
+    </div>
+    <div class="seg" id="segCh" role="group" aria-label="章" style="margin-top:10px;flex-wrap:wrap">
+      <button type="button" data-ch="0" aria-pressed="true">一 西棟</button>
+      <button type="button" data-ch="1" aria-pressed="false">二 東棟</button>
+      <button type="button" data-ch="2" aria-pressed="false">三 管理棟</button>
+      <button type="button" data-ch="3" aria-pressed="false">四 階段</button>
+      <button type="button" data-ch="4" aria-pressed="false">五 記録庫</button>
+      <button type="button" data-ch="5" aria-pressed="false">六 地下</button>
+      <button type="button" data-ch="6" aria-pressed="false">七 第七病棟</button>
+      <button type="button" data-ch="-1" aria-pressed="false">夜勤</button>
+    </div>
+    <p class="hint" id="chDesc" style="max-width:min(420px,86vw);text-align:center"></p>
+    <button class="btn primary" id="btnStart" type="button" style="margin-top:16px">病棟に入る</button>
+    <!-- 副次の入口は 2 列に畳む。同じ幅で 5 つ縦に並べると、
+         どれが本編の入口なのか読み取れない（実際そうなっていた）。 -->
+    <div class="subgrid">
+      <button class="btn ghost" id="btnOpt" type="button">設定</button>
+      <button class="btn ghost" id="btnCheat" type="button">アシスト</button>
+      <button class="btn ghost" id="btnBot" type="button" hidden>AIにプレイさせる</button>
+      <button class="btn ghost" id="btnJournal" type="button">手帳</button>
+      <button class="btn ghost" id="btnCredits" type="button">クレジット</button>
+      <button class="btn ghost" id="btnHunt" type="button">追う側で遊ぶ</button>
+    </div>
+    <p class="lede" style="margin-top:18px;font-size:11.5px;color:#6f7b78">
+      音量を上げるとよく聞こえます。ヘッドホン推奨。
+    </p>
+  </div>
+</div>
+
+<!-- options -->
+<div class="panel scrollable" id="opt" hidden>
+  <div class="eyebrow">Settings</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">設定</h1>
+  <div class="rule"></div>
+  <div class="sect">画面</div>
+  <div class="field">
+    <label>描画品質 <span id="valQ">自動</span></label>
+    <div class="seg" id="segQ" role="group" aria-label="描画品質">
+      <button type="button" data-q="0" aria-pressed="false">軽量</button>
+      <button type="button" data-q="1" aria-pressed="true">標準</button>
+      <button type="button" data-q="2" aria-pressed="false">高精細</button>
+      <button type="button" data-q="3" aria-pressed="false">最高</button>
+    </div>
+    <div class="hint" id="hintQ"></div>
+  </div>
+  <div class="field">
+    <label>探知モード <span id="valD">オフ</span></label>
+    <div class="seg" id="segD" role="group" aria-label="探知モード">
+      <button type="button" data-d="0" aria-pressed="true">オフ</button>
+      <button type="button" data-d="1" aria-pressed="false">敵のみ</button>
+      <button type="button" data-d="2" aria-pressed="false">完全</button>
+    </div>
+  </div>
+  <div class="field">
+    <label for="gam">画面の明るさ <span id="valG">1.00</span></label>
+    <input type="range" id="gam" min="0.6" max="1.9" step="0.05" value="1">
+    <div id="calib" aria-hidden="true"></div>
+    <p class="hint">いちばん左の四角が「かろうじて見える」ところに合わせる。
+      本編と同じ計算で描いているので、ここで見えない暗さは病棟でも見えない。</p>
+  </div>
+  <div class="sect">画面効果</div>
+  <div class="field">
+    <label>光の筋 <span id="valFB">オン</span></label>
+    <div class="seg" id="segFB" role="group" aria-label="光の筋">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">ランプの光が空気中の埃に散って、筋として見える。高精細以上。</p>
+  </div>
+  <div class="field">
+    <label>接地の陰 <span id="valFO">オン</span></label>
+    <div class="seg" id="segFO" role="group" aria-label="接地の陰">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">物が床や壁に接する所に落ちる柔らかい陰。最高品質のみ。</p>
+  </div>
+  <div class="field">
+    <label>輪郭を均す <span id="valFA">オン</span></label>
+    <div class="seg" id="segFA" role="group" aria-label="輪郭を均す">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">細い線（配管・格子・手すり）のぎざぎざとちらつきを抑える。標準以上。</p>
+  </div>
+  <div class="field">
+    <label>読む間の背景ぼかし <span id="valFD">オン</span></label>
+    <div class="seg" id="segFD" role="group" aria-label="読む間の背景ぼかし">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">書類を読んでいる間、奥の景色を少しぼかす。追われている間はぼかさない。</p>
+  </div>
+  <div class="sect">見え方と酔い・光過敏</div>
+  <div class="field">
+    <label for="fovA">視野角 <span id="valF">±0</span></label>
+    <input type="range" id="fovA" min="-10" max="20" step="1" value="0">
+  </div>
+  <div class="field">
+    <label for="motion">画面の揺れ <span id="valM">100</span></label>
+    <input type="range" id="motion" min="0" max="1" step="0.05" value="1">
+    <p class="hint">歩いたときの頭の揺れ、被弾の揺れ、画面の歪み。酔いやすい人は下げる。</p>
+  </div>
+  <div class="field">
+    <label for="flash">点滅の強さ <span id="valL">100</span></label>
+    <input type="range" id="flash" min="0" max="1" step="0.05" value="1">
+    <p class="hint">蛍光灯とランプのちらつき。光の点滅が苦手な人は 0 にする（明かりは点いたまま揺れなくなる）。</p>
+  </div>
+  <div class="field">
+    <label>音の方向表示 <span id="valC">オフ</span></label>
+    <div class="seg" id="segC" role="group" aria-label="音の方向表示">
+      <button type="button" data-c="0" aria-pressed="true">オフ</button>
+      <button type="button" data-c="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">追跡者の足音と声が、どちらから聞こえたかを画面の縁に出す。音が聞き取りにくい環境でも遊べる。</p>
+  </div>
+  <div class="field">
+    <label>言語 / Language</label>
+    <div class="seg" id="segL" role="group" aria-label="言語">
+      <button type="button" data-l="ja" aria-pressed="true">日本語</button>
+      <button type="button" data-l="en" aria-pressed="false">English</button>
+    </div>
+  </div>
+  <div class="sect" id="keysSect">キーの割り当て</div>
+  <div class="field" id="keysField">
+    <div id="keyList"></div>
+    <button class="btn ghost" id="btnKeysReset" type="button" style="margin-top:8px">既定に戻す</button>
+    <p class="hint">押した操作のボタンを選び、割り当てるキーを押す（Esc で取りやめ）。矢印キーなどの控えは、主キーと重ならない限り残る。</p>
+  </div>
+  <div class="sect">恐怖の調整</div>
+  <div class="field">
+    <label>隠れ場所は安全 <span id="valSH">オフ</span></label>
+    <div class="seg" id="segSH" role="group" aria-label="隠れ場所は安全">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">あれが隠れ場所を点検せず、入るところを見られても引き出されない。</p>
+  </div>
+  <div class="field">
+    <label>驚かしを弱める <span id="valSS">オフ</span></label>
+    <div class="seg" id="segSS" role="group" aria-label="驚かしを弱める">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">叫び声や金切り声、急に鳴る音を小さくする。捕まったときの演出は「画面の揺れ」で弱められる。</p>
+  </div>
+  <div class="sect">操作</div>
+  <div class="field">
+    <label>左手持ち <span id="valLH">オフ</span></label>
+    <div class="seg" id="segLH" role="group" aria-label="左手持ち">
+      <button type="button" data-v="0" aria-pressed="true">オフ</button>
+      <button type="button" data-v="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">移動のスティックを右半分に、ボタンを左側に移す。</p>
+  </div>
+  <div class="field">
+    <label>振動 <span id="valHP">オン</span></label>
+    <div class="seg" id="segHP" role="group" aria-label="振動">
+      <button type="button" data-v="0" aria-pressed="false">オフ</button>
+      <button type="button" data-v="1" aria-pressed="true">オン</button>
+    </div>
+    <p class="hint">心拍・近づく足音・掴まれた瞬間を手に伝える（iOS アプリ）。</p>
+  </div>
+  <div class="field" id="layoutField">
+    <button class="btn ghost" id="btnLayout" type="button">ボタンの配置を編集</button>
+    <p class="hint">画面のボタンを指で好きな所へ動かす。</p>
+  </div>
+  <div class="field">
+    <label for="sens">視点感度 <span id="valS">1.0</span></label>
+    <input type="range" id="sens" min="0.3" max="2.5" step="0.05" value="1">
+  </div>
+  <div class="sect">音</div>
+  <div class="field">
+    <label for="vol">音量 <span id="valV">70</span></label>
+    <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7">
+  </div>
+  <div class="field">
+    <label>立体音響 <span id="valH">ヘッドホン</span></label>
+    <div class="seg" id="segH" role="group" aria-label="立体音響">
+      <button type="button" data-h="1" aria-pressed="true">ヘッドホン</button>
+      <button type="button" data-h="0" aria-pressed="false">スピーカー</button>
+    </div>
+    <p class="hint">ヘッドホンでは前後の違いまで聞き分けられる。本体のスピーカーでは左右だけにした方が自然に聞こえる。</p>
+  </div>
+  <div class="field">
+    <label>Y軸反転 <span id="valI">オフ</span></label>
+    <div class="seg" id="segI" role="group" aria-label="Y軸反転">
+      <button type="button" data-i="0" aria-pressed="true">オフ</button>
+      <button type="button" data-i="1" aria-pressed="false">オン</button>
+    </div>
+  </div>
+  <div class="sect">プレイテスト</div>
+  <div class="field">
+    <label>記録 <span id="valT">オフ</span></label>
+    <div class="seg" id="segT" role="group" aria-label="プレイテストの記録">
+      <button type="button" data-t="0" aria-pressed="true">オフ</button>
+      <button type="button" data-t="1" aria-pressed="false">オン</button>
+    </div>
+    <p class="hint">どこで捕まったか・どの章で何分かかったか・動作の重さを、この端末の中だけに残す。外へは送らない。<span id="teleN"></span></p>
+    <button class="btn ghost" id="btnTeleOut" type="button" style="margin-top:8px">記録を書き出す</button>
+  </div>
+  <button class="btn" id="btnOptBack" type="button" style="margin-top:26px">戻る</button>
+</div>
+
+<!-- cheats -->
+<div class="panel scrollable" id="cheat" hidden>
+  <div class="eyebrow">Assist</div>
+  <h1 class="title" style="font-size:clamp(26px,8vw,46px)">アシスト</h1>
+  <div class="rule"></div>
+  <div id="cheatList"></div>
+  <p class="warn">有効にすると記録に「アシスト使用」と残ります。<br>効果はすぐ反映され、次回起動時も保持されます。</p>
+  <div class="rule"></div>
+  <div id="cheatActs" style="width:min(420px,86vw)"></div>
+  <button class="btn" id="btnCheatBack" type="button" style="margin-top:22px">戻る</button>
+</div>
+
+<!-- pause -->
+<div class="panel" id="pause" hidden>
+  <div class="eyebrow">Paused</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">一時停止</h1>
+  <div class="rule"></div>
+  <div id="pauseStats"></div>
+  <canvas id="pauseMap" width="520" height="520" aria-label="歩いた場所の地図"></canvas>
+  <p class="lede" id="pauseHint"></p>
+  <div class="rule"></div>
+  <button class="btn primary" id="btnResume" type="button">続ける</button>
+  <button class="btn ghost" id="btnPauseJournal" type="button">手帳</button>
+  <button class="btn ghost" id="btnPauseCheat" type="button">アシスト</button>
+  <button class="btn ghost" id="btnQuit" type="button">病棟から出る（タイトルへ）</button>
+</div>
+
+<!-- dead -->
+<div class="panel" id="dead" hidden>
+  <div class="eyebrow">Record closed</div>
+  <div class="endtitle">死亡確認</div>
+  <div class="stats" id="deadStats"></div>
+  <button class="btn primary" id="btnRetry" type="button">もう一度</button>
+  <button class="btn ghost" id="btnDeadTitle" type="button">タイトルへ</button>
+</div>
+
+<!-- win -->
+<div class="panel" id="win" hidden>
+  <div class="eyebrow" id="winEyebrow">Discharged</div>
+  <div class="endtitle" id="winTitle">脱出</div>
+  <p class="lede story" id="winStory"></p>
+  <div class="stats" id="winStats"></div>
+  <button class="btn primary" id="btnAgain" type="button">もう一度</button>
+  <button class="btn ghost" id="btnWinTitle" type="button">タイトルへ</button>
+</div>
+
+<!-- クレジット（設計指示書 第 11.2 節）。素材の出所は assets/LICENSES.md と同じ -->
+<div class="panel scrollable" id="credits" hidden>
+  <div class="eyebrow">Credits</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">クレジット</h1>
+  <div class="rule"></div>
+  <div class="chart" style="width:min(460px,88vw)">
+    <div class="row"><span>ゲーム</span><b>WARD 7 — 第七病棟</b></div>
+    <div class="row"><span>描画</span><b>three.js（MIT）</b></div>
+    <div class="row"><span>壁の素材</span><b>Long White Tiles — Poly Haven（CC0）</b></div>
+    <div class="row"><span>床の素材</span><b>Old Linoleum Flooring 01 — Poly Haven（CC0）</b></div>
+    <div class="row"><span>天井の素材</span><b>Ceiling Interior — Poly Haven（CC0）</b></div>
+    <div class="row"><span>録音テープの声</span><b>Open JTalk・HTS voice nitech_jp_atr503_m001 — 名古屋工業大学（CC BY 3.0）を加工</b></div>
+    <div class="row"><span>追跡者の体</span><b>MakeHuman（CC0）の人体を加工</b></div>
+    <div class="row"><span>小道具の模型</span><b>Metal Office Desk・Wall Clock・Fire Extinguisher・Medical Box・Metal Stool — Poly Haven（CC0）を加工</b></div>
+    <div class="row"><span>足音・割れる音・金属音</span><b>Impact Sounds — Kenney（CC0）を加工</b></div>
+    <div class="row"><span>空調・水・ポンプの持続音</span><b>30 CC0 SFX Loops — rubberduck（CC0）を加工</b></div>
+    <div class="row"><span>その他の音</span><b>WebAudio で合成</b></div>
+  </div>
+  <p class="hint" style="max-width:min(460px,88vw)">写真素材は病院と 1987 年に合わせて色と汚れを加工して使っている。</p>
+  <button class="btn" id="btnCreditsBack" type="button" style="margin-top:18px">戻る</button>
+</div>
+
+<!-- 手帳（設計指示書 第 11.3 節）。読んだ文書を、周回をまたいで持っておく -->
+<div class="panel scrollable" id="journal" hidden>
+  <div class="eyebrow">Notebook</div>
+  <h1 class="title" style="font-size:clamp(28px,9vw,52px)">手帳</h1>
+  <div class="rule"></div>
+  <p class="hint" id="jSummary"></p>
+  <div id="jList" style="width:min(460px,88vw)"></div>
+  <div class="rule"></div>
+  <p class="hint" id="jLinkHint"></p>
+  <button class="btn" id="btnJournalBack" type="button" style="margin-top:18px">戻る</button>
+</div>
+
+<div id="dbg" hidden></div>
+
+<!-- ボタンの配置の編集（第 12.1 節）。台本より前に置く（台本が読むので） -->
+<div id="layoutBar" hidden>
+  <span>ボタンを指で動かす</span>
+  <button class="btn ghost" id="btnLayoutReset" type="button">元に戻す</button>
+  <button class="btn primary" id="btnLayoutDone" type="button">完了</button>
+</div>
+<script src="three.min.js"></script>
+<!-- 写真素材（第 7.2 節）。大きいので後から読む。無くても遊べる -->
+<script src="assets.js" defer></script>
+<script>
+<!--@script-->
+</script>
+</body>
+</html>

@@ -123,3 +123,41 @@ Chromium（SwiftShader）で実 WebGL を通し、PNG を書き出す。
 5. 明るさの数字を作業前と比べるときは、両方を同じセッションで測り直す。
    SwiftShader のフレーム時間は同じファイルでも 348〜395ms と振れる
    （±7%）。1 回の測定で「速くなった／遅くなった」と言わないこと。
+
+## 2026-09-28 に足した道具（設計指示書の実装）
+
+    node .tools/door-check.js   <html>   扉をそっと開ける／押し開ける・覗く（第 5.2 節）
+    node .tools/look-check.js   <html> [q] [接頭辞]
+        見た目の数値基準（第 1.3 節）。7 章 × 3 か所で潰れ・白飛び 2% 以下、平らな単色面 5% 以下
+    node .tools/bench-check.js  <html>   初回起動の画質実測（第 8.4 節）。navigator.webdriver を隠して測らせる
+    node .tools/keys-check.js   <html>   キーの割り当て（第 12.3 節）
+    node .tools/tips-check.js   <html>   その場の操作説明（第 11.4 節）
+    node .tools/layout-check.js <html>   タッチのボタン配置の編集（第 12.1 節）
+    node .tools/sfx-check.js    <html>   収録素材の音が解けて鳴ること（第 10.1 節）
+    node .tools/tape-check.js   <html>   録音テープが流れ、字幕が行ごとに送られ、英語字幕・書き起こしに切り替わること（第 11.5 節）
+    node .tools/level-check.js  <html>   Blender の書き出しの取り込み・上書きの適用・ゲームの中の編集（第 6.4 節）
+    node .tools/foot-check.js   <html>   追跡者の立脚の足が床に留まって滑らないこと（第 9.2 節）
+    node .tools/load-check.js   <html> [q]  起動からタイトル・章の読み込みの時間と内訳（第 1.1 節）
+    node .tools/fx-shot.js      <html> <接頭辞> [q]  画面効果の有無を同じ場所で撮る（第 8.2 節）
+    node .tools/graffiti-shot.js <html> <png> [章]  小部屋の落書きを正面から撮る（第 6.3 節）
+    node .tools/breath-shot.js  <html> <png>  隠れて息を止めた左手を撮る（第 9.4 節）
+    node .tools/balance-judge.js <rows…>  章ごとのボット結果から第 5.6 節の目標を判定（CI の balance）
+    レベル制作（第 6.4 節）:
+      node .tools/level-dump.js <html> <章>                       章の病棟を blender/ward_chN.json へ
+      blender -b --python .tools/blender/ward7_blockout.py -- .tools/blender/ward_chN.json chN.blend [game/src/levels/chN.json]
+                                                                  ブロックアウトを組む（既存の印も並べる）。印は ward7 プロパティを持つ Empty
+      blender -b chN.blend --python .tools/blender/ward7_export.py -- .tools/blender/chN.glb   印だけを glTF へ（extras 付き）
+      node .tools/level-import.js .tools/blender/chN.glb game/src/levels/chN.json            ゲームの上書きへ
+      ゲームの中の編集：ward7.html?debug=1&edit=1（M カーソル・1〜4 置く・Del・[ ]・K 保存）
+    node .tools/voice-bake.js     録音テープの台詞（12b-tapes.ts）を Open JTalk で読み上げ、カセットの音へ加工して assets/voice/ に書く（open_jtalk・lame が要る）
+    python3 .tools/human-bake.py  MakeHuman（CC0）の体を追跡者の骨格へ合わせて assets/models/hunter/ に書く（numpy・fast-simplification が要る）
+    node .tools/sound-bake.js   Kenney（CC0）の音を取り寄せて加工し assets/sfx/ に書く
+
+### 落とし穴、その 6 と 7
+
+6. 実ブラウザの確認ツールで「決め打ちの待ち時間」を使わない。ゲームの dt は 0.05 で頭打ち
+   なので、描画の遅い CI（1 フレーム数百 ms）ではゲーム内の時間が壁時計の 1/10 しか進まない。
+   押したボタンがフレームの間に落ちることもある。待つのは状態（waitForFunction）にし、
+   ボタンは結果が出るまで押し続け、離した後も描画を待つ（padmenu-check・door-check の形）。
+7. `pkill -f <文字列>` は、その文字列を含む自分のシェルまで殺す。止めたいプロセスは
+   `ps -eo pid,args | grep '[n]ode many.js'` で PID を拾ってから kill する。

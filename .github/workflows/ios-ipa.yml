@@ -9,6 +9,8 @@ on:
     branches: ["**"]
     paths:
       - "ward7.html"
+      - "three.min.js"
+      - "assets.js"
       - "ios/**"
       - ".github/workflows/ios-ipa.yml"
 
@@ -35,6 +37,9 @@ jobs:
         working-directory: ios
         run: |
           cp ../ward7.html Resources/ward7.html
+          # three.js は CDN をやめて同梱した。回線なしで起動できるように
+          cp ../three.min.js Resources/three.min.js
+          cp ../assets.js Resources/assets.js      # 写真素材（第 7.2 節）
           python3 make_icon.py Resources/Assets.xcassets/AppIcon.appiconset
           ls -la Resources
 

@@ -1,7 +1,13 @@
 # WARD 7 — iOS 包装
 
 ゲーム本体は `../ward7.html` 一枚。ここはそれを全画面の `WKWebView` に
-読ませるだけの入れ物で、ゲーム側のコードには手を入れていない。
+読ませる入れ物。Safari では届かない端末の機能を 3 つだけ橋渡しする。
+
+| | |
+|---|---|
+| 音 | `AVAudioSession` を playback に。消音スイッチが入っていても鳴る |
+| 振動 | ゲーム側の `haptic()` が `ward7haptic` へ投げたものを Taptic Engine で鳴らす（Safari の iPhone は `navigator.vibrate` を持たない） |
+| 画面 | 遊んでいる間は自動で消灯・施錠しない |
 
 ## .ipa の作り方
 
@@ -17,7 +23,7 @@ GitHub Actions の **iOS ipa** を実行する（`workflow_dispatch`、または
 ```sh
 brew install xcodegen
 cd ios
-cp ../ward7.html Resources/ward7.html
+cp ../ward7.html ../three.min.js Resources/
 python3 make_icon.py Resources/Assets.xcassets/AppIcon.appiconset
 xcodegen generate
 xcodebuild -project Ward7.xcodeproj -scheme Ward7 -configuration Release \
@@ -31,10 +37,10 @@ zip -qry Ward7-unsigned.ipa Payload
 
 | | |
 |---|---|
-| `Sources/AppDelegate.swift` | 全画面 WebView。慣性スクロール・ゴムバンド・ピンチ拡大を止める |
+| `Sources/AppDelegate.swift` | 全画面 WebView。慣性スクロール・ゴムバンド・ピンチ拡大を止める。音・振動・画面の橋渡し |
 | `project.yml` | XcodeGen の設定。`pbxproj` は手書きせず生成する |
 | `make_icon.py` | アイコンを手続きで描く。画像ファイルを置かないため |
-| `Resources/` | ビルド時に `ward7.html` とアイコンが入る（リポジトリには置かない） |
+| `Resources/` | ビルド時に `ward7.html`・`three.min.js`・アイコンが入る（リポジトリには置かない） |
 
 `ward7.html` とアイコンは CI が用意するので、リポジトリには画像も HTML の
 複製も置いていない。「外部アセット 0」というゲーム側の方針を包装でも崩さない。

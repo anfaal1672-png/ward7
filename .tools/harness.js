@@ -131,7 +131,7 @@ window.cancelAnimationFrame = () => {};
 Object.defineProperty(window, 'performance', { value: { now: () => harnessTime * 1000 }, configurable: true });
 
 // --- three.js -------------------------------------------------------------
-const threeSrc = fs.readFileSync(path.join(__dirname, 'three.min.js'), 'utf8');
+const threeSrc = fs.readFileSync(path.join(__dirname, '..', 'three.min.js'), 'utf8');
 window.self = window;
 window.eval(threeSrc);
 const THREE = window.THREE;
@@ -172,6 +172,11 @@ global.console_real = console;
 let fatalMsg = null;
 window.alert = m => { fatalMsg = m; };
 
+/* 言語を日本語に固定する。jsdom の navigator.language は en-US なので、何もしないと
+   英語の訳（第 1b 章）が HUD の書き換えのたびに走る。品質も端末判定が返すのと同じ 0 を
+   明示する（設定が保存済みだと端末判定が飛ばされ、既定の 1 になって間取りが変わる） */
+try{ if(!window.localStorage.getItem('ward7.settings'))
+  window.localStorage.setItem('ward7.settings', JSON.stringify({ quality:0, lang:'ja' })); }catch(e){}
 window.eval(GAME_SRC);
 
 /* WARD7_FAST=1 で「見た目の計算」を省く。
