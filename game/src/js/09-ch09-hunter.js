@@ -1142,7 +1142,7 @@ function ventUpdate(dt){
   var k = clamp(1 - hunter.ventT / V.T, 0, 1);
   var x = lerp(V.from.x, V.to.x, k), z = lerp(V.from.z, V.to.z, k);
   V.bangT -= dt;
-  if(V.bangT <= 0){ V.bangT = 0.42 + Math.random()*0.18; ventBang(x, z, 0.45); }
+  if(V.bangT <= 0){ V.bangT = 0.42 + rndFx()*0.18; ventBang(x, z, 0.45); }
   if(!V.warned && hunter.ventT < 1.2){
     V.warned = true; ventBang(V.to.x, V.to.z, 1.2);
     var pd = Math.sqrt((V.to.x-player.x)*(V.to.x-player.x) + (V.to.z-player.z)*(V.to.z-player.z));

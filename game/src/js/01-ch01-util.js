@@ -142,12 +142,16 @@ function keepAwake(on){
 }
 
 function mulberry32(a){
-  return function(){
+  var f = function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
     var t = Math.imul(a ^ a >>> 15, 1 | a);
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
+  // 状態の保存と巻き戻し（第 15.3 節 SNAP）のために、内側の数を読み書きできるようにする
+  f.getState = function(){ return a | 0; };
+  f.setState = function(v){ a = v | 0; };
+  return f;
 }
 var rnd = mulberry32(Date.now() & 0x7fffffff);
 /* 乱数の流れを用途で分ける（設計指示書 第 15.3 節）。

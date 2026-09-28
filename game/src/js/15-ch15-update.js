@@ -1538,7 +1538,7 @@ function updateHunter(dt, info){
 var VOX_GAP = 1.1;                       // 声どうしが重ならない最短間隔
 var voxPrevMode = 'patrol', voxT = 0, voxIdleT = 5;
 function resetHunterVox(){
-  voxPrevMode = 'patrol'; voxT = 0; voxIdleT = 4 + Math.random()*5;
+  voxPrevMode = 'patrol'; voxT = 0; voxIdleT = 4 + rndFx()*5;
 }
 /* --- 歩容 -----------------------------------------------------------------
    これまで腿を sin 一本で振っていた。そのため
@@ -1601,17 +1601,17 @@ function updateHunterVox(dt, info, hs){
   else if(m === 'hunt' && pm === 'patrol') kind = 0;   // 何かに気づいた
   else if(voxIdleT <= 0){
     // 追っている間は笑い、それ以外は呟きか低い唸り
-    kind = (m === 'chase') ? 1 : (Math.random() < 0.55 ? 3 : 0);
+    kind = (m === 'chase') ? 1 : (rndFx() < 0.55 ? 3 : 0);
   }
   if(kind < 0) return;
 
   Audio2.hunterVocal(kind, info.hd, hs.pan, !info.los);
   soundCue('声', info.hd, hunter.mode === 'chase');
-  voxT = VOX_GAP + Math.random()*0.6;
+  voxT = VOX_GAP + rndFx()*0.6;
   // 追跡中は短い間隔で笑い続ける。探索中はたまにでいい
   /* 追跡中の間隔。最初 2.6〜5.0 秒にしていたが、実測では追跡の大半が
      それより短く終わっていて笑い声が一度も鳴らなかった。1.9 秒まで詰める。 */
-  voxIdleT = (m === 'chase') ? (1.9 + Math.random()*1.8) : (7 + Math.random()*9);
+  voxIdleT = (m === 'chase') ? (1.9 + rndFx()*1.8) : (7 + rndFx()*9);
 }
 
 function updateEnv(dt, info){

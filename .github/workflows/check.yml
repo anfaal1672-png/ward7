@@ -23,6 +23,12 @@ jobs:
         run: mkdir -p .check && npm run lint
       - name: 型の検め（TypeScript。any から始めて章ごとに締める。設計指示書 第 15.2 節 手順 2）
         run: mkdir -p .check && npm run typecheck
+      - name: 状態の保存と巻き戻し（取って進めた跡と、戻して進めた跡が一致する。第 15.3 節）
+        working-directory: .tools
+        env:
+          WARD7_FILE: ${{ github.workspace }}/ward7.html
+          WARD7_FAST: "1"
+        run: node snap-check.js 0 9200 9202 && node snap-check.js 5 9201
 
   # 実ブラウザ（Chromium + SwiftShader）での自己診断と、遊びの確認。
   # ハーネス（jsdom）はシェーダを通さないので、ここでしか見えない壊れ方がある（.tools/README）。

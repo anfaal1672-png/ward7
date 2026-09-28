@@ -97,6 +97,7 @@ try{
                      scan:+postMat.uniforms.uScan.value.toFixed(3),
                      warp:+postMat.uniforms.uWarp.value.toFixed(3) } : null }; },
     bot: BOT, botOn: function(v){ BOT.on = !!v; }, input: input,
+    snapTake: snapTake, snapRestore: snapRestore,
     botHunterDist: botHunterDist, botThreat: botThreat,
     titleCam: titleCam,
     playAs: function(v){ if(v !== undefined) playAs = v; return playAs; },
