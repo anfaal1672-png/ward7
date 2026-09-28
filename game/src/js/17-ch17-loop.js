@@ -2,6 +2,7 @@
    17. メインループ
    ========================================================================= */
 var lastT = performance.now();
+var SIM_DT = 1/60, simAcc = 0;
 var fpsAcc = 0, fpsN = 0, fpsShown = 0;
 var autoDropChecked = false, lowFpsTime = 0;
 
@@ -14,6 +15,7 @@ function loop(now){
      いるので、それを渡すと 1 フレーム 200ms の端末でも 1 秒の猶予が 4 倍に延び、
      重いのに下がるのが遅れていた。タブ切り替え明けの大きな跳びだけは 0.25 で抑える */
   var realDt = Math.min(dt, 0.25);
+  var simDt = Math.min(dt, 0.1) * (cheats.slowmo ? 0.4 : 1);   // 固定刻みの貯め（1 フレーム 6 刻みまで）
   dt = Math.min(dt, 0.05);
   if(cheats.slowmo) dt *= 0.4;
 
@@ -23,51 +25,18 @@ function loop(now){
      visibilitychange だけでは拾えない。戻ったら「続ける」を押す＝音を戻す操作になる */
   if(state === STATE.PLAY && Audio2.state() === 'interrupted') doPause();
 
+  /* 遊びの更新は 1/60 秒の固定刻み（設計指示書 第 15.3 節）。描画は端末の速さのまま。
+     30fps の端末では 1 フレームに 2 回進める。ボットの仮想時計（1/60 刻み）と本番の刻みが
+     同じになり、端末の速さで追跡者の判断や当たりが変わらない。遅すぎる端末（10fps 未満）
+     では追いつこうとせず、ゲームの時間の方を遅らせる（1 フレーム 6 回まで） */
   if(state === STATE.PLAY){
-    player.time += dt;
-    // 追う側で遊ぶときは、人間の操作をボットに上書きされる前に写し取る
-    if(playAs === 'hunter') captureHunterInput();
-    if(BOT.on) botUpdate(dt);          // 入力を作る。updatePlayer が読む前に
-    var info = updatePlayer(dt);
-    if(state === STATE.PLAY){         // updatePlayer 中に勝利した可能性
-      updateHunter(dt, info);
+    simAcc += simDt;
+    var steps = 0;
+    while(simAcc >= SIM_DT * 0.999 && steps < 6 && state === STATE.PLAY){
+      simStep(SIM_DT); simAcc -= SIM_DT; steps++;
     }
-    if(state === STATE.PLAY){
-      var bpm = updateEnv(dt, info);
-      updateHUD(dt, bpm, info);
-      updateCue(dt);
-      updateThrows(dt);
-      updateDoor(dt);
-      // 覗く：キー・パッド・ボタンのどれか。ボタンは立ち止まっていて頭を出せるときだけ出す
-      PEEK.want = !!(input.keys.KeyX || PEEK.padWant || PEEK.touchWant);
-      var bp = $('bPeek'), wantP = IS_TOUCH && playAs !== 'hunter' && !player.hiding &&
-               Math.sqrt(player.vx*player.vx + player.vz*player.vz) < 0.3 && (PEEK.k > 0 || peekSide() !== 0);
-      if((bp.style.display !== 'none') !== wantP) bp.style.display = wantP ? 'flex' : 'none';
-      updatePatients(dt);
-      updateWater(dt);
-      if(shade.enabled){ updatePathField(dt); updateShade(dt); }
-      updateHint(dt);
-      updateTips(dt);
-      markVisited();
-      // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
-      var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');
-      if((bt.style.display !== 'none') !== wantB) bt.style.display = wantB ? 'flex' : 'none';
-      if(wantB) $('nThrow').textContent = player.bottles;
-      // 忍び足の表示。走りの表示（RUN）と同じ場所に出す
-      var sk = $('stick'), wantS = player.sneaking && !player.running;
-      if(sk.classList.contains('sneak') !== wantS){
-        sk.classList.toggle('sneak', wantS);
-        $('stickLbl').textContent = wantS ? '忍び足' : 'RUN';
-      }
-      if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
-      else if(BOT.on) botHUD();
-    }
-    // フラッシュライトのターゲット（一人称のときだけ。追う側では分身が灯す）
-    if(playAs !== 'hunter')
-    _v3.set(viewBeam.x, viewBeam.y, -1).normalize()
-       .applyQuaternion(camera.quaternion).multiplyScalar(12).add(camera.position),
-    flashTarget.position.copy(_v3);
-  }
+    if(steps >= 6) simAcc = 0;
+  }else simAcc = 0;
 
   if(state === STATE.TITLE) updateTitleScene(dt);
 
@@ -190,4 +159,51 @@ function updateBench(dt){
     saveSettings();                                   // 決まった画質を控える（次からは仮の推定をしない）
     Store.set('ward7.bench', JSON.stringify({ done:1, q:q, ms:+med.toFixed(1) }));
   }
+}
+
+/* 遊びの 1 刻み（固定 1/60 秒）。loop から呼ばれる */
+function simStep(dt){
+  player.time += dt;
+  // 追う側で遊ぶときは、人間の操作をボットに上書きされる前に写し取る
+  if(playAs === 'hunter') captureHunterInput();
+  if(BOT.on) botUpdate(dt);          // 入力を作る。updatePlayer が読む前に
+  var info = updatePlayer(dt);
+  if(state === STATE.PLAY){         // updatePlayer 中に勝利した可能性
+    updateHunter(dt, info);
+  }
+  if(state === STATE.PLAY){
+    var bpm = updateEnv(dt, info);
+    updateHUD(dt, bpm, info);
+    updateCue(dt);
+    updateThrows(dt);
+    updateDoor(dt);
+    // 覗く：キー・パッド・ボタンのどれか。ボタンは立ち止まっていて頭を出せるときだけ出す
+    PEEK.want = !!(input.keys.KeyX || PEEK.padWant || PEEK.touchWant);
+    var bp = $('bPeek'), wantP = IS_TOUCH && playAs !== 'hunter' && !player.hiding &&
+             Math.sqrt(player.vx*player.vx + player.vz*player.vz) < 0.3 && (PEEK.k > 0 || peekSide() !== 0);
+    if((bp.style.display !== 'none') !== wantP) bp.style.display = wantP ? 'flex' : 'none';
+    updatePatients(dt);
+    updateWater(dt);
+    if(shade.enabled){ updatePathField(dt); updateShade(dt); }
+    updateHint(dt);
+    updateTips(dt);
+    markVisited();
+    // 投げるボタンは瓶を持っている間だけ（隠れている間は投げられない）
+    var bt = $('bThrow'), wantB = (player.bottles > 0 && !player.hiding && playAs !== 'hunter');
+    if((bt.style.display !== 'none') !== wantB) bt.style.display = wantB ? 'flex' : 'none';
+    if(wantB) $('nThrow').textContent = player.bottles;
+    // 忍び足の表示。走りの表示（RUN）と同じ場所に出す
+    var sk = $('stick'), wantS = player.sneaking && !player.running;
+    if(sk.classList.contains('sneak') !== wantS){
+      sk.classList.toggle('sneak', wantS);
+      $('stickLbl').textContent = wantS ? '忍び足' : 'RUN';
+    }
+    if(playAs === 'hunter'){ updateHunterCam(dt); huntHUD(); }
+    else if(BOT.on) botHUD();
+  }
+  // フラッシュライトのターゲット（一人称のときだけ。追う側では分身が灯す）
+  if(playAs !== 'hunter')
+  _v3.set(viewBeam.x, viewBeam.y, -1).normalize()
+     .applyQuaternion(camera.quaternion).multiplyScalar(12).add(camera.position),
+  flashTarget.position.copy(_v3);
 }

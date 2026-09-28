@@ -39,7 +39,8 @@ const fs=require('fs'), path=require('path');
   await p.evaluate(()=>{ const A=window.__WARD7, pl=A.player; const s=A.findLOSSpot(pl.x, pl.z, 6, 12);
     if(s) pl.yaw = Math.atan2(-(s.x-pl.x), -(s.z-pl.z)); });
   await p.keyboard.down('KeyZ'); await p.keyboard.down('KeyW');
-  await p.waitForTimeout(1200);
+  // 決め打ちの 1.2 秒だと、描画の遅い CI では加速し切らず（0.33m/s）忍び足と数えられなかった
+  await p.waitForFunction(()=>window.__WARD7.player.sneaking, null, {timeout:20000}).catch(()=>{});
   const sneak = await p.evaluate(()=>({s:window.__WARD7.player.sneaking, v:Math.hypot(window.__WARD7.player.vx, window.__WARD7.player.vz)}));
   await p.keyboard.up('KeyZ');
   await p.waitForFunction(()=>!window.__WARD7.player.sneaking && Math.hypot(window.__WARD7.player.vx, window.__WARD7.player.vz) > 1.8,

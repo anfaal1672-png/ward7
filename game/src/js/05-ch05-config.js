@@ -26,9 +26,9 @@ var DIFF = [
 var CHAPTERS = [
   { n:1, name:'西棟',   seed:0x57A01, patients:[0,0,0], blackout:false,
     intro:'カルテを集め、非常口から出る。' },
-  { n:2, name:'東棟',   seed:0x57A02, patients:[3,4,5], blackout:false,
+  { n:2, name:'東棟',   seed:0x57A02, patients:[3,3,5], blackout:false,
     intro:'大部屋の患者たちは壁を向いて立っている。灯りを向けると騒ぐ。騒げば、あれが来る。' },
-  { n:3, name:'管理棟', seed:0x57A03, patients:[0,1,2], blackout:true,
+  { n:3, name:'管理棟', seed:0x57A03, patients:[0,0,2], blackout:true,
     intro:'非常回路が落ちている。電源を戻さなければ非常口は開かない。戻せば、あれに気づかれる。' },
   { n:4, name:'階段',   seed:0x57A04, patients:[0,1,1], blackout:false, vents:6,
     intro:'天井裏を何かが這っている。音のした方へ、上から先回りしてくる。' },
