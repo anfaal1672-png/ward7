@@ -28,7 +28,10 @@ SHAPE = [
     ('macrodetails/asian-male-young.target', 0.5),
 ]
 SIDE = 'R'                       # MakeHuman の .R は -X（体の右）
-ULNAR = 1.00                     # 手首を小指側へ倒す角（rad）。前腕が画面の真下から入る（画面で見て決めた）
+# 手首を小指側へ倒す角（rad）。ゲームの側で左右を反転して右手の握りにするので、前腕が胴の真下から
+# 少しだけ手前へ流れる程度にとどめる（1.00 では前腕が胴に沿って寝て、持ち方がありえない形になった）
+ULNAR = float(os.environ.get('ULNAR', '0.30'))
+FLEX = float(os.environ.get('FLEX', '0'))   # 手首の掌屈（rad）
 FORE_KEEP = 0.26                 # 手首から肘側へ残す長さ（m）
 
 def rodrigues(axis, ang):
@@ -121,6 +124,8 @@ def main():
 
     # 手首を尺屈（手のひらの法線まわり）。前腕を逆に回して表す
     rot['fore'] = rodrigues(n, -ULNAR * (1 if SIDE == 'R' else -1))
+    # 手首の掌屈・背屈（指の付け根の並びまわり）。前腕を画面の右下へ逃がす
+    rot['fore'] = rodrigues(a, FLEX) @ rot['fore']
 
     # 指を節ごとに曲げ、皮膚が胴に触れたら止める。曲げる向きは、節の先が手のひら側（+n）へ動く側
     segV = {b: np.where((dom == bones.index(b)) & keepV)[0] for b in bones}

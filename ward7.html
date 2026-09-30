@@ -1307,7 +1307,7 @@ var EN = {
     '体力とランプを全回復': 'Restore health and lamp', '非常口へワープ': 'Warp to the exit', '追跡者を引き離す': 'Push the hunter away',
     '鍵を手に入れる': 'Get the key', '施錠扉を開ける': 'Open the locked door', '追跡者を 10 秒止める': 'Stop the hunter for 10 s',
     '追跡者を遠くへ飛ばす': 'Send the hunter far away', '電池を全部集める': 'Collect all batteries',
-    '地図を全部知る（AI観戦用）': 'Reveal the map (AI spectator)', '即座に脱出する': 'Escape now', '即座に力尽きる': 'Die now',
+    '地図を全部埋める': 'Fill in the whole map', '全ての章（マップ）を解放': 'Unlock all chapters (maps)', '地図を全部埋めた': 'Map filled in', '即座に脱出する': 'Escape now', '即座に力尽きる': 'Die now',
     '自分': 'You', '見つからない': 'Stealth', '動き': 'Movement', '追跡者': 'Hunter', '見え方': 'Vision', 'その他': 'Other',
     'プレイ中のみ使えます': 'Only during play', 'AI観戦モードでのみ使えます': 'Only in AI spectator mode',
     '鍵を手に入れた': 'Got the key', '施錠扉を開けた': 'Opened the locked door', '開ける扉がない': 'No door to open',
@@ -4347,6 +4347,7 @@ var CHEATS = [
     { g: '眼', k: 'markHides', label: '隠れ場所が壁越しに光る' },
     { g: '眼', k: 'brightWorld', label: '病棟全体が明るい' },
     { g: '眼', k: 'wideView', label: '視野を広げる' },
+    { g: '他', k: 'allChapters', label: '全ての章（マップ）を解放' },
     { g: '他', k: 'slowmo', label: 'スローモーション' },
     { g: '他', k: 'noShake', label: '画面の揺れと歪みを止める' },
     { g: '他', k: 'showDebug', label: '内部の値を表示' }
@@ -4361,7 +4362,7 @@ var CHEAT_ACTS = [
     { k: 'stun', label: '追跡者を 10 秒止める' },
     { k: 'teleHunter', label: '追跡者を遠くへ飛ばす' },
     { k: 'battery', label: '電池を全部集める' },
-    { k: 'mapAll', label: '地図を全部知る（AI観戦用）' },
+    { k: 'mapAll', label: '地図を全部埋める' },
     { k: 'win', label: '即座に脱出する' },
     { k: 'lose', label: '即座に力尽きる' }
 ];
@@ -4857,9 +4858,12 @@ var PHOTO_REPEAT = { wall: [1.8, 1.6], floor: [GW * 1.7, GH * 1.7], ceil: [GW * 
    手続きの手と同じ材質を貼るだけでよい。模型は胴の軸が +Z（人差し指がランプの頭の側）。
    Z まわりに 90 度回すと、手の甲が上を向き、前腕が画面の下から入る（手首の曲げは焼くときに付けてある）。
    高精細以上で assets.js が届いたら替える（写真の壁と同じ条件）。手続きの手は描かないだけで残す */
-/* Z まわりの向き。4 通りと中間を撮り比べて決めた：これより手のひら側へ回すと、手が胴の下から
-   支えているように見える（手のひらが画面を向く）。手の甲が上、包帯の巻いた甲が見える向き */
-var HAND_ROLL = Math.PI * 0.5;
+/* 焼いた手は、胴に対する指と親指の並びが左手の握りになっている（どう回しても、右側から握ると
+   前腕が上へ伸び、下から握ると手が胴の左へ回った）。X を反転して右手にする。
+   向きは最初の手続きの手に合わせた：手はランプの右下から握り、指が上から手前へ巻き付き、
+   親指は下、前腕は画面の右下へ下りる */
+var HAND_MIRROR = -1;
+var HAND_ROLL = -2.3;
 function viewHandModel() {
     var VP = viewParts;
     if (!VP || VP.handModel || !photoWanted())
@@ -4897,6 +4901,7 @@ function viewHandModel() {
         m.userData.handModel = true;
         g.add(m);
     });
+    g.scale.x = HAND_MIRROR; // 負の拡大は three.js が面の表裏を自動で入れ替える
     g.rotation.z = HAND_ROLL;
     g.position.set(0, 0, -0.022);
     // 手続きの手（皮膚・包帯・爪・バンドを焼き固めた物）を隠す。ランプの部品はそのまま
@@ -13033,7 +13038,7 @@ function syncSettingsUI() {
     // 章。開いていない章は押せない（夜勤はいつでも）
     Array.prototype.forEach.call($('segCh').children, function (b) {
         var c = +b.dataset.ch;
-        var open = c < 0 || c < PROGRESS.unlocked;
+        var open = c < 0 || c < PROGRESS.unlocked || cheats.allChapters;
         b.disabled = !open;
         b.style.opacity = open ? '' : '0.35';
         b.setAttribute('aria-pressed', (c === RUN.ch) ? 'true' : 'false');
@@ -13112,6 +13117,8 @@ function buildCheatUI() {
             sync();
             saveCheats();
             updateCheatBadge();
+            if (c.k === 'allChapters')
+                syncSettingsUI(); // 章の選択を開け閉めし直す
         });
         row.appendChild(lab);
         row.appendChild(btn);
@@ -13217,13 +13224,18 @@ function doCheatAct(k) {
         toast('電池を全部集めた', 2);
     }
     else if (k === 'mapAll') {
-        if (BOT.known) {
+        // 一時停止の地図に病棟全体と非常口を描く。AI観戦中は AI の地図も埋める
+        if (world.visited)
+            for (var vi = 0; vi < world.visited.length; vi++)
+                if (world.grid[vi] === 0)
+                    world.visited[vi] = 1;
+        MAPV.exitSeen = true;
+        if (BOT.known)
             for (var mi = 0; mi < BOT.known.length; mi++)
                 BOT.known[mi] = (world.grid[mi] === 0) ? 1 : 2;
-            toast('地図を全部知った', 2);
-        }
-        else
-            toast('AI観戦モードでのみ使えます', 2);
+        if (state === STATE.PAUSE)
+            drawMap();
+        toast('地図を全部埋めた', 2);
     }
     else if (k === 'win') {
         toast('脱出した', 1.2);

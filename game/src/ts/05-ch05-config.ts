@@ -224,6 +224,7 @@ var CHEATS = [
   { g:'眼',   k:'brightWorld',label:'病棟全体が明るい' },
   { g:'眼',   k:'wideView',  label:'視野を広げる' },
 
+  { g:'他',   k:'allChapters',label:'全ての章（マップ）を解放' },
   { g:'他',   k:'slowmo',    label:'スローモーション' },
   { g:'他',   k:'noShake',   label:'画面の揺れと歪みを止める' },
   { g:'他',   k:'showDebug', label:'内部の値を表示' }
@@ -238,7 +239,7 @@ var CHEAT_ACTS = [
   { k:'stun',     label:'追跡者を 10 秒止める' },
   { k:'teleHunter',label:'追跡者を遠くへ飛ばす' },
   { k:'battery',  label:'電池を全部集める' },
-  { k:'mapAll',   label:'地図を全部知る（AI観戦用）' },
+  { k:'mapAll',   label:'地図を全部埋める' },
   { k:'win',      label:'即座に脱出する' },
   { k:'lose',     label:'即座に力尽きる' }
 ];

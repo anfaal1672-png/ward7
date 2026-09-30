@@ -93,7 +93,7 @@ function syncSettingsUI(){
   // 章。開いていない章は押せない（夜勤はいつでも）
   Array.prototype.forEach.call($('segCh').children, function(b){
     var c = +b.dataset.ch;
-    var open = c < 0 || c < PROGRESS.unlocked;
+    var open = c < 0 || c < PROGRESS.unlocked || cheats.allChapters;
     b.disabled = !open;
     b.style.opacity = open ? '' : '0.35';
     b.setAttribute('aria-pressed', (c === RUN.ch) ? 'true' : 'false');
@@ -165,6 +165,7 @@ function buildCheatUI(){
       cheats[c.k] = !cheats[c.k];
       if(cheats[c.k]) cheatUsed = true;
       sync(); saveCheats(); updateCheatBadge();
+      if(c.k === 'allChapters') syncSettingsUI();      // 章の選択を開け閉めし直す
     });
     row.appendChild(lab); row.appendChild(btn); list.appendChild(row);
   });
@@ -238,11 +239,13 @@ function doCheatAct(k: any){
     player.battery = 100;
     toast('電池を全部集めた', 2);
   }else if(k === 'mapAll'){
-    if(BOT.known){
-      for(var mi=0; mi<BOT.known.length; mi++)
-        BOT.known[mi] = (world.grid[mi] === 0) ? 1 : 2;
-      toast('地図を全部知った', 2);
-    }else toast('AI観戦モードでのみ使えます', 2);
+    // 一時停止の地図に病棟全体と非常口を描く。AI観戦中は AI の地図も埋める
+    if(world.visited) for(var vi=0; vi<world.visited.length; vi++) if(world.grid[vi] === 0) world.visited[vi] = 1;
+    MAPV.exitSeen = true;
+    if(BOT.known) for(var mi=0; mi<BOT.known.length; mi++)
+      BOT.known[mi] = (world.grid[mi] === 0) ? 1 : 2;
+    if(state === STATE.PAUSE) drawMap();
+    toast('地図を全部埋めた', 2);
   }else if(k === 'win'){
     toast('脱出した', 1.2); doWin();
   }else if(k === 'lose'){

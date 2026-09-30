@@ -225,7 +225,7 @@ var EN: Record<string, any> = {
   '体力とランプを全回復':'Restore health and lamp', '非常口へワープ':'Warp to the exit', '追跡者を引き離す':'Push the hunter away',
   '鍵を手に入れる':'Get the key', '施錠扉を開ける':'Open the locked door', '追跡者を 10 秒止める':'Stop the hunter for 10 s',
   '追跡者を遠くへ飛ばす':'Send the hunter far away', '電池を全部集める':'Collect all batteries',
-  '地図を全部知る（AI観戦用）':'Reveal the map (AI spectator)', '即座に脱出する':'Escape now', '即座に力尽きる':'Die now',
+  '地図を全部埋める':'Fill in the whole map', '全ての章（マップ）を解放':'Unlock all chapters (maps)', '地図を全部埋めた':'Map filled in', '即座に脱出する':'Escape now', '即座に力尽きる':'Die now',
   '自分':'You', '見つからない':'Stealth', '動き':'Movement', '追跡者':'Hunter', '見え方':'Vision', 'その他':'Other',
   'プレイ中のみ使えます':'Only during play', 'AI観戦モードでのみ使えます':'Only in AI spectator mode',
   '鍵を手に入れた':'Got the key', '施錠扉を開けた':'Opened the locked door', '開ける扉がない':'No door to open',

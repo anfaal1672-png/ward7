@@ -223,9 +223,12 @@ var PHOTO_REPEAT = ({ wall:[1.8, 1.6], floor:[GW*1.7, GH*1.7], ceil:[GW*2, GH*2]
    手続きの手と同じ材質を貼るだけでよい。模型は胴の軸が +Z（人差し指がランプの頭の側）。
    Z まわりに 90 度回すと、手の甲が上を向き、前腕が画面の下から入る（手首の曲げは焼くときに付けてある）。
    高精細以上で assets.js が届いたら替える（写真の壁と同じ条件）。手続きの手は描かないだけで残す */
-/* Z まわりの向き。4 通りと中間を撮り比べて決めた：これより手のひら側へ回すと、手が胴の下から
-   支えているように見える（手のひらが画面を向く）。手の甲が上、包帯の巻いた甲が見える向き */
-var HAND_ROLL = Math.PI*0.5;
+/* 焼いた手は、胴に対する指と親指の並びが左手の握りになっている（どう回しても、右側から握ると
+   前腕が上へ伸び、下から握ると手が胴の左へ回った）。X を反転して右手にする。
+   向きは最初の手続きの手に合わせた：手はランプの右下から握り、指が上から手前へ巻き付き、
+   親指は下、前腕は画面の右下へ下りる */
+var HAND_MIRROR = -1;
+var HAND_ROLL = -2.3;
 function viewHandModel(){
   var VP = viewParts;
   if(!VP || VP.handModel || !photoWanted()) return;
@@ -252,6 +255,7 @@ function viewHandModel(){
     m.userData.handModel = true;
     g.add(m);
   });
+  g.scale.x = HAND_MIRROR;          // 負の拡大は three.js が面の表裏を自動で入れ替える
   g.rotation.z = HAND_ROLL;
   g.position.set(0, 0, -0.022);
   // 手続きの手（皮膚・包帯・爪・バンドを焼き固めた物）を隠す。ランプの部品はそのまま
